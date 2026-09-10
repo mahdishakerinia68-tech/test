@@ -11,18 +11,17 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="logo.png">
 <link rel="stylesheet" href="style.css">
-<title>حساب‌یار Pro | نسخه فین‌تک</title>
+<title>حساب‌یار</title>
 </head>
 <body>
 <div class="app" id="app">
 
-<!-- نوار بالای صفحه شیشه‌ای مدرن -->
 <header class="top-bar">
   <div class="top-bar-left">
     <button id="menuBtn" class="menu-trigger" aria-label="باز کردن منو" aria-haspopup="true" aria-expanded="false" aria-controls="menuModal">⋯</button>
-    <img class="app-logo" src="logo.png" alt="حساب‌یار" onerror="this.style.display='none'">
+    <img class="app-logo" src="logo.png" alt="حساب‌یار">
     <div class="top-bar-titles">
-      <h1>حساب‌یار <span class="version-pill" id="versionPill">2.2.1 Pro</span></h1>
+      <h1>حساب‌یار <span class="version-pill" id="versionPill">2.2.1</span></h1>
       <div id="syncBadge" class="sync-badge">☁️ آفلاین</div>
     </div>
   </div>
@@ -32,182 +31,166 @@
 </header>
 
 <div id="storeExitBar" class="store-exit-bar">
-  <button class="store-exit-btn" onclick="setAppMode('business')">🔒 خروج از کیوسک و بازگشت به حالت کسب‌وکار</button>
+  <button class="store-exit-btn" onclick="setAppMode('business')">🔒 رفتن به حالت کسب‌وکار</button>
 </div>
 
 <main>
 
-<!-- ۱. صفحه اصلی و داشبورد اجرایی فین‌تک -->
 <section id="home" class="page active">
-  <div class="section-head home-head">
-    <h2 data-i18n="page.home">داشبورد مالی</h2>
+  <div class="section-head home-head"><h2 data-i18n="page.home">خانه</h2>
     <div class="home-quick-actions">
-      <button id="theme" class="home-quick-btn" aria-label="تغییر تم" title="تاریک/روشن">☾</button>
-      <button id="langToggle" class="home-quick-btn" onclick="toggleAppLanguage()" aria-label="تغییر زبان" title="زبان">EN</button>
+      <button id="theme" class="home-quick-btn" aria-label="تغییر حالت روشن/تاریک" title="تاریک/روشن">☾</button>
+      <button id="langToggle" class="home-quick-btn" onclick="toggleAppLanguage()" aria-label="تغییر زبان برنامه" title="زبان">EN</button>
       <button id="appModeToggle" class="home-quick-btn" onclick="openAppModeSheet()" aria-label="حالت اپ" title="حالت اپ">🧑‍💼</button>
       <button id="globalSearchBtn" class="home-quick-btn" onclick="openGlobalSearch()" aria-label="جستجوی سراسری" title="جستجو">🔍</button>
-      <button class="home-quick-btn" onclick="openNotesWeekTable()" aria-label="جدول هفتگی" title="جدول هفتگی">📅</button>
+      <button class="home-quick-btn" onclick="openNotesWeekTable()" aria-label="جدول هفتگی یادداشت‌ها" title="جدول هفتگی">📅</button>
       <button class="dash-customize-btn" onclick="openDashboardCustomize()" title="سفارشی‌سازی داشبورد">🎛</button>
     </div>
   </div>
 
-  <!-- کارت هولوگرافیک تراز کل دارایی -->
   <div class="dash-widget" data-widget="hero">
     <button type="button" class="hero hero-clickable" onclick="goToPage('accounts')" aria-label="مشاهده حساب‌ها و موجودی">
-      <span>کل دارایی خالص قابل دسترس (حساب‌ها و بانک‌ها) <span class="hero-arrow">‹ مدیریت</span></span>
+      <span>موجودی کل <span class="hero-arrow">‹ حساب‌ها</span></span>
       <strong id="balance">۰ تومان</strong>
       <div id="dueSoon"></div>
     </button>
   </div>
 
-  <!-- آمار ماهانه جریان نقدینگی -->
   <div class="dash-widget" data-widget="stats">
     <div class="grid">
-      <div class="card"><span>دریافتی این ماه</span><b id="income" class="income">۰</b></div>
-      <div class="card"><span>مخارج این ماه</span><b id="expense" class="expense">۰</b></div>
+      <div class="card"><span>درآمد این ماه</span><b id="income" class="income">۰</b></div>
+      <div class="card"><span>هزینه این ماه</span><b id="expense" class="expense">۰</b></div>
     </div>
   </div>
 
-  <!-- دسترسی سریع تراکنش و آلارم -->
   <div class="dash-widget" data-widget="quick">
     <div class="grid">
-      <button onclick="openTx()">➕<span>ثبت تراکنش جدید</span></button>
-      <button onclick="openNoteReminderHub('note')">🔔<span>یادآوری و چک‌ها</span></button>
+      <button onclick="openTx()">➕<span>تراکنش</span></button>
+      <button onclick="openNoteReminderHub('note')">🔔<span>یادآوری</span></button>
     </div>
   </div>
 
-  <!-- کلید صدور فاکتور -->
   <div class="dash-widget" data-widget="invoiceBtn">
-    <button class="invoice-home-btn" onclick="openInvoice()">🧾 صدور آنی فاکتور رسمی / روزانه</button>
+    <button class="invoice-home-btn" onclick="openInvoice()">🧾 صدور فاکتور جدید</button>
   </div>
 
-  <!-- ماژول ابزارهای جانبی -->
   <div class="dash-widget" data-widget="tools">
     <div class="home-tools">
-      <button class="tool-card" onclick="openCalculator()">🧮<b>ماشین‌حساب</b><small>محاسبه سریع درصد و مبلغ</small></button>
-      <button class="tool-card" onclick="openQuickTx('expense')">💸<b>چند هزینه</b><small>ثبت متوالی فاکتورهای خرید</small></button>
-      <button class="tool-card" onclick="openQuickTx('income')">💰<b>چند دریافتی</b><small>ثبت پشت‌سرهم واریزی‌ها</small></button>
+      <button class="tool-card" onclick="openCalculator()">🧮<b>ماشین حساب</b><small>محاسبه سریع مبلغ</small></button>
+      <button class="tool-card" onclick="openQuickTx('expense')">💸<b>چند هزینه</b><small>ثبت پشت‌سرهم</small></button>
+      <button class="tool-card" onclick="openQuickTx('income')">💰<b>چند دریافتی</b><small>ثبت پشت‌سرهم</small></button>
     </div>
   </div>
 
-  <!-- آخرین تراکنش‌ها -->
   <div class="dash-widget" data-widget="recent">
-    <div class="section-head"><h2 data-i18n="page.recent">آخرین تراکنش‌های بانکی</h2></div>
+    <div class="section-head"><h2 data-i18n="page.recent">آخرین تراکنش‌ها</h2></div>
     <div id="recent"></div>
   </div>
 </section>
 
-<!-- ۲. حساب‌ها، کارت‌ها و بانکداری -->
 <section id="accounts" class="page">
-  <div class="item accordion-card page-accordion open" data-acc-id="pageAcc-accountsList">
-    <button class="accordion-head" type="button" aria-expanded="true" onclick="toggleAccordion(this,event)"><b data-i18n="page.accounts">حساب‌ها، کارت‌ها و کیف‌پول‌ها</b><span class="acc-arrow">⌄</span></button>
+  <div class="item accordion-card page-accordion" data-acc-id="pageAcc-accountsList">
+    <button class="accordion-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)"><b data-i18n="page.accounts">حساب‌ها و بانک‌ها</b><span class="acc-arrow">⌄</span></button>
     <div class="accordion-body">
-      <div class="section-head"><span>مدیریت کارت‌ها و شماره‌های شبا</span><button onclick="event.stopPropagation();openAccount()">＋ افزودن حساب</button></div>
+      <div class="section-head"><span></span><button onclick="event.stopPropagation();openAccount()">＋</button></div>
       <div id="accountList"></div>
     </div>
   </div>
   <div class="item accordion-card page-accordion" data-acc-id="pageAcc-transfer">
-    <button class="accordion-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)"><b data-i18n="page.transfer">انتقال بین حساب‌ها و پایا/ساتنا</b><span class="acc-arrow">⌄</span></button>
+    <button class="accordion-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)"><b data-i18n="page.transfer">انتقال بین حساب‌ها</b><span class="acc-arrow">⌄</span></button>
     <div class="accordion-body">
-      <div class="section-head"><span></span><button onclick="event.stopPropagation();openTransfer()">＋ ثبت انتقال</button></div>
-      <div class="card hint">انتقال بین حساب‌های شخصی شما به عنوان هزینه محاسبه نمی‌شود؛ انتقال به حساب دیگران (کارت/شبا) همزمان در دفاتر ثبت می‌گردد.</div>
+      <div class="section-head"><span></span><button onclick="event.stopPropagation();openTransfer()">＋</button></div>
+      <div class="card hint">انتقال بین حساب‌های خودت به‌عنوان هزینه محاسبه نمی‌شود؛ انتقال به حساب دیگران هم اینجا و هم در تراکنش‌ها ثبت می‌شود.</div>
       <div id="transferList"></div>
     </div>
   </div>
   <div class="item accordion-card page-accordion" data-acc-id="pageAcc-bankMsg">
-    <button class="accordion-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)"><b data-i18n="page.bankMsg">هوش مصنوعی پیامک بانکی</b><span class="acc-arrow">⌄</span></button>
+    <button class="accordion-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)"><b data-i18n="page.bankMsg">پیامک بانک</b><span class="acc-arrow">⌄</span></button>
     <div class="accordion-body">
-      <div class="card hint">متن پیامک واریز یا برداشت از هر بانکی را وارد کن تا به شکل خودکار مبلغ، شماره پیگیری و حساب مقصد تفکیک شود.
-        <button class="primary" style="margin-top:10px;" onclick="event.stopPropagation();openBankMessage()">استخراج هوشمند پیامک بانکی</button>
+      <div class="card hint">شماره فرستنده بانک را برای هر حساب ثبت کن و متن پیامک را برای تشخیص وارد کن.
+        <button class="primary" onclick="event.stopPropagation();openBankMessage()">تشخیص پیامک بانکی</button>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ۳. تراکنش‌ها -->
 <section id="transactions" class="page">
-  <div class="section-head"><h2 data-i18n="page.transactions">دفتر کل تراکنش‌ها</h2><button onclick="openTx()">＋ تراکنش</button></div>
-  <input id="search" class="search" placeholder="🔍 جستجو در عنوان، شرح یا دسته..." oninput="renderDebounced()">
+  <div class="section-head"><h2 data-i18n="page.transactions">تراکنش‌ها</h2><button onclick="openTx()">＋</button></div>
+  <input id="search" class="search" placeholder="جستجو در تراکنش‌ها..." oninput="renderDebounced()">
   <div class="filters">
     <select id="filterType" onchange="render()">
-      <option value="">همه انواع (درآمد، هزینه، انتقال)</option><option value="income">درآمد</option><option value="expense">هزینه</option>
+      <option value="">همه</option><option value="income">درآمد</option><option value="expense">هزینه</option>
     </select>
     <select id="filterCat" onchange="render()"><option value="">همه دسته‌ها</option></select>
   </div>
   <div id="txList"></div>
 </section>
 
-<!-- ۴. کالا و انبارداری -->
 <section id="products" class="page">
-  <div class="section-head"><h2 data-i18n="page.products">📦 انبارداری و کاتالوگ کالا</h2><div class="actions"><button onclick="openStockAdjust()" title="افزایش موجودی کالا">📈 شارژ انبار</button><button onclick="openProduct()">＋ کالای جدید</button></div></div>
-  <div class="card hint">محاسبه خودکار ارزش انبار، هشدار هوشمند کسری کالا و اتصال مستقیم به خطوط فاکتور فروش.</div>
-  <input id="productSearchInput" class="search" type="text" placeholder="🔍 جستجوی کالا با نام یا بارکد..." oninput="renderProducts()">
+  <div class="section-head"><h2 data-i18n="page.products">📦 کالا و انبار</h2><div class="actions"><button onclick="openStockAdjust()" title="افزایش موجودی کالا">📈</button><button onclick="openProduct()">＋</button></div></div>
+  <div class="card hint">موجودی کالا، قیمت فروش و هشدار موجودی کم. فاکتورهای فروش موجودی را خودکار کم می‌کنند.</div>
+  <input id="productSearchInput" class="search" type="text" placeholder="🔍 جستجوی کالا..." oninput="renderProducts()">
   <div id="productSummary"></div>
   <div id="productList"></div>
 </section>
 
-<!-- ۵. مشتریان و طرف‌حساب‌ها -->
 <section id="customers" class="page">
-  <div class="section-head"><h2 data-i18n="page.customers">👥 باشگاه و پرونده مشتریان</h2><div class="actions"><button onclick="exportAllCustomersExcel()">📊 خروجی Excel</button><button onclick="openCustomer()">＋ مشتری جدید</button></div></div>
-  <div class="card hint">مدیریت اعتباری طرف‌حساب‌ها، سابقه خریدها، پرداخت‌ها و صورت‌حساب اختصاصی PDF برای هر مشتری.</div>
+  <div class="section-head"><h2 data-i18n="page.customers">👥 مشتری‌ها</h2><div class="actions"><button onclick="exportAllCustomersExcel()">📊 Excel همه</button><button onclick="openCustomer()">＋</button></div></div>
+  <div class="card hint">پرونده مشتری، فاکتورها، پرداخت‌ها و مانده را یکجا ببین و خروجی Excel بگیر.</div>
   <div id="customerList"></div>
 </section>
 
-<!-- ۶. بدهی و طلب -->
 <section id="people" class="page">
-  <div class="section-head"><h2 data-i18n="page.people">دفتر بدهی‌ها و مطالبات</h2><button onclick="openPerson()">＋ ثبت شخص</button></div>
+  <div class="section-head"><h2 data-i18n="page.people">بدهکار / بستانکار</h2><button onclick="openPerson()">＋</button></div>
   <div class="tabs">
-    <button onclick="peopleMode='debt';render()">بدهی‌های من (پرداختنی)</button>
-    <button onclick="peopleMode='credit';render()">طلب‌های من (دریافتنی)</button>
+    <button onclick="peopleMode='debt';render()">بدهکار</button>
+    <button onclick="peopleMode='credit';render()">بستانکار</button>
   </div>
   <div id="peopleList"></div>
 </section>
 
-<!-- ۷. یادآوری‌ها -->
 <section id="reminders" class="page">
-  <div class="section-head"><h2 data-i18n="page.reminders">یادآوری‌های مالی و موعدها</h2><button onclick="openReminder()">＋ یادآوری</button></div>
+  <div class="section-head"><h2 data-i18n="page.reminders">یادآوری‌ها</h2><button onclick="openReminder()">＋</button></div>
   <div id="reminderList"></div>
 </section>
 
-<!-- ۸. یادداشت‌ها و هوش مالی -->
 <section id="notes" class="page">
-  <div class="section-head"><h2 data-i18n="page.notes">📝 یادداشت‌های مالی و چک‌لیست</h2><div class="actions"><button onclick="openSmartNote()">✨ هوشمند</button><button onclick="openNote()">＋ یادداشت</button></div></div>
-  <button class="tool-card smart-note-btn" style="width:100%;margin:4px 0 10px;" onclick="openSmartNote()">✨ <b>دستیار مالی هوشمند (Claude AI)</b><small>متن فارسی پیامک، دهی، طلب یا خرج روزانه را تایپ یا کپی کن تا خودکار تفکیک شود</small></button>
+  <div class="section-head"><h2 data-i18n="page.notes">📝 یادداشت‌ها</h2><div class="actions"><button onclick="openSmartNote()">✨</button><button onclick="openNote()">＋</button></div></div>
+  <div class="card hint">مثل یک لیست کار بساز؛ برای یادداشت زمان بگذار و چند آیتم زیر آن اضافه کن. هر آیتم جداگانه قابل تیک‌زدن، حذف و ویرایش است.</div>
+  <button class="tool-card smart-note-btn" onclick="openSmartNote()">✨<b>یادداشت هوشمند</b><small>یک متن آزاد بنویس تا هوش مصنوعی بدهی، طلب، یادآوری یا تراکنش را از آن پیدا کند</small></button>
   <div class="tabs" id="notesModeTabs">
-    <button type="button" data-mode="list" class="active" onclick="setNotesMode('list')">نمای کارتی</button>
-    <button type="button" data-mode="table" onclick="setNotesMode('table')">📅 جدول هفتگی تقویمی</button>
+    <button type="button" data-mode="list" class="active" onclick="setNotesMode('list')">لیست</button>
+    <button type="button" data-mode="table" onclick="setNotesMode('table')">📅 جدول</button>
   </div>
   <div id="noteList"></div>
   <div id="notesTableView" style="display:none"></div>
 </section>
 
-<!-- ۹. چک‌های صیادی -->
 <section id="checks" class="page">
-  <div class="section-head"><h2 data-i18n="page.checks">صندوق چک‌های صیادی</h2><button onclick="openCheck()">＋ ثبت چک</button></div>
-  <p class="hint">اتصال مستقیم چک به حساب؛ با کلیک روی «ثبت نشستن»، مبلغ چک صیادی مستقیماً به تراز حساب و لیست تراکنش‌ها افزوده می‌شود.</p>
+  <div class="section-head"><h2 data-i18n="page.checks">چک‌ها</h2><button onclick="openCheck()">＋</button></div>
+  <p class="hint">هر چک را به یک حساب وصل کن. با زدن «✅ ثبت نشستن»، مبلغ چک دریافتی به همان حساب اضافه یا مبلغ چک پرداختی از آن کسر می‌شود و در تراکنش‌ها هم ثبت می‌گردد.</p>
   <div id="checkList"></div>
 </section>
 
-<!-- ۱۰. داشبورد گزارش‌ها و هوش تجاری -->
 <section id="reports" class="page">
-  <h2 data-i18n="page.reports">داشبورد هوش مالی و گزارش‌ها</h2>
+  <h2 data-i18n="page.reports">داشبورد و گزارش</h2>
   <div class="grid">
-    <div class="card"><span>مجموع کل بدهی‌ها</span><b id="totalDebt">۰</b></div>
-    <div class="card"><span>مجموع کل طلب‌ها</span><b id="totalCredit">۰</b></div>
+    <div class="card"><span>کل بدهی</span><b id="totalDebt">۰</b></div>
+    <div class="card"><span>کل طلب</span><b id="totalCredit">۰</b></div>
   </div>
   <div class="card report-filters">
-    <h3>💰 بودجه‌بندی هوشمند ماهانه</h3>
-    <p class="hint">سقف هر گروه هزینه را مشخص کنید تا از هدررفت مالی جلوگیری شود.</p>
+    <h3>💰 بودجه ماهانه</h3>
+    <p class="hint">سقف هر دسته را از «دسته‌بندی هزینه‌ها» تنظیم کن.</p>
     <div id="budgetBox"></div>
   </div>
   <div class="card report-filters">
-    <h3>🔎 گزارش سفارشی و فیلتر پیشرفته</h3>
+    <h3>🔎 گزارش دلخواه</h3>
     <div class="filters">
       <select id="reportType" onchange="renderAdvancedReport()">
         <option value="all">همه تراکنش‌ها</option><option value="income">دریافت‌ها</option><option value="expense">هزینه‌ها</option>
       </select>
       <select id="reportAccount" onchange="renderAdvancedReport()"><option value="">همه حساب‌ها</option></select>
-      <input id="reportFrom" inputmode="numeric" placeholder="از تاریخ شمسی (مثلاً ۱۴۰۳/۰۱/۰۱)" oninput="renderAdvancedReport()">
+      <input id="reportFrom" inputmode="numeric" placeholder="از تاریخ شمسی" oninput="renderAdvancedReport()">
       <input id="reportTo" inputmode="numeric" placeholder="تا تاریخ شمسی" oninput="renderAdvancedReport()">
     </div>
     <div id="advancedReport"></div>
@@ -215,74 +198,72 @@
   <div class="card"><canvas id="chart" width="600" height="260"></canvas></div>
   <div id="reportStats"></div>
   <div class="card report-filters" id="productProfitCard" style="display:none">
-    <h3>🏆 رتبه‌بندی سودآوری کالاها</h3>
+    <h3>🏆 گزارش سودآوری کالا</h3>
+    <p class="hint">بر اساس قیمت خرید و فروش هر کالا و فروش‌های ثبت‌شده در فاکتورها.</p>
     <div id="productProfitReport"></div>
   </div>
-  <div class="section-head"><h2 data-i18n="page.audit">📋 لاگ رویدادها و امنیت سیستم</h2><button class="mini-danger" onclick="clearAudit()">پاک‌سازی</button></div>
+  <div class="section-head"><h2 data-i18n="page.audit">📋 گزارش فعالیت‌ها</h2><button class="mini-danger" onclick="clearAudit()">پاک‌سازی</button></div>
   <div class="card audit-card">
-    <p class="hint">کلیه عملیات حساب بانکی، همگام‌ساز ابری و تراکنش‌ها در این بخش ذخیره می‌گردند.</p>
+    <p class="hint">تمام رویدادهای مهم برنامه، از ایجاد و ویرایش تا حذف، تسویه، تنظیمات و همگام‌سازی در این بخش ثبت می‌شوند.</p>
     <div id="auditList"></div>
   </div>
 </section>
 
-<!-- ۱۱. صندوق و آرشیو فاکتورها -->
 <section id="invoices" class="page">
-  <div class="section-head"><h2 data-i18n="page.invoices">📦 آرشیو و صندوق فاکتورها</h2><button onclick="openInvoice()">＋ فاکتور جدید</button></div>
-  <div class="card hint">صدور فاکتور رسمی و روزانه با محاسبه تخفیف، مالیات ارزش‌افزوده، مهر و امضای دیجیتال و امکان ارسال به پیام‌رسان‌ها (ایتا، بله، واتساپ).</div>
+  <div class="section-head"><h2 data-i18n="page.invoices">📦 صندوق فاکتور</h2><button onclick="openInvoice()">＋</button></div>
+  <div class="card hint">همه فاکتورهای ساخته‌شده اینجا ذخیره می‌شوند؛ می‌توانی هر فاکتور را کامل ببینی، ویرایش یا حذف کنی و با گزینه ارسال به همه برنامه‌های گوشی بفرستی.</div>
   <div id="invoiceList"></div>
 </section>
 
-<!-- ۱۲. سطل زباله -->
 <section id="trash" class="page">
-  <div class="section-head"><h2>🗑 سطل بازیافت هوشمند</h2><button id="trashEmptyBtn" class="danger" onclick="emptyTrashNow()" style="display:none">خالی کردن دائم</button></div>
-  <div class="card hint">اقلام حذف‌شده (فاکتور، تراکنش و چک) تا ۳۰ روز برای بازیابی امن در این بخش نگهداری می‌شوند.</div>
+  <div class="section-head"><h2>🗑 زباله‌دان</h2><button id="trashEmptyBtn" class="danger" onclick="emptyTrashNow()" style="display:none">خالی کردن</button></div>
+  <div class="card hint">تراکنش، فاکتور و چکِ حذف‌شده تا ۳۰ روز اینجا می‌ماند و قابل بازگردانی است؛ بعد از آن برای همیشه پاک می‌شود.</div>
   <div id="trashList"></div>
 </section>
 
-<!-- ۱۳. تنظیمات و سفارشی‌سازی -->
 <section id="settings" class="page">
-  <h2 data-i18n="page.settings">تنظیمات و سفارشی‌سازی</h2>
-  <p class="hint settings-intro">پیکربندی امنیت، پشتیبان ابری، برندینگ فروشگاه و کلیدهای هوش مصنوعی.</p>
+  <h2 data-i18n="page.settings">تنظیمات</h2>
+  <p class="hint settings-intro">هر بخش را باز کن تا گزینه‌هایش دیده شود؛ برای جمع‌وجورتر شدن صفحه، پیش‌فرض همه بسته‌اند.</p>
   <div class="settings settings-page">
 
     <div class="item accordion-card page-accordion settings-group security-group" id="stgGroup-security" data-acc-id="stg-security">
       <button class="accordion-head settings-acc-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)">
-        <div class="settings-group-head"><span>🔐</span><div><h3 data-i18n="stg.security.title">امنیت و قفل ورود <span class="settings-dot" id="dotSecurity"></span></h3><p class="hint">رمز PIN عددی، رمز الگو یا ورود بیومتریک با اثر انگشت و Face ID.</p></div></div>
+        <div class="settings-group-head"><span>🔐</span><div><h3 data-i18n="stg.security.title">امنیت ورود <span class="settings-dot" id="dotSecurity"></span></h3><p class="hint">رمز عددی یا الگو را برای قفل برنامه تنظیم کن؛ اگر گوشی اثرانگشت یا Face ID دارد می‌توانی آن را هم فعال کنی.</p></div></div>
         <span class="acc-arrow">⌄</span>
       </button>
       <div class="accordion-body">
-        <div class="settings-actions"><button onclick="setPin()">🔢 رمز عددی PIN</button><button onclick="openPatternSetup()">🔗 رمز الگوی پیوسته</button></div>
-        <div class="settings-actions"><button class="danger" onclick="removePin()">🔓 غیرفعال‌سازی قفل</button></div>
-        <label class="feature-row"><input id="biometricToggle" type="checkbox" onchange="setBiometricEnabled(this.checked)"><span><b>ورود با اثرانگشت / Face ID</b><small>در صورت پشتیبانی سخت‌افزاری دستگاه</small></span></label>
+        <div class="settings-actions"><button onclick="setPin()">🔢 گذاشتن / تغییر رمز عددی</button><button onclick="openPatternSetup()">🔗 گذاشتن / تغییر رمز الگو</button></div>
+        <div class="settings-actions"><button class="danger" onclick="removePin()">🔓 حذف رمز ورود</button></div>
+        <label class="feature-row"><input id="biometricToggle" type="checkbox" onchange="setBiometricEnabled(this.checked)"><span><b>ورود با اثرانگشت / Face ID</b><small>در صورت پشتیبانی گوشی، علاوه بر رمز، امکان ورود سریع با بیومتریک هم فعال می‌شود</small></span></label>
         <div id="securityMethodHint" class="hint"></div>
       </div>
     </div>
 
     <div class="item accordion-card page-accordion settings-group upgrade-card" id="stgGroup-backup" data-acc-id="stg-backup">
       <button class="accordion-head settings-acc-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)">
-        <div class="settings-group-head"><span>🚀</span><div><h3 data-i18n="stg.backup.title">پشتیبان‌گیری خودکار <span class="settings-dot" id="dotBackup"></span></h3><p class="hint">پشتیبان‌گیری منظم هر ۶ ساعت یک‌بار روی حافظه داخلی گوشی.</p></div></div>
+        <div class="settings-group-head"><span>🚀</span><div><h3 data-i18n="stg.backup.title">پشتیبان‌گیری خودکار <span class="settings-dot" id="dotBackup"></span></h3><p class="hint">هر ۶ ساعت یک فایل پشتیبان واقعی ساخته می‌شود.</p></div></div>
         <span class="acc-arrow">⌄</span>
       </button>
       <div class="accordion-body">
-        <label class="feature-row"><input id="autoBackupToggle" type="checkbox" onchange="setAutoBackupEnabled(this.checked)"><span><b>فعال بودن پشتیبان‌گیری خودکار</b><small>ذخیره فایل پشتیبان در پوشه Download/حسابداری</small></span></label>
+        <label class="feature-row"><input id="autoBackupToggle" type="checkbox" onchange="setAutoBackupEnabled(this.checked)"><span><b>حالت اتوماتیک بکاپ</b><small>هر ۶ ساعت یک فایل پشتیبان واقعی داخل پوشه «Download / حسابداری» گوشی ساخته می‌شود (حداکثر ۵ فایل)</small></span></label>
         <div id="autoBackupLast" class="hint"></div>
         <div class="settings-actions">
-          <button onclick="restoreLatestAutoBackup()">♻️ بازیابی آخرین فایل بکاپ</button>
-          <button onclick="verifyTwoPhoneConnection(true)">📱 بررسی وضعیت اتصال ۲ گوشی</button>
+          <button onclick="restoreLatestAutoBackup()">♻️ بازیابی آخرین بکاپ خودکار</button>
+          <button onclick="verifyTwoPhoneConnection(true)">📱 بررسی مجدد اتصال ۲ گوشی</button>
         </div>
       </div>
     </div>
 
     <div class="item accordion-card page-accordion settings-group" id="stgGroup-manualBackup" data-acc-id="stg-manualBackup">
       <button class="accordion-head settings-acc-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)">
-        <div class="settings-group-head"><span>💾</span><div><h3 data-i18n="stg.manualBackup.title">خروجی و بازیابی دستی</h3><p class="hint">صادرات فایل استاندارد JSON جهت انتقال به دستگاه‌های دیگر.</p></div></div>
+        <div class="settings-group-head"><span>💾</span><div><h3 data-i18n="stg.manualBackup.title">پشتیبان‌گیری دستی</h3><p class="hint">فایل اطلاعات را صادر یا از یک فایل قبلی بازیابی کن.</p></div></div>
         <span class="acc-arrow">⌄</span>
       </button>
       <div class="accordion-body">
         <div class="settings-actions">
-          <button onclick="exportData()">📤 دریافت فایل پشتیبان</button>
-          <button onclick="document.getElementById('import').click()">📥 بازیابی فایل پشتیبان</button>
-          <button class="danger" onclick="clearData()">🗑 پاک کردن تمام اطلاعات</button>
+          <button onclick="exportData()">📤 پشتیبان‌گیری</button>
+          <button onclick="document.getElementById('import').click()">📥 بازیابی</button>
+          <button class="danger" onclick="clearData()">🗑 پاک کردن اطلاعات</button>
         </div>
         <input hidden id="import" type="file" accept=".json,application/json,text/plain,application/octet-stream,*/*" onchange="importData(event)">
       </div>
@@ -290,39 +271,39 @@
 
     <div class="item accordion-card page-accordion settings-group" id="stgGroup-notif" data-acc-id="stg-notif">
       <button class="accordion-head settings-acc-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)">
-        <div class="settings-group-head"><span>🔔</span><div><h3 data-i18n="stg.notif.title">اعلان‌ها و هشدارهای سررسید <span class="settings-dot" id="dotNotif"></span></h3><p class="hint">اطلاع‌رسانی سررسید چک‌ها، اقساط و بدهی‌ها.</p></div></div>
+        <div class="settings-group-head"><span>🔔</span><div><h3 data-i18n="stg.notif.title">اعلان‌ها <span class="settings-dot" id="dotNotif"></span></h3><p class="hint">اعلان‌های یادآوری را فعال یا آزمایش کن.</p></div></div>
         <span class="acc-arrow">⌄</span>
       </button>
       <div class="accordion-body">
-        <div class="settings-actions"><button onclick="requestNotifications()">🔔 فعال‌سازی اعلان‌ها</button><button onclick="testNotifications()">🧪 تست اعلان روی گوشی</button></div>
+        <div class="settings-actions"><button onclick="requestNotifications()">🔔 فعال‌سازی اعلان‌ها</button><button onclick="testNotifications()">🧪 تست اعلان</button></div>
       </div>
     </div>
 
     <div class="item accordion-card page-accordion settings-group sync-box" id="stgGroup-sync" data-acc-id="stg-sync">
       <button class="accordion-head settings-acc-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)">
-        <div class="settings-group-head"><span>☁️</span><div><h3 data-i18n="stg.sync.title">همگام‌سازی بلادرنگ ابری <span class="settings-dot" id="dotSync"></span></h3><p class="hint">اتصال همزمان چند گوشی با پایگاه داده Firebase.</p></div></div>
+        <div class="settings-group-head"><span>☁️</span><div><h3 data-i18n="stg.sync.title">همگام‌سازی دو گوشی <span class="settings-dot" id="dotSync"></span></h3><p class="hint">همین حساب را روی دو گوشی وارد کن تا اطلاعات مشترک باشند.</p></div></div>
         <span class="acc-arrow">⌄</span>
       </button>
       <div class="accordion-body">
-        <input id="settingsSyncEmail" type="email" placeholder="ایمیل حساب کاربری ابری" autocomplete="username">
-        <input id="settingsSyncPass" type="password" placeholder="رمز عبور" autocomplete="current-password">
+        <input id="settingsSyncEmail" type="email" placeholder="ایمیل حساب مشترک" autocomplete="username">
+        <input id="settingsSyncPass" type="password" placeholder="رمز حساب مشترک" autocomplete="current-password">
         <div class="settings-actions">
-          <button class="primary" onclick="loginFromSettings()">🔐 ورود به پنل</button>
-          <button onclick="createFromSettings()">➕ ایجاد حساب جدید</button>
-          <button onclick="logoutSync()">🚪 خروج</button>
-          <button onclick="openSyncSettings()">⚙️ تنظیم سرور Firebase</button>
+          <button class="primary" onclick="loginFromSettings()">🔐 ورود با ایمیل</button>
+          <button onclick="createFromSettings()">➕ ساخت حساب با ایمیل</button>
+          <button onclick="logoutSync()">🚪 خروج از حساب</button>
+          <button onclick="openSyncSettings()">⚙️ تنظیم اتصال Firebase</button>
         </div>
         <div id="syncStatus" class="hint"></div>
         <div class="settings-actions">
-          <button onclick="pushToCloud()">☁️ ارسال فوری به سرور ابری</button>
-          <button onclick="pullFromCloud()">⬇️ دریافت آخرین داده‌ها از سرور</button>
+          <button onclick="pushToCloud()">☁️ ارسال اطلاعات این گوشی</button>
+          <button onclick="pullFromCloud()">⬇️ دریافت اطلاعات از ابر</button>
         </div>
       </div>
     </div>
 
     <div class="item accordion-card page-accordion settings-group" id="stgGroup-theme" data-acc-id="stg-theme">
       <button class="accordion-head settings-acc-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)">
-        <div class="settings-group-head"><span>🎨</span><div><h3>تم رنگی و تم فین‌تک</h3><p class="hint">انتخاب تناژ رنگی برند و درخشش نئونی.</p></div></div>
+        <div class="settings-group-head"><span>🎨</span><div><h3>تم رنگی</h3><p class="hint">رنگ اصلی برنامه و فاکتور را انتخاب کن.</p></div></div>
         <span class="acc-arrow">⌄</span>
       </button>
       <div class="accordion-body">
@@ -332,115 +313,92 @@
 
     <div class="item accordion-card page-accordion settings-group" id="stgGroup-branding" data-acc-id="stg-branding">
       <button class="accordion-head settings-acc-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)">
-        <div class="settings-group-head"><span>🏪</span><div><h3 data-i18n="stg.branding.title">برندینگ، لوگو و مهر رسمی <span class="settings-dot" id="dotBranding"></span></h3><p class="hint">اطلاعات سربرگ و ته فاکتورهای رسمی صادره.</p></div></div>
+        <div class="settings-group-head"><span>🏪</span><div><h3 data-i18n="stg.branding.title">ظاهر فروشگاه و فاکتور <span class="settings-dot" id="dotBranding"></span></h3><p class="hint">نام فروشگاه، لوگو، مهر و امضا برای فاکتور.</p></div></div>
         <span class="acc-arrow">⌄</span>
       </button>
       <div class="accordion-body">
-        <input id="brandStore" placeholder="نام فروشگاه، شرکت یا برند شما"/>
-        <label class="file-label">🖼 تصویر لوگو<input id="brandLogo" type="file" accept="image/*" onchange="previewBrandFile(this,'logo')"></label>
+        <input id="brandStore" placeholder="نام فروشگاه"/>
+        <label class="file-label">🖼 لوگوی فروشگاه<input id="brandLogo" type="file" accept="image/*" onchange="previewBrandFile(this,'logo')"></label>
         <div id="brandLogoPreview"></div>
-        <label class="file-label">🔴 تصویر مهر رسمی<input id="brandStamp" type="file" accept="image/*" onchange="previewBrandFile(this,'stamp')"></label>
+        <label class="file-label">🔴 مهر فروشگاه<input id="brandStamp" type="file" accept="image/*" onchange="previewBrandFile(this,'stamp')"></label>
         <div id="brandStampPreview"></div>
-        <label class="file-label">✍️ تصویر امضای مجاز<input id="brandSignature" type="file" accept="image/*" onchange="previewBrandFile(this,'signature')"></label>
+        <label class="file-label">✍️ امضا<input id="brandSignature" type="file" accept="image/*" onchange="previewBrandFile(this,'signature')"></label>
         <div id="brandSignaturePreview"></div>
-        <div class="settings-actions"><button class="primary" onclick="saveBranding()">💾 ذخیره اطلاعات سربرگ</button><button onclick="clearBranding()">🧹 حذف موارد</button></div>
+        <div class="settings-actions"><button class="primary" onclick="saveBranding()">💾 ذخیره مشخصات فاکتور</button><button onclick="clearBranding()">🧹 حذف لوگو، مهر و امضا</button></div>
       </div>
     </div>
 
     <div class="item accordion-card page-accordion settings-group" id="stgGroup-year" data-acc-id="stg-year">
       <button class="accordion-head settings-acc-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)">
-        <div class="settings-group-head"><span>📅</span><div><h3 data-i18n="stg.year.title">بستن سال مالی و تسویه دفتر</h3><p class="hint">بستن دوره‌های مالیاتی بدون پاک شدن بانکداری گذشته.</p></div></div>
+        <div class="settings-group-head"><span>📅</span><div><h3 data-i18n="stg.year.title">سال مالی</h3><p class="hint">بستن سال فقط وضعیت سال را ثبت می‌کند؛ بدهی و طلب پاک نمی‌شود.</p></div></div>
         <span class="acc-arrow">⌄</span>
       </button>
       <div class="accordion-body">
         <div id="yearSettlementBox"></div>
-        <button onclick="settleCurrentYear()">☑️ تسویه و بستن سال مالی جاری</button>
+        <button onclick="settleCurrentYear()">☑️ تسویه کامل سال</button>
       </div>
     </div>
 
     <div class="item accordion-card page-accordion settings-group" id="stgGroup-ai" data-acc-id="stg-ai">
       <button class="accordion-head settings-acc-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)">
-        <div class="settings-group-head"><span>✨</span><div><h3>هوش مصنوعی Claude 3.5 Haiku</h3><p class="hint">کلید API شما برای تحلیل آزاد متون مالی و پیامک‌ها.</p></div></div>
+        <div class="settings-group-head"><span>✨</span><div><h3>یادداشت هوشمند (Claude)</h3><p class="hint">برای استفاده از «یادداشت هوشمند» در صفحه یادداشت‌ها، کلید API شخصی خودت از Claude (Anthropic) را اینجا وارد کن. این کلید فقط روی همین گوشی ذخیره می‌شود.</p></div></div>
         <span class="acc-arrow">⌄</span>
       </button>
       <div class="accordion-body">
         <div id="anthropicKeyStatus" class="hint"></div>
         <input id="anthropicKeyInput" type="password" placeholder="sk-ant-..." autocomplete="off">
         <div class="settings-actions">
-          <button class="primary" onclick="saveAnthropicKey()">💾 ثبت کلید</button>
+          <button class="primary" onclick="saveAnthropicKey()">💾 ذخیره کلید</button>
           <button class="danger" onclick="clearAnthropicKey()">🗑 حذف کلید</button>
         </div>
       </div>
     </div>
 
   </div>
-  <p class="hint settings-footer">نسخه ۲.۲.۱ پرو • بازطراحی کامل با دیزاین سیستم فوق‌مدرن فین‌تک تیره</p>
+  <p class="hint settings-footer">نسخه <span id="appVersionText">2.2</span> • بکاپ خودکار • اتصال دو گوشی • تقویم شمسی کامل</p>
+  <p class="hint">تغییرات روی این گوشی ذخیره می‌شود و در صورت اتصال به Firebase با گوشی دوم ادغام می‌گردد.</p>
 </section>
 
 </main>
 
-<!-- نوار ناوبری پایین صفحه شیشه‌ای (Bottom Dock) -->
-<nav class="bottom-dock">
-  <button class="dock-nav-btn active" onclick="goToPage('home')" data-page="home">
-    <span class="dock-icon">⌂</span>
-    <span class="dock-label">خانه</span>
-  </button>
-  <button class="dock-nav-btn" onclick="goToPage('transactions')" data-page="transactions">
-    <span class="dock-icon">☷</span>
-    <span class="dock-label">تراکنش</span>
-  </button>
-  <button class="dock-action-center" onclick="openTx()" aria-label="ثبت تراکنش سریع">
-    <span>＋</span>
-  </button>
-  <button class="dock-nav-btn" onclick="goToPage('invoices')" data-page="invoices">
-    <span class="dock-icon">🧾</span>
-    <span class="dock-label">فاکتورها</span>
-  </button>
-  <button class="dock-nav-btn" onclick="openMenu()">
-    <span class="dock-icon">⋯</span>
-    <span class="dock-label">بیشتر</span>
-  </button>
-</nav>
-
 </div>
 
-<!-- منوی جامع کشویی -->
 <div id="menuModal" class="modal menu-modal hidden">
   <div class="sheet menu-sheet">
-    <div class="menu-head"><h2 data-i18n="menu.title">منوی جامع حساب‌یار</h2><button class="close" onclick="closeMenu()">×</button></div>
-    <input id="menuSearchInput" class="menu-search" placeholder="🔍 جستجو در منو..." oninput="filterMenu()" onkeydown="if(event.key==='Enter')menuSearchEnter()">
+    <div class="menu-head"><h2 data-i18n="menu.title">منو</h2><button class="close" onclick="closeMenu()">×</button></div>
+    <input id="menuSearchInput" class="menu-search" placeholder="جستجو در منو... (مثلاً «چک» یا «انبار»)" oninput="filterMenu()" onkeydown="if(event.key==='Enter')menuSearchEnter()">
     <div class="menu-groups" id="menuGroups">
       <div class="menu-group main-menu-group open">
-        <div class="menu-group-title" data-i18n="menu.main">اصلی و پیشخوان</div>
+        <div class="menu-group-title" data-i18n="menu.main">اصلی</div>
         <div class="menu-grid">
-          <button class="nav active" data-page="home">⌂ <span data-i18n="nav.home">داشبورد خانه</span></button>
-          <button class="nav" data-page="transactions">☷ <span data-i18n="nav.transactions">تراکنش‌ها</span></button>
-          <button class="nav" data-page="invoices">🧾 <span data-i18n="nav.invoices">صندوق فاکتورها</span></button>
-          <button class="nav" data-page="reports">◔ <span data-i18n="nav.reports">داشبورد گزارشات</span></button>
+          <button class="nav active" data-page="home">⌂<span data-i18n="nav.home">خانه</span></button>
+          <button class="nav" data-page="transactions">☷<span data-i18n="nav.transactions">تراکنش</span></button>
+          <button class="nav" data-page="invoices">🧾<span data-i18n="nav.invoices">صندوق فاکتور</span></button>
+          <button class="nav" data-page="reports">◔<span data-i18n="nav.reports">گزارش‌ها</span></button>
         </div>
       </div>
       <div class="menu-group">
-        <div class="menu-group-title" data-i18n="menu.finance">مدیریت تجاری و مالی</div>
+        <div class="menu-group-title" data-i18n="menu.finance">مدیریت مالی</div>
         <div class="menu-grid">
-          <button class="nav" data-page="accounts">▣ <span data-i18n="nav.accounts">حساب‌ها و بانک‌ها</span></button>
-          <button class="nav" data-page="people">♙ <span data-i18n="nav.people">بدهکاران و طلبکاران</span></button>
-          <button class="nav" data-page="customers">👥 <span data-i18n="nav.customers">مشتریان</span></button>
-          <button class="nav" data-page="products">🏷 <span data-i18n="nav.products">کالا و انبارداری</span></button>
-          <button class="nav" data-page="checks">✓ <span data-i18n="nav.checks">صندوق چک صیادی</span></button>
+          <button class="nav" data-page="accounts">▣<span data-i18n="nav.accounts">حساب‌ها</span></button>
+          <button class="nav" data-page="people">♙<span data-i18n="nav.people">بدهکار/طلبکار</span></button>
+          <button class="nav" data-page="customers">👥<span data-i18n="nav.customers">مشتری‌ها</span></button>
+          <button class="nav" data-page="products">🏷<span data-i18n="nav.products">کالا و انبار</span></button>
+          <button class="nav" data-page="checks">✓<span data-i18n="nav.checks">چک</span></button>
         </div>
       </div>
       <div class="menu-group">
-        <div class="menu-group-title" data-i18n="menu.notesGroup">ابزارهای کاری و زمان‌بندی</div>
+        <div class="menu-group-title" data-i18n="menu.notesGroup">یادداشت و یادآوری</div>
         <div class="menu-grid">
-          <button class="nav" data-page="reminders">🔔 <span data-i18n="nav.reminders">یادآوری‌ها</span></button>
-          <button class="nav" data-page="notes">📝 <span data-i18n="nav.notes">یادداشت‌ها</span></button>
+          <button class="nav" data-page="reminders">🔔<span data-i18n="nav.reminders">یادآوری</span></button>
+          <button class="nav" data-page="notes">📝<span data-i18n="nav.notes">یادداشت‌ها</span></button>
         </div>
       </div>
       <div class="menu-group">
-        <div class="menu-group-title" data-i18n="menu.other">سیستم و بازیابی</div>
+        <div class="menu-group-title" data-i18n="menu.other">دیگر</div>
         <div class="menu-grid">
-          <button class="nav" data-page="trash">🗑 <span>سطل بازیافت</span></button>
-          <button class="nav" data-page="settings">⚙ <span data-i18n="nav.settings">تنظیمات</span></button>
+          <button class="nav" data-page="trash">🗑<span>زباله‌دان</span></button>
+          <button class="nav" data-page="settings">⚙<span data-i18n="nav.settings">تنظیمات</span></button>
         </div>
       </div>
     </div>
@@ -467,8 +425,8 @@
   <div class="sheet framer-sheet">
     <div class="sheet-grabber"></div>
     <button class="close" onclick="closeFramer()">×</button>
-    <h2>تنظیم و برش هوشمند عکس</h2>
-    <p class="hint">عکس را جابجا کنید و با اسلایدر تنظیم نمایید.</p>
+    <h2>تنظیم عکس</h2>
+    <p class="hint">عکس را با انگشت جابه‌جا کن و با اسلایدر بزرگ‌نمایی کن تا دقیق داخل کادر جا شود.</p>
     <div class="framer-stage-wrap">
       <div id="framerStage" class="framer-stage"
            onmousedown="framerPointerDown(event)" onmousemove="framerPointerMove(event)" onmouseup="framerPointerUp()" onmouseleave="framerPointerUp()"
@@ -479,9 +437,9 @@
     <input id="framerZoom" type="range" min="1" max="3" step="0.01" value="1" oninput="framerZoomChange(this.value)">
     <div class="ai-enhance-row">
       <button type="button" id="framerEnhanceBtn" class="ai-enhance-btn" onclick="aiEnhanceFramerImage()">🪄 واضح‌تر و تمیزتر کن (AI)</button>
-      <span class="ai-enhance-hint">بهبود روشنایی و شفاف‌سازی پس‌زمینه مهر یا امضا</span>
+      <span class="ai-enhance-hint">تصویر را شارپ‌تر و پس‌زمینه‌اش را تمیزتر می‌کند</span>
     </div>
-    <button class="primary" onclick="confirmFramer()">✅ تایید و اعمال نهایی</button>
+    <button class="primary" onclick="confirmFramer()">✅ تایید و برش عکس</button>
   </div>
 </div>
 
