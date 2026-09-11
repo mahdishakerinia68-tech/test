@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="2.4";
+const APP_VERSION="2.5";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -901,10 +901,32 @@ async function createLicense(){
   const id=genLicenseId(),code=genLicenseCode();
   try{
     await sync.db.collection("licenses").doc(id).set({code,plan,note,status:"active",createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdBy:sync.user.email,redeemedBy:null,redeemedByEmail:null});
-    alert(`لایسنس ساخته شد:\n\nآیدی: ${id}\nرمز: ${code}\nنوع: ${LICENSE_PLAN_LABEL[plan]}\n\nاین دو مورد را برای مشتری بفرست.`);
     if($("licenseNewNote"))$("licenseNewNote").value="";
     loadAdminLicenses();
+    showLicenseCredsModal(id,code,plan,note);
   }catch(e){alert("ساخت لایسنس ناموفق: "+(e.message||e))}
+}
+function showLicenseCredsModal(id,code,plan,note){
+  openModal(`<h2>✅ لایسنس ساخته شد</h2>
+    <p class="hint">این دو مورد را برای مشتری بفرست:</p>
+    <div class="form">
+      <div>
+        <p class="hint" style="margin-bottom:4px">آیدی لایسنس</p>
+        <input readonly value="${esc(id)}" onclick="this.select()" style="font-size:18px;text-align:center;direction:ltr">
+      </div>
+      <div>
+        <p class="hint" style="margin-bottom:4px">رمز لایسنس</p>
+        <input readonly value="${esc(code)}" onclick="this.select()" style="font-size:18px;text-align:center;direction:ltr">
+      </div>
+      <p class="hint">نوع: ${esc(LICENSE_PLAN_LABEL[plan]||plan)}${note?" — "+esc(note):""}</p>
+      <button class="primary" onclick="copyLicenseCreds('${esc(id)}','${esc(code)}')">📋 کپی هر دو</button>
+      <button onclick="closeModal()">بستن</button>
+    </div>`);
+}
+function copyLicenseCreds(id,code){
+  const text=`آیدی: ${id}\nرمز: ${code}`;
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(()=>alert("کپی شد ✅")).catch(()=>alert(text));
+  else alert(text);
 }
 async function renewLicenseById(){
   if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
@@ -950,7 +972,7 @@ async function loadAdminLicenses(){
     box.innerHTML=snap.docs.map(d=>{
       const l=d.data();
       const st=l.status==="revoked"?"⛔ باطل‌شده":(l.redeemedBy?"✅ استفاده‌شده":"🕓 استفاده‌نشده");
-      return `<div class="card"><b>${esc(d.id)}</b> — ${esc(LICENSE_PLAN_LABEL[l.plan]||l.plan||"")} — ${st}${l.note?" — "+esc(l.note):""}${l.redeemedByEmail?"<br><small>مشتری: "+esc(l.redeemedByEmail)+"</small>":""}</div>`;
+      return `<div class="card"><b style="direction:ltr;display:inline-block">${esc(d.id)}</b> — ${esc(LICENSE_PLAN_LABEL[l.plan]||l.plan||"")} — ${st}${l.note?" — "+esc(l.note):""}${l.redeemedByEmail?"<br><small style=\"direction:ltr;display:inline-block\">مشتری: "+esc(l.redeemedByEmail)+"</small>":""}</div>`;
     }).join("");
   }catch(e){box.innerHTML='<p class="hint">خطا در بارگذاری: '+esc(e.message||"")+'</p>'}
 }
@@ -974,7 +996,7 @@ function showLicenseLock(){
   if(!licenseIsBlocked())return;
   if($("licenseLock"))return;
   const d=document.createElement("div");d.id="licenseLock";d.className="lock";
-  d.innerHTML=`<div class="lockbox"><h1>🔑 حساب‌یار</h1><p>دوره استفاده رایگان به پایان رسیده است.</p><p class="hint">برای ادامه، آیدی و رمز لایسنس را وارد کن.</p><input id="licenseLockId" placeholder="آیدی لایسنس" autocomplete="off"><input id="licenseLockCode" placeholder="رمز لایسنس" autocomplete="off"><button class="primary" id="licenseLockBtn">✅ فعال‌سازی</button></div>`;
+  d.innerHTML=`<div class="lockbox"><h1>🔑 حساب‌یار</h1><p>دوره استفاده رایگان به پایان رسیده است.</p><p class="hint">برای ادامه، آیدی و رمز لایسنس را وارد کن.</p><input id="licenseLockId" placeholder="آیدی لایسنس" autocomplete="off" style="direction:ltr"><input id="licenseLockCode" placeholder="رمز لایسنس" autocomplete="off" style="direction:ltr"><button class="primary" id="licenseLockBtn">✅ فعال‌سازی</button></div>`;
   document.body.appendChild(d);
   $("licenseLockBtn").onclick=activateLicense;
 }
