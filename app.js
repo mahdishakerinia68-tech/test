@@ -1,12 +1,12 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="2.5";
+const APP_VERSION="2.6";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
 const APP_MODE_KEY="hesabdar-app-mode-v1";
-/* ===== License manager v2.5 — Firebase backed =====
+/* ===== License manager v2.6 — Firebase backed =====
  * License records live in Firestore. The URL contains only the immutable
  * license id; plan/expiry/status are always read from Firebase so the admin
  * can edit, extend or revoke a license remotely. LocalStorage is only a
@@ -77,6 +77,7 @@ async function activateLicenseInput(){
   setCurrentLicense({...remote,status:"active",activatedAt:new Date().toISOString()});closeModal();renderLicenseStatus();alert("لایسنس با موفقیت از فایربیس فعال شد.");
 }
 async function createLicense(){
+  if(!isLicenseAdmin())return alert("برای ساخت لایسنس باید با حساب ادمین وارد شوید."),false;
   const plan=$("licensePlan")?.value||"1m",now=new Date(),l={id:randomLicenseId(),plan,createdAt:now.toISOString(),expiresAt:licensePlanExpiry(plan,now),status:"active"};
   const ok=await ensureLicenseCloud();if(!ok)return alert("اتصال لایسنس به فایربیس برقرار نشد. ابتدا اتصال Firebase را فعال کن.");
   try{await licenseCloud.db.collection(LICENSE_COLLECTION).doc(l.id).set({...l,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),createdBy:licenseCloud.user.uid});
@@ -89,25 +90,47 @@ async function loadLicenseAdminStore(){
   try{const snap=await licenseCloud.db.collection(LICENSE_COLLECTION).orderBy("createdAt","desc").limit(200).get();const a=snap.docs.map(d=>({id:d.id,...d.data()}));saveLicenseStore(a);return a}catch(e){console.warn("license list",e);return licenseStore()}
 }
 async function editLicense(id){
+  if(!isLicenseAdmin())return alert("فقط ادمین می‌تواند لایسنس را مدیریت کند."),false;
   const a=await loadLicenseAdminStore(),l=a.find(x=>x.id===id);if(!l)return;const p=prompt("پلن جدید: 1m / 2m / 3m / 6m / 1y / life",l.plan);if(!p||!LICENSE_PLANS[p])return alert("پلن نامعتبر است.");
   const base=new Date(l.createdAt||new Date());l.plan=p;l.expiresAt=licensePlanExpiry(p,base);l.status="active";l.updatedAt=new Date().toISOString();
   if(!(await ensureLicenseCloud()))return alert("اتصال فایربیس برقرار نیست.");try{await licenseCloud.db.collection(LICENSE_COLLECTION).doc(id).set({...l,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});saveLicenseStore(a);if(currentLicense()?.id===id)setCurrentLicense({...currentLicense(),...l});renderLicenseAdmin();alert("لایسنس در فایربیس ویرایش شد.")}catch(e){alert("ویرایش ناموفق بود: "+(e.code||e.message))}
 }
 async function extendLicense(id){
+  if(!isLicenseAdmin())return alert("فقط ادمین می‌تواند لایسنس را مدیریت کند."),false;
   const a=await loadLicenseAdminStore(),l=a.find(x=>x.id===id);if(!l)return;if(l.plan==="life")return alert("این لایسنس دائمی است.");const p=LICENSE_PLANS[l.plan],base=(l.expiresAt&&new Date(l.expiresAt)>licenseNow())?new Date(l.expiresAt):licenseNow();l.expiresAt=addMonths(base,p.months).toISOString();l.status="active";
   if(!(await ensureLicenseCloud()))return alert("اتصال فایربیس برقرار نیست.");try{await licenseCloud.db.collection(LICENSE_COLLECTION).doc(id).update({expiresAt:l.expiresAt,status:"active",updatedAt:firebase.firestore.FieldValue.serverTimestamp()});saveLicenseStore(a);if(currentLicense()?.id===id)setCurrentLicense({...currentLicense(),...l});renderLicenseAdmin();alert(`لایسنس ${p.label} تمدید شد تا ${licenseDate(l.expiresAt)}.`)}catch(e){alert("تمدید ناموفق بود: "+(e.code||e.message))}
 }
 async function revokeLicense(id){
+  if(!isLicenseAdmin())return alert("فقط ادمین می‌تواند لایسنس را مدیریت کند."),false;
   if(!confirm(`لایسنس ${id} باطل شود؟`))return;if(!(await ensureLicenseCloud()))return alert("اتصال فایربیس برقرار نیست.");try{await licenseCloud.db.collection(LICENSE_COLLECTION).doc(id).update({status:"revoked",revokedAt:new Date().toISOString(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});const a=await loadLicenseAdminStore();if(currentLicense()?.id===id)setCurrentLicense({...currentLicense(),status:"revoked"});saveLicenseStore(a);renderLicenseAdmin();alert("لایسنس در فایربیس باطل شد.")}catch(e){alert("ابطال ناموفق بود: "+(e.code||e.message))}
 }
 function renderLicenseStatus(){const b=$("licenseStatusBox");if(!b)return;const l=currentLicense();b.innerHTML=l&&licenseActive(l)?`<div class="card"><b>🟢 لایسنس فعال</b><br>پلن: ${LICENSE_PLANS[l.plan]?.label||"نامشخص"}<br>انقضا: ${licenseDate(l.expiresAt)}<br><small>شناسه: ${esc(l.id||"")} • ☁️ Firebase</small></div>`:`<div class="card"><b>🔴 لایسنس فعال نیست</b><br><small>برای ادامه استفاده، لینک لایسنس را وارد یا تمدید کن.</small></div>`}
 async function renderLicenseAdmin(){const box=$("licenseAdminList");if(!box)return;const a=await loadLicenseAdminStore();box.innerHTML=a.length?a.map(l=>`<div class="card license-row"><b>${esc(l.id)}</b><div>${LICENSE_PLANS[l.plan]?.label||l.plan} • ${l.status==="revoked"?"⛔ باطل شده":licenseActive(l)?"🟢 فعال":"🔴 منقضی"}</div><small>انقضا: ${licenseDate(l.expiresAt)}</small><div class="settings-actions"><button onclick="editLicense('${l.id}')">✏️ ویرایش</button><button onclick="extendLicense('${l.id}')">🔄 تمدید</button><button onclick="revokeLicense('${l.id}')" class="danger">⛔ باطل کردن</button><button onclick="promptShowLicenseLink('${l.id}')">🔗 لینک</button></div></div>`).join(""):"<p class='hint'>هنوز لایسنسی ساخته نشده است.</p>"}
 async function promptShowLicenseLink(id){const a=await loadLicenseAdminStore(),l=a.find(x=>x.id===id);if(!l)return;const link=makeLicenseLink(l);openModal(`<h2>🔗 لینک لایسنس</h2><textarea id="licenseShareLink" rows="5" readonly>${esc(link)}</textarea><div class="settings-actions"><button class="primary" onclick="copyTextById('licenseShareLink')">📋 کپی لینک</button></div>`)}
 function copyTextById(id){const e=$(id);if(!e)return;e.select();navigator.clipboard?.writeText(e.value).then(()=>alert("کپی شد.")).catch(()=>{document.execCommand("copy");alert("کپی شد.")})}
-function openLicenseSettings(){openModal(`<h2>🔐 لایسنس و اشتراک</h2><div id="licenseStatusBox"></div><p class="hint">مدیریت لایسنس‌ها از طریق Firebase انجام می‌شود؛ تغییر یا ابطال از یک دستگاه روی دستگاه مشتری نیز اعمال خواهد شد.</p><h3>ساخت لینک جدید</h3><select id="licensePlan"><option value="1m">۱ ماهه</option><option value="2m">۲ ماهه</option><option value="3m">۳ ماهه</option><option value="6m">۶ ماهه</option><option value="1y">۱ ساله</option><option value="life">دائمی</option></select><div class="settings-actions"><button class="primary" onclick="createLicense()">🔗 ساخت لینک</button><button onclick="openLicenseGate()">🔐 ورود لایسنس</button></div><input id="licenseCreatedLink" readonly placeholder="لینک ساخته‌شده"><div id="licenseCreatedCode" class="hint"></div><div class="settings-actions"><button onclick="copyLicenseLink()">📋 کپی لینک</button></div><h3>مدیریت لایسنس‌ها</h3><div id="licenseAdminList"></div>`);renderLicenseStatus();renderLicenseAdmin()}
+function openLicenseSettings(){
+  if(!isLicenseAdmin()){
+    openModal(`<h2>🔐 مدیریت لایسنس</h2><p class="hint">فقط مدیر سیستم می‌تواند لینک لایسنس بسازد، ویرایش کند، تمدید یا باطل کند.</p>
+      <div class="form"><input value="${LICENSE_ADMIN_EMAIL}" readonly><input id="licenseAdminPass" type="password" placeholder="رمز حساب Firebase ادمین">
+      <button class="primary" onclick="(async()=>{const p=$('licenseAdminPass')?.value;if(!p)return alert('رمز را وارد کن.');if(!await ensureSyncReady())return;try{await sync.auth.signInWithEmailAndPassword('${LICENSE_ADMIN_EMAIL}',p);if(!isLicenseAdmin())throw new Error('admin-required');closeModal();openLicenseSettings();}catch(e){alert('ورود ادمین ناموفق بود: '+(e.code||e.message))}})()">ورود ادمین</button></div>`);
+    return;
+  }
+  openModal(`<h2>🔐 لایسنس و اشتراک</h2><div id="licenseStatusBox"></div><p class="hint">مدیریت از Firebase انجام می‌شود؛ تغییر یا ابطال لایسنس روی دستگاه مشتری اعمال می‌شود.</p>
+  <h3>ساخت لینک جدید</h3><select id="licensePlan"><option value="1m">۱ ماهه</option><option value="2m">۲ ماهه</option><option value="3m">۳ ماهه</option><option value="6m">۶ ماهه</option><option value="1y">۱ ساله</option><option value="life">دائمی</option></select>
+  <div class="settings-actions"><button class="primary" onclick="createLicense()">🔗 ساخت لینک</button></div>
+  <input id="licenseCreatedLink" readonly placeholder="لینک ساخته‌شده"><div id="licenseCreatedCode" class="hint"></div>
+  <div class="settings-actions"><button onclick="copyLicenseLink()">📋 کپی لینک</button></div><h3>مدیریت لایسنس‌ها</h3><div id="licenseAdminList"></div>`);
+  renderLicenseStatus();renderLicenseAdmin();
+}
+const LICENSE_ADMIN_EMAIL="mahdishakerinia68@gmail.com";
+function isLicenseAdmin(){return !!(sync?.user&&String(sync.user.email||"").toLowerCase()===LICENSE_ADMIN_EMAIL)}
+async function loginLicenseAdmin(){const email=prompt("ایمیل ادمین را وارد کن:",LICENSE_ADMIN_EMAIL);if(email===null)return false;if(email.trim().toLowerCase()!==LICENSE_ADMIN_EMAIL)return alert("این ایمیل مجاز به مدیریت لایسنس نیست."),false;const pass=prompt("رمز عبور حساب Firebase ادمین:");if(pass===null)return false;if(!await ensureSyncReady())return false;try{await sync.auth.signInWithEmailAndPassword(LICENSE_ADMIN_EMAIL,pass);if(!isLicenseAdmin())throw new Error("admin-required");removeLicenseHardGate();alert("ورود ادمین با موفقیت انجام شد.");return true}catch(e){alert("ورود ادمین ناموفق بود: "+(e.code||e.message));return false}}
+function showLicenseHardGate(){if(licenseGate()||isLicenseAdmin()){removeLicenseHardGate();return}let el=document.getElementById("licenseHardGate");if(!el){el=document.createElement("div");el.id="licenseHardGate";el.innerHTML=`<div class="license-hard-card"><div class="license-hard-icon">🔐</div><h2>فعال‌سازی حساب‌یار</h2><p>برای استفاده از برنامه باید یک لایسنس فعال داشته باشید.</p><input id="hardLicenseLink" placeholder="لینک لایسنس را وارد کنید" autocomplete="off"><button class="primary" id="hardLicenseBtn">فعال‌سازی لایسنس</button><button id="hardAdminBtn">ورود مدیر سیستم</button><small>پس از پایان یا ابطال لایسنس، دسترسی برنامه مسدود می‌شود.</small></div>`;document.body.appendChild(el);$("hardLicenseBtn").onclick=async()=>{const v=$("hardLicenseLink")?.value.trim();if(!v)return alert("لینک لایسنس را وارد کن.");let id=v;try{id=new URL(v,location.href).searchParams.get("license")||v}catch{}if(!/^[A-F0-9]{18}$/i.test(id))return alert("لینک لایسنس نامعتبر است.");const remote=await fetchCloudLicense(id).catch(()=>null);if(!remote||!LICENSE_PLANS[remote.plan])return alert("این لایسنس در Firebase پیدا نشد.");if(!licenseActive(remote))return alert(remote.status==="revoked"?"این لایسنس باطل شده است.":"مدت لایسنس تمام شده است.");setCurrentLicense({...remote,status:"active",activatedAt:new Date().toISOString()});try{history.replaceState({},document.title,location.pathname+location.hash)}catch{}removeLicenseHardGate();renderLicenseStatus();alert("لایسنس با موفقیت فعال شد.")};$("hardAdminBtn").onclick=loginLicenseAdmin}el.style.display="flex";document.documentElement.classList.add("license-locked")}
+function removeLicenseHardGate(){const el=document.getElementById("licenseHardGate");if(el)el.style.display="none";document.documentElement.classList.remove("license-locked")}
+async function enforceLicenseAccess(){if(isLicenseAdmin()){removeLicenseHardGate();return true}if(await activateLicenseFromUrl()){removeLicenseHardGate();return true}if(currentLicense()?.id&&await refreshCurrentLicense()){removeLicenseHardGate();return true}showLicenseHardGate();return false}
 function guardLicense(){if(licenseGate())return true;openLicenseGate();return false}
 async function startLicenseWatcher(){
-  const check=async()=>{if(!currentLicense()?.id)return;const active=await refreshCurrentLicense();renderLicenseStatus();if(!active){openLicenseGate()}};
+  const check=async()=>{if(isLicenseAdmin()){removeLicenseHardGate();return}if(!currentLicense()?.id){showLicenseHardGate();return}const active=await refreshCurrentLicense();renderLicenseStatus();if(!active){showLicenseHardGate()}};
   await check();if(window.__licenseWatchTimer)clearInterval(window.__licenseWatchTimer);window.__licenseWatchTimer=setInterval(check,60000);window.addEventListener("focus",check);window.addEventListener("online",check);
 }
 
@@ -3294,4 +3317,4 @@ async function importData(e){
   alert(msg)}
 }
 function clearData(){if(confirm("همه اطلاعات حذف شود؟")){const pin=data.pin,pinHash=data.pinHash,pinSalt=data.pinSalt,patternHash=data.patternHash,patternSalt=data.patternSalt,lockMethod=data.lockMethod,biometricEnabled=data.biometricEnabled,webauthnCredId=data.webauthnCredId,lang=data.lang;data=blankData();data.pin=pin;data.pinHash=pinHash;data.pinSalt=pinSalt;data.patternHash=patternHash;data.patternSalt=patternSalt;data.lockMethod=lockMethod;data.biometricEnabled=biometricEnabled;data.webauthnCredId=webauthnCredId;data.lang=lang;save();logEvent("پاک کردن اطلاعات","اطلاعات برنامه پاک شد","delete");}}
-(async function initApp(){normalizeData();purgeOldTrash();applyAccentThemeOnLoad();await migratePinSecurity();showLock();render();applyDashboardConfig();applyAppMode();renderBrandingInSettings();renderSettingsFeatures();applyLanguage();maybeAutoBackup("اجرای برنامه");processRecurringTransactions();logEvent("اجرای برنامه","برنامه حسابدار اجرا شد","system");await initSync();await activateLicenseFromUrl();await startLicenseWatcher();if(!sync.auth){[4000,12000,30000].forEach(ms=>setTimeout(()=>{if(!sync.auth)initSync()},ms))}syncAllNotesToReminders().catch(console.error);syncAllChecksToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error);startUpdateChecker();startReminderChecker();renderLicenseStatus();setTimeout(()=>{if(!licenseGate())openLicenseGate()},450);if(!hasLockCode())setTimeout(showWhatsNewOnce,320);})();
+(async function initApp(){normalizeData();purgeOldTrash();applyAccentThemeOnLoad();await migratePinSecurity();await initSync();const licenseOK=await enforceLicenseAccess();if(!licenseOK){render();return}showLock();render();applyDashboardConfig();applyAppMode();renderBrandingInSettings();renderSettingsFeatures();applyLanguage();maybeAutoBackup("اجرای برنامه");processRecurringTransactions();logEvent("اجرای برنامه","برنامه حسابدار اجرا شد","system");await startLicenseWatcher();if(!sync.auth){[4000,12000,30000].forEach(ms=>setTimeout(()=>{if(!sync.auth)initSync()},ms))}syncAllNotesToReminders().catch(console.error);syncAllChecksToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error);startUpdateChecker();startReminderChecker();renderLicenseStatus();setTimeout(()=>{if(!licenseGate())openLicenseGate()},450);if(!hasLockCode())setTimeout(showWhatsNewOnce,320);})();
