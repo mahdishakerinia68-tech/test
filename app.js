@@ -1,12 +1,12 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="2.7";
+const APP_VERSION="2.8";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
 const APP_MODE_KEY="hesabdar-app-mode-v1";
-/* ===== License manager v2.7 — Firebase backed =====
+/* ===== License manager v2.8 — Firebase backed =====
  * License records live in Firestore. The URL contains only the immutable
  * license id; plan/expiry/status are always read from Firebase so the admin
  * can edit, extend or revoke a license remotely. LocalStorage is only a
@@ -119,12 +119,50 @@ function openLicenseSettings(){
   <h3>ساخت لینک جدید</h3><select id="licensePlan"><option value="1m">۱ ماهه</option><option value="2m">۲ ماهه</option><option value="3m">۳ ماهه</option><option value="6m">۶ ماهه</option><option value="1y">۱ ساله</option><option value="life">دائمی</option></select>
   <div class="settings-actions"><button class="primary" onclick="createLicense()">🔗 ساخت لینک</button></div>
   <input id="licenseCreatedLink" readonly placeholder="لینک ساخته‌شده"><div id="licenseCreatedCode" class="hint"></div>
-  <div class="settings-actions"><button onclick="copyLicenseLink()">📋 کپی لینک</button></div><h3>مدیریت لایسنس‌ها</h3><div id="licenseAdminList"></div>`);
-  renderLicenseStatus();renderLicenseAdmin();
+  <div class="settings-actions"><button onclick="copyLicenseLink()">📋 کپی لینک</button></div><h3>مدیریت لایسنس‌ها</h3><div id="licenseAdminList"></div><h3>👑 مدیریت ادمین‌ها</h3><p class="hint">ادمین جدید باید قبلاً در Firebase Authentication حساب داشته باشد.</p><div class="settings-actions"><button class="primary" onclick="addLicenseAdmin()">➕ افزودن ادمین</button></div><div id="licenseAdminsList"></div><div class="settings-actions"><button onclick="(async()=>{await sync.auth.signOut();renderLicenseSettingsAccess();openLicenseSettings()})()">🚪 خروج از حساب ادمین</button></div>`);
+  renderLicenseStatus();renderLicenseAdmin();renderLicenseAdmins();
 }
 const LICENSE_ADMIN_EMAIL="mahdishakerinia68@gmail.com";
-function isLicenseAdmin(){return !!(sync?.user&&String(sync.user.email||"").toLowerCase()===LICENSE_ADMIN_EMAIL)}
-async function loginLicenseAdmin(){const email=prompt("ایمیل ادمین را وارد کن:");if(email===null)return false;if(email.trim().toLowerCase()!==LICENSE_ADMIN_EMAIL)return alert("این ایمیل مجاز به مدیریت لایسنس نیست."),false;const pass=prompt("رمز عبور حساب Firebase ادمین:");if(pass===null)return false;if(!await ensureSyncReady())return false;try{await sync.auth.signInWithEmailAndPassword(LICENSE_ADMIN_EMAIL,pass);if(!isLicenseAdmin())throw new Error("admin-required");removeLicenseHardGate();alert("ورود ادمین با موفقیت انجام شد.");return true}catch(e){alert("ورود ادمین ناموفق بود: "+(e.code||e.message));return false}}
+const LICENSE_ADMINS_COLLECTION="licenseAdmins";
+let licenseAdminEmails=new Set([LICENSE_ADMIN_EMAIL]);
+let licenseAdminsLoaded=false;
+async function loadLicenseAdmins(){
+  licenseAdminsLoaded=false;
+  if(!sync?.db||!sync?.user)return false;
+  try{
+    const snap=await sync.db.collection(LICENSE_ADMINS_COLLECTION).where("enabled","==",true).get();
+    const set=new Set([LICENSE_ADMIN_EMAIL]);
+    snap.forEach(d=>{const e=String(d.data()?.email||d.id||"").trim().toLowerCase();if(e)set.add(e)});
+    licenseAdminEmails=set; licenseAdminsLoaded=true; return true;
+  }catch(e){console.warn("license admins",e);licenseAdminEmails=new Set([LICENSE_ADMIN_EMAIL]);return false}
+}
+function isLicenseAdmin(){const e=String(sync?.user?.email||"").toLowerCase();return !!e&&licenseAdminEmails.has(e)}
+async function addLicenseAdmin(){
+  if(!isLicenseAdmin())return alert("فقط ادمین می‌تواند مدیر جدید اضافه کند.");
+  const email=prompt("ایمیل ادمین جدید را وارد کن:");
+  if(email===null)return; const e=email.trim().toLowerCase();
+  if(!/^\S+@\S+\.\S+$/.test(e))return alert("ایمیل نامعتبر است.");
+  if(e===LICENSE_ADMIN_EMAIL||licenseAdminEmails.has(e))return alert("این ایمیل قبلاً ادمین است.");
+  try{
+    await ensureLicenseCloud();
+    await licenseCloud.db.collection(LICENSE_ADMINS_COLLECTION).doc(e).set({email:e,enabled:true,createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdBy:sync.user.uid});
+    await loadLicenseAdmins(); renderLicenseAdmin(); alert("ادمین اضافه شد. این ایمیل باید در Firebase Authentication هم حساب داشته باشد.");
+  }catch(err){alert("افزودن ادمین ناموفق بود: "+(err.code||err.message))}
+}
+async function removeLicenseAdmin(email){
+  if(!isLicenseAdmin())return alert("فقط ادمین می‌تواند مدیر حذف کند.");
+  const e=String(email||"").toLowerCase(); if(e===LICENSE_ADMIN_EMAIL)return alert("ادمین اصلی قابل حذف نیست.");
+  if(!confirm(`دسترسی ادمین ${e} حذف شود؟`))return;
+  try{await ensureLicenseCloud();await licenseCloud.db.collection(LICENSE_ADMINS_COLLECTION).doc(e).delete();await loadLicenseAdmins();renderLicenseAdmin();alert("دسترسی ادمین حذف شد.")}catch(err){alert("حذف ادمین ناموفق بود: "+(err.code||err.message))}
+}
+async function renderLicenseAdmins(){
+  const box=$("licenseAdminsList");if(!box)return;
+  await loadLicenseAdmins();
+  const arr=[...licenseAdminEmails].sort();
+  box.innerHTML=arr.map(e=>`<div class="card"><b>👤 ${esc(e)}</b>${e===LICENSE_ADMIN_EMAIL?`<small> • ادمین اصلی</small>`:`<div class="settings-actions"><button class="danger" onclick="removeLicenseAdmin('${esc(e)}')">🗑 حذف دسترسی</button></div>`}</div>`).join("");
+}
+
+async function loginLicenseAdmin(){const email=prompt("ایمیل ادمین را وارد کن:");if(email===null)return false;const normalized=email.trim().toLowerCase();if(!normalized)return alert("ایمیل را وارد کن."),false;const pass=prompt("رمز عبور حساب Firebase ادمین:");if(pass===null)return false;if(!await ensureSyncReady())return false;try{await sync.auth.signInWithEmailAndPassword(normalized,pass);await loadLicenseAdmins();if(!isLicenseAdmin()){await sync.auth.signOut();throw new Error("admin-required")}removeLicenseHardGate();renderLicenseSettingsAccess();alert("ورود ادمین با موفقیت انجام شد.");return true}catch(e){alert("ورود ادمین ناموفق بود: "+(e.code||e.message));return false}}
 function showLicenseHardGate(){if(licenseGate()||isLicenseAdmin()){removeLicenseHardGate();return}let el=document.getElementById("licenseHardGate");if(!el){el=document.createElement("div");el.id="licenseHardGate";el.innerHTML=`<div class="license-hard-card"><div class="license-hard-icon">🔐</div><h2>فعال‌سازی حساب‌یار</h2><p>برای استفاده از برنامه باید یک لایسنس فعال داشته باشید.</p><input id="hardLicenseLink" placeholder="لینک لایسنس را وارد کنید" autocomplete="off"><button class="primary" id="hardLicenseBtn">فعال‌سازی لایسنس</button><button id="hardAdminBtn">ورود مدیر سیستم</button><small>پس از پایان یا ابطال لایسنس، دسترسی برنامه مسدود می‌شود.</small></div>`;document.body.appendChild(el);$("hardLicenseBtn").onclick=async()=>{const v=$("hardLicenseLink")?.value.trim();if(!v)return alert("لینک لایسنس را وارد کن.");let id=v;try{id=new URL(v,location.href).searchParams.get("license")||v}catch{}if(!/^[A-F0-9]{18}$/i.test(id))return alert("لینک لایسنس نامعتبر است.");const remote=await fetchCloudLicense(id).catch(()=>null);if(!remote||!LICENSE_PLANS[remote.plan])return alert("این لایسنس در Firebase پیدا نشد.");if(!licenseActive(remote))return alert(remote.status==="revoked"?"این لایسنس باطل شده است.":"مدت لایسنس تمام شده است.");setCurrentLicense({...remote,status:"active",activatedAt:new Date().toISOString()});try{history.replaceState({},document.title,location.pathname+location.hash)}catch{}removeLicenseHardGate();renderLicenseStatus();alert("لایسنس با موفقیت فعال شد.")};$("hardAdminBtn").onclick=loginLicenseAdmin}el.style.display="flex";document.documentElement.classList.add("license-locked")}
 function removeLicenseHardGate(){const el=document.getElementById("licenseHardGate");if(el)el.style.display="none";document.documentElement.classList.remove("license-locked")}
 async function enforceLicenseAccess(){if(isLicenseAdmin()){removeLicenseHardGate();renderLicenseSettingsAccess();return true}if(await activateLicenseFromUrl()){removeLicenseHardGate();return true}if(currentLicense()?.id&&await refreshCurrentLicense()){removeLicenseHardGate();return true}showLicenseHardGate();return false}
@@ -830,13 +868,15 @@ async function initSync(){
   if(!window.firebase){const ok=await ensureFirebaseLoaded().catch(()=>false);if(!ok)return}
   try{
     if(!sync.app)sync.app=firebase.apps.length?firebase.app():firebase.initializeApp(cfg);
-    sync.auth=firebase.auth();sync.db=firebase.firestore();
+    sync.auth=firebase.auth();sync.db=firebase.firestore();try{await sync.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)}catch(e){console.warn("auth persistence",e)}
     try{sync.db.settings({ignoreUndefinedProperties:true})}catch(e){}
     try{sync.storage=firebase.storage()}catch(e){console.warn("firebase storage init failed",e)}
     if(sync.authListener)return;
     sync.authListener=true;
+    let resolveInitialAuth;
+    const initialAuth=new Promise(resolve=>{resolveInitialAuth=resolve});
     sync.auth.onAuthStateChanged(async user=>{
-      sync.user=user;fillSettingsSyncEmail();
+      sync.user=user;resolveInitialAuth(user);fillSettingsSyncEmail();if(user)await loadLicenseAdmins();else{licenseAdminEmails=new Set([LICENSE_ADMIN_EMAIL]);licenseAdminsLoaded=false}
       if(sync.timer)clearInterval(sync.timer);if(sync.unsubscribe){sync.unsubscribe();sync.unsubscribe=null}
       if(!user){sync.ready=false;if(sync.presenceTimer)clearInterval(sync.presenceTimer);setSyncStatus("☁️ برای همگام‌سازی وارد شوید");return}
       sync.ready=true;await hydrateSync();await rescheduleAllNativeReminders();startDevicePresence();await verifyTwoPhoneConnection(false);
@@ -848,6 +888,7 @@ async function initSync(){
       },e=>setSyncStatus("⚠️ همگام‌سازی: "+(e.code||e.message)));
       sync.timer=setInterval(syncTick,SYNC_INTERVAL);
     });
+    await initialAuth;
   }catch(e){console.error(e);setSyncStatus("⚠️ تنظیمات Firebase نامعتبر است")}
 }
 async function syncSave(){
