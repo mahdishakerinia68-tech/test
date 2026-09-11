@@ -22,7 +22,7 @@
     <button id="menuBtn" class="menu-trigger" aria-label="باز کردن منو" aria-haspopup="true" aria-expanded="false" aria-controls="menuModal">⋯</button>
     <img class="app-logo" src="logo.png" alt="حساب‌یار">
     <div class="top-bar-titles">
-      <h1>حساب‌یار <span class="version-pill" id="versionPill">t1</span></h1>
+      <h1>حساب‌یار <span class="version-pill" id="versionPill">t2</span></h1>
       <div id="syncBadge" class="sync-badge">☁️ آفلاین</div>
     </div>
   </div>
@@ -187,9 +187,9 @@
     </div>
   </div>
   <div class="card" style="margin-bottom:10px">
-    <h3>🙋 لایسنس ندارم</h3>
-    <p class="hint">اگر هنوز آیدی و رمز لایسنس نگرفته‌ای، از همینجا درخواست بده؛ درخواستت برای ادمین ارسال می‌شود و به‌محض تایید، لایسنس خودکار روی همین حساب فعال خواهد شد.</p>
-    <button onclick="requestLicense()">📨 درخواست لایسنس جدید</button>
+    <h3>➕ ساخت لایسنس</h3>
+    <p class="hint">اگر هنوز آیدی و رمز لایسنس نگرفته‌ای، از همینجا برای خودت یک لایسنس بساز (ایمیل و رمز حساب کاربری‌ات را می‌پرسد). لایسنس در فایربیس ثبت می‌شود و ادمین از داخل برنامه (پنل مدیریت لایسنس، دکمه بروزرسانی) آن را می‌بیند و برایش مدت‌زمان (۱ ماهه، ۳ ماهه، ۶ ماهه، ۱ ساله یا دائمی) تعیین و فعال می‌کند.</p>
+    <button onclick="requestLicense()">➕ ساخت لایسنس</button>
   </div>
   <div class="card" id="licenseAdminPanel" style="display:none;margin-bottom:10px">
     <h3>🛠 پنل مدیریت لایسنس (فقط ادمین)</h3>
@@ -197,7 +197,7 @@
   </div>
 
   <div class="card" id="licenseCreatePanel" style="display:none;margin-bottom:10px">
-    <h3>➕ ساخت لایسنس جدید</h3>
+    <h3>➕ ساخت لایسنس دستی (فقط ادمین)</h3>
     <div class="form">
       <select id="licenseNewPlan">
         <option value="m1">۱ ماهه</option>
@@ -503,7 +503,7 @@
 <script src="capacitor-biometric-bridge.js"></script>
 <script src="app.js"></script>
 <script>if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js?v=t1",{updateViaCache:"none"}).catch(console.error);
+  navigator.serviceWorker.register("sw.js?v=t2",{updateViaCache:"none"}).catch(console.error);
   /* v3.0: once the new service worker (with the fresh cache) takes
      control, reload once automatically so the update is visible right
      away in this same session instead of only after fully closing and

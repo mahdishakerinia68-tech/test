@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="t1";
+const APP_VERSION="t2";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -1091,7 +1091,7 @@ async function revokeLicenseById(id){
    (نیازی به آیدی/رمز دستی نیست چون از قبل به uid همان کاربر وصل است). */
 async function requestLicense(){
   if(!sync.user){
-    const email=prompt("برای ثبت درخواست لایسنس اول باید وارد حساب کاربری شوی.\nایمیل حساب:");
+    const email=prompt("برای ساخت لایسنس اول باید ایمیل و رمز حساب کاربری‌ات را وارد کنی.\nایمیل حساب:");
     if(!email)return;
     const pass=prompt("رمز حساب (اگر حساب نداری، همین‌جا یک رمز جدید بساز):");
     if(!pass)return;
@@ -1112,7 +1112,7 @@ async function requestLicense(){
       if(d.status==="active"||d.redeemedBy)return alert("لایسنس تو همین الان فعال است.");
     }
     await ref.set({status:"pending",requestedBy:sync.user.uid,requestedByEmail:sync.user.email,requestedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:firebase.firestore.FieldValue.serverTimestamp(),plan:null,code:null,redeemedBy:null,redeemedByEmail:null},{merge:true});
-    alert("درخواست لایسنس ثبت شد ✅\nهر وقت ادمین آن را تایید کند، لایسنس خودکار روی همین حساب فعال می‌شود.");
+    alert("لایسنس ساخته شد ✅\nهر وقت ادمین از پنل مدیریت لایسنس (دکمه بروزرسانی فهرست) آن را تایید کند و برایش زمان تعیین کند، لایسنس خودکار روی همین حساب فعال می‌شود.");
     $("licenseLock")?.remove();
     renderLicensePage();
   }catch(e){alert("ثبت درخواست ناموفق: "+(e.message||e))}
@@ -1224,7 +1224,7 @@ function showLicenseLock(){
     <input id="licenseLockCode" class="amt-input" placeholder="رمز لایسنس" autocomplete="off" value="${remembered?esc(remembered.code):""}">
     <label class="hint" style="display:flex;align-items:center;gap:6px;justify-content:center;margin:8px 0 4px"><input type="checkbox" id="licenseLockRemember"${remembered?" checked":""}> همیشه من را به‌خاطر بسپار</label>
     <button class="primary" id="licenseLockBtn">✅ فعال‌سازی</button>
-    <button id="licenseLockRequestBtn" style="margin-top:8px">🙋 لایسنس ندارم، درخواست بده</button>
+    <button id="licenseLockRequestBtn" style="margin-top:8px">➕ ساخت لایسنس</button>
     </div>`;
   document.body.appendChild(d);
   $("licenseLockBtn").onclick=()=>activateLicense();
