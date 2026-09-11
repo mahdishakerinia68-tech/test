@@ -22,7 +22,7 @@
     <button id="menuBtn" class="menu-trigger" aria-label="باز کردن منو" aria-haspopup="true" aria-expanded="false" aria-controls="menuModal">⋯</button>
     <img class="app-logo" src="logo.png" alt="حساب‌یار">
     <div class="top-bar-titles">
-      <h1>حساب‌یار <span class="version-pill" id="versionPill">t6</span></h1>
+      <h1>حساب‌یار <span class="version-pill" id="versionPill">3.7</span></h1>
       <div id="syncBadge" class="sync-badge">☁️ آفلاین</div>
     </div>
   </div>
@@ -173,61 +173,6 @@
   <div id="checkList"></div>
 </section>
 
-<section id="license" class="page">
-  <div class="section-head"><h2>🔑 لایسنس</h2></div>
-  <div class="card" style="margin-bottom:10px"><div id="licenseStatusBox"><p class="hint">در حال بررسی وضعیت لایسنس...</p></div></div>
-  <div class="card" style="margin-bottom:10px">
-    <h3>فعال‌سازی</h3>
-    <p class="hint">آیدی و رمز لایسنسی که از ادمین دریافت کرده‌ای را اینجا وارد کن و «فعال‌سازی» را بزن. (این غیر از ایمیل و رمز حساب همگام‌سازی/ادمین است — آیدی لایسنس چیزی شبیه HSB-XXXX-XXXX است)</p>
-    <div class="form">
-      <input id="licenseIdInput" class="amt-input" placeholder="آیدی لایسنس" autocomplete="off">
-      <input id="licenseCodeInput" class="amt-input" placeholder="رمز لایسنس" autocomplete="off">
-      <label class="hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="licenseRememberMe"> همیشه من را به‌خاطر بسپار</label>
-      <button class="primary" onclick="activateLicense()">✅ فعال‌سازی</button>
-    </div>
-  </div>
-  <div class="card" id="licenseRequestPanel" style="margin-bottom:10px">
-    <h3>➕ ساخت لایسنس</h3>
-    <p class="hint">برای ساخت لایسنس، دکمه زیر را بزن تا مستقیم به تلگرام وصل شوی و پیام بدهی. بعد از هماهنگی، آیدی و رمز لایسنس برات ساخته و ارسال می‌شود؛ همان‌ها را بالا (فعال‌سازی) وارد کن.</p>
-    <button onclick="requestLicense()">📨 پیام در تلگرام</button>
-  </div>
-  <div class="card" id="licenseAdminPanel" style="display:none;margin-bottom:10px">
-    <h3>🛠 پنل مدیریت لایسنس (فقط ادمین)</h3>
-    <p class="hint">درخواست‌های در انتظار تایید با 🙋 مشخص شده‌اند (دکمه ✅ برای بررسی و تایید/رد). برای تمدید یا باطل‌کردنِ لایسنس‌های فعال، از دکمه‌های ✏️ (تمدید) و 🗑 (باطل‌کردن) کنار همان لایسنس در فهرست پایین استفاده کن. علامت 👑 یعنی آن لایسنس «ادمین» است.</p>
-    <div id="licenseAdminFirebaseBtnWrap" style="display:none;margin-top:8px">
-      <button onclick="openSyncSettings()">⚙️ تنظیم اتصال Firebase</button>
-    </div>
-  </div>
-
-  <div class="card" id="licenseCreatePanel" style="display:none;margin-bottom:10px">
-    <h3>➕ ساخت لایسنس دستی (فقط ادمین)</h3>
-    <div class="form">
-      <select id="licenseNewPlan">
-        <option value="m1">۱ ماهه</option>
-        <option value="m3">۳ ماهه</option>
-        <option value="m6">۶ ماهه</option>
-        <option value="y1">۱ ساله</option>
-        <option value="lifetime">دائمی</option>
-      </select>
-      <input id="licenseNewCode" placeholder="رمز دلخواه (خالی بگذار تا خودکار ساخته شود)" autocomplete="off" style="direction:ltr;text-align:center">
-      <label class="hint" style="margin-bottom:-4px">یا یک تاریخ انقضای دلخواه (اختیاری — اگر پر شود، به‌جای گزینه بالا استفاده می‌شود و بعد از همان تاریخ برنامه غیرفعال می‌شود):</label>
-      <input id="licenseNewCustomExpiry" type="date" style="direction:ltr">
-      <input id="licenseNewNote" placeholder="یادداشت (مثلاً نام مشتری) — اختیاری">
-      <label class="hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="licenseNewAdmin"> 👑 ادمین باشد (دسترسی کامل + لایسنس دائمی؛ می‌تواند خودش هم ادمین دیگری معرفی کند)</label>
-      <button class="primary" onclick="createLicense()">➕ ساخت لایسنس جدید</button>
-    </div>
-  </div>
-
-  <div class="card" id="licenseListPanel" style="display:none;margin-bottom:10px">
-    <h3>📋 فهرست لایسنس‌ها و درخواست‌ها</h3>
-    <button onclick="loadAdminLicenses()">🔄 بروزرسانی فهرست</button>
-    <span id="licenseListFirebaseBtnWrap" style="display:none">
-      <button onclick="openSyncSettings()">⚙️ تنظیم اتصال Firebase</button>
-    </span>
-    <div id="licenseListBox"></div>
-  </div>
-</section>
-
 <section id="reports" class="page">
   <h2 data-i18n="page.reports">داشبورد و گزارش</h2>
   <div class="grid">
@@ -341,18 +286,9 @@
         <span class="acc-arrow">⌄</span>
       </button>
       <div class="accordion-body">
-        <input id="settingsSyncEmail" type="email" placeholder="ایمیل حساب مشترک" autocomplete="username">
-        <input id="settingsSyncPass" type="password" placeholder="رمز حساب مشترک" autocomplete="current-password">
-        <div class="settings-actions">
-          <button class="primary" onclick="loginFromSettings()">🔐 ورود با ایمیل</button>
-          <button onclick="createFromSettings()">➕ ساخت حساب با ایمیل</button>
-          <button onclick="logoutSync()">🚪 خروج از حساب</button>
-        </div>
+        <div id="syncLoginWrap"></div>
         <div id="syncStatus" class="hint"></div>
-        <div class="settings-actions">
-          <button onclick="pushToCloud()">☁️ ارسال اطلاعات این گوشی</button>
-          <button onclick="pullFromCloud()">⬇️ دریافت اطلاعات از ابر</button>
-        </div>
+        <div id="adminPanelEntry"></div>
       </div>
     </div>
 
@@ -396,14 +332,12 @@
 
     <div class="item accordion-card page-accordion settings-group" id="stgGroup-ai" data-acc-id="stg-ai">
       <button class="accordion-head settings-acc-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)">
-        <div class="settings-group-head"><span>✨</span><div><h3>یادداشت هوشمند (هوش مصنوعی)</h3><p class="hint">برای استفاده از «یادداشت هوشمند»، کلید API شخصی خودت را از هر سرویس سازگار با فرمت OpenAI (مثل دیپ‌سیک، اوپن‌ای‌آی و…) اینجا وارد کن. آدرس و نام مدل اختیاری هستند و پیش‌فرض روی دیپ‌سیک تنظیم شده‌اند. همه این اطلاعات فقط روی همین گوشی ذخیره می‌شود.</p></div></div>
+        <div class="settings-group-head"><span>✨</span><div><h3>یادداشت هوشمند (Claude)</h3><p class="hint">برای استفاده از «یادداشت هوشمند» در صفحه یادداشت‌ها، کلید API شخصی خودت از Claude (Anthropic) را اینجا وارد کن. این کلید فقط روی همین گوشی ذخیره می‌شود.</p></div></div>
         <span class="acc-arrow">⌄</span>
       </button>
       <div class="accordion-body">
         <div id="anthropicKeyStatus" class="hint"></div>
-        <input id="smartNoteUrlInput" type="text" placeholder="آدرس API (اختیاری، پیش‌فرض: دیپ‌سیک)" autocomplete="off">
-        <input id="smartNoteModelInput" type="text" placeholder="نام مدل (اختیاری، پیش‌فرض: deepseek-chat)" autocomplete="off">
-        <input id="anthropicKeyInput" type="password" placeholder="sk-... (کلید API — الزامی)" autocomplete="off">
+        <input id="anthropicKeyInput" type="password" placeholder="sk-ant-..." autocomplete="off">
         <div class="settings-actions">
           <button class="primary" onclick="saveAnthropicKey()">💾 ذخیره کلید</button>
           <button class="danger" onclick="clearAnthropicKey()">🗑 حذف کلید</button>
@@ -412,7 +346,7 @@
     </div>
 
   </div>
-  <p class="hint settings-footer">نسخه <span id="appVersionText">2.7</span> • بکاپ خودکار • اتصال دو گوشی • تقویم شمسی کامل</p>
+  <p class="hint settings-footer">نسخه <span id="appVersionText">2.2</span> • بکاپ خودکار • اتصال دو گوشی • تقویم شمسی کامل</p>
   <p class="hint">تغییرات روی این گوشی ذخیره می‌شود و در صورت اتصال به Firebase با گوشی دوم ادغام می‌گردد.</p>
 </section>
 
@@ -453,7 +387,6 @@
         <div class="menu-group-title" data-i18n="menu.other">دیگر</div>
         <div class="menu-grid">
           <button class="nav" data-page="trash">🗑<span>زباله‌دان</span></button>
-          <button class="nav" data-page="license">🔑<span>لایسنس</span></button>
           <button class="nav" data-page="settings">⚙<span data-i18n="nav.settings">تنظیمات</span></button>
         </div>
       </div>
@@ -509,16 +442,6 @@
 <script src="capacitor-filesystem-bridge.js"></script>
 <script src="capacitor-biometric-bridge.js"></script>
 <script src="app.js"></script>
-<script>if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js?v=t6",{updateViaCache:"none"}).catch(console.error);
-  /* v3.0: once the new service worker (with the fresh cache) takes
-     control, reload once automatically so the update is visible right
-     away in this same session instead of only after fully closing and
-     reopening the app. The guard flag stops a reload loop. */
-  let swReloaded=false;
-  navigator.serviceWorker.addEventListener("controllerchange",()=>{
-    if(swReloaded)return;swReloaded=true;location.reload();
-  });
-}</script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js?v=2-1",{updateViaCache:"none"}).catch(console.error)}</script>
 </body>
 </html>

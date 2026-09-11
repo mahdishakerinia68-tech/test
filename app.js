@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="t6";
+const APP_VERSION="2.4";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -121,8 +121,185 @@ const DEFAULT_SYNC_CONFIG={
   appId:"1:1048332879407:web:d1168138d754d28c8d68da",
   measurementId:"G-562NVEJKZT"
 };
-let sync={app:null,auth:null,db:null,user:null,unsubscribe:null,ready:false,saving:false,queued:false,hydrating:false,authListener:false,dirty:new Map()};
+let sync={app:null,auth:null,db:null,user:null,unsubscribe:null,ready:false,saving:false,queued:false,hydrating:false,authListener:false,dirty:new Map(),license:null,licenseStatus:null,licenseTimer:null};
 function syncConfig(){try{return JSON.parse(localStorage.getItem(SYNC_KEY)||"null")||DEFAULT_SYNC_CONFIG}catch{return DEFAULT_SYNC_CONFIG}}
+
+/* ---- License / subscription system (v2.3) --------------------------
+ * The app is now gated behind a Firebase-Auth account that carries a
+ * "license" document (collection `licenses`, doc id = uid). The email
+ * below is the permanent creator/admin account: the very first time
+ * someone signs in with this exact email (from the settings login box)
+ * and the account does not exist yet in Firebase Auth, it is created
+ * automatically and marked as a permanent admin license — no manual
+ * Firebase-console step needed. Every other account is created by an
+ * admin from the in-app admin panel, with a fixed-duration or
+ * permanent license; once that license expires or is revoked, the
+ * whole app locks down to a "sign in again / renew" screen. ---- */
+const ADMIN_EMAIL="mahdishakerinia68@gmail.com";
+const LICENSE_COLLECTION="licenses";
+const LICENSE_CACHE_KEY="hesabdar-license-cache-v1";
+const LICENSE_RECHECK_MS=10*60*1000;
+const LICENSE_PLAN_LABELS={"1m":"۱ ماهه","2m":"۲ ماهه","3m":"۳ ماهه","6m":"۶ ماهه","1y":"۱ ساله",forever:"دائمی",forever_admin:"دائمی + ادمین"};
+const LICENSE_PLAN_DAYS={"1m":30,"2m":60,"3m":90,"6m":180,"1y":365};
+function isMasterAdminEmail(email){return String(email||"").trim().toLowerCase()===ADMIN_EMAIL}
+function licenseDocRef(uid){return sync.db.collection(LICENSE_COLLECTION).doc(uid)}
+function getLicenseCache(){try{return JSON.parse(localStorage.getItem(LICENSE_CACHE_KEY)||"null")}catch(e){return null}}
+function setLicenseCache(v){try{if(v)localStorage.setItem(LICENSE_CACHE_KEY,JSON.stringify(v));else localStorage.removeItem(LICENSE_CACHE_KEY)}catch(e){}}
+function licenseStatusFrom(lic){
+ if(!lic)return {ok:false,reason:"none"};
+ if(lic.status==="revoked")return {ok:false,reason:"revoked",lic};
+ if(lic.permanent)return {ok:true,lic};
+ if(lic.expiresAt){const exp=new Date(lic.expiresAt).getTime();if(isFinite(exp)&&Date.now()>exp)return {ok:false,reason:"expired",lic};return {ok:true,lic}}
+ return {ok:false,reason:"none",lic};
+}
+function licenseReasonFa(reason){return reason==="expired"?"منقضی شده":reason==="revoked"?"باطل شده":"برای این حساب ثبت نشده"}
+async function resolveLicenseForCurrentUser(){
+ if(!sync.user||!sync.db)return null;
+ if(isMasterAdminEmail(sync.user.email)){
+  const lic={email:sync.user.email,isAdmin:true,permanent:true,plan:"forever_admin",status:"active"};
+  try{await licenseDocRef(sync.user.uid).set({...lic,updatedAt:new Date().toISOString()},{merge:true})}catch(e){console.warn("admin license upsert failed",e)}
+  setLicenseCache({uid:sync.user.uid,...lic,checkedAt:new Date().toISOString()});
+  return lic;
+ }
+ try{
+  const snap=await withLicenseTimeout(licenseDocRef(sync.user.uid).get());
+  const lic=snap.exists?snap.data():null;
+  setLicenseCache(lic?{uid:sync.user.uid,...lic,checkedAt:new Date().toISOString()}:{uid:sync.user.uid,status:"none",checkedAt:new Date().toISOString()});
+  return lic;
+ }catch(e){
+  console.warn("license fetch failed, using local cache",e);
+  const cache=getLicenseCache();
+  if(cache&&cache.uid===sync.user.uid)return cache;
+  return null;
+ }
+}
+/* ---- Offline-safe license enforcement -------------------------------
+ * Firebase (Firestore) can only be reached while online, but a license
+ * lock must hold even when the device has no connection at all —
+ * otherwise turning on airplane mode would be a trivial way around an
+ * expired/revoked subscription. So the last known license check is
+ * cached locally (LICENSE_CACHE_KEY) and re-applied immediately at
+ * every app boot, purely from localStorage, before any network call is
+ * attempted. Firestore offline persistence + a timeout on the read
+ * (falling back to that same cache) keep the "online" check itself from
+ * hanging forever when connectivity is flaky. ---- */
+function enforceCachedLicenseAtBoot(){
+ const cache=getLicenseCache();
+ if(!cache)return;
+ const st=licenseStatusFrom(cache);
+ if(!st.ok){if(!sync.user)sync.user={email:cache.email||""};showLicenseGate(st)}
+}
+async function onNetworkBackOnline(){
+ if(!sync.auth||!sync.db){if(!sync.auth)await initSync();return}
+ if(!sync.user)return;
+ const lic=await resolveLicenseForCurrentUser();const st=licenseStatusFrom(lic);
+ sync.license=lic;sync.licenseStatus=st;renderAdminEntry();
+ if(!st.ok)showLicenseGate(st);else{hideLicenseGate();if(!sync.ready){sync.ready=true;await hydrateSync();startDevicePresence();startLicenseRecheck()}}
+}
+function withLicenseTimeout(promise){return Promise.race([promise,new Promise((_,rej)=>setTimeout(()=>rej(new Error("license check timed out")),8000))])}
+function showLicenseGate(st){
+ let old=$("licenseGate");if(old)old.remove();
+ const d=document.createElement("div");d.id="licenseGate";d.className="lock";
+ const email=sync.user?.email||"";
+ d.innerHTML=`<div class="lockbox"><h1>🔒 حساب‌یار</h1><p>اشتراک حساب <b>${esc(email)}</b> ${esc(licenseReasonFa(st?.reason))} است و برنامه غیرفعال شده.</p>
+  <button class="primary" id="licRelogin">🔁 ورود مجدد</button>
+  <button id="licRenew">💬 تمدید اشتراک</button></div>`;
+ document.body.appendChild(d);
+ $("licRelogin").onclick=async()=>{try{await sync.auth?.signOut()}catch(e){} setLicenseCache(null);d.remove();goToPage("settings");renderSyncLoginBox();};
+ $("licRenew").onclick=()=>alert("برای تمدید یا فعال‌سازی اشتراک، با فروشنده/ادمین برنامه تماس بگیر.");
+}
+function hideLicenseGate(){$("licenseGate")?.remove()}
+function startLicenseRecheck(){
+ if(sync.licenseTimer)clearInterval(sync.licenseTimer);
+ sync.licenseTimer=setInterval(async()=>{
+  if(!sync.user||!sync.db)return;
+  const lic=await resolveLicenseForCurrentUser();const st=licenseStatusFrom(lic);
+  sync.license=lic;sync.licenseStatus=st;renderAdminEntry();
+  if(!st.ok)showLicenseGate(st);else hideLicenseGate();
+ },LICENSE_RECHECK_MS);
+}
+function renderSyncLoginBox(){
+ const wrap=$("syncLoginWrap");if(!wrap)return;
+ if(sync.user){
+  wrap.innerHTML=`<p class="hint">وارد شده با: <b>${esc(sync.user.email||"")}</b></p><div class="settings-actions"><button onclick="logoutSync()">🚪 خروج از حساب</button></div>`;
+ }else{
+  wrap.innerHTML=`<input id="settingsSyncEmail" type="email" placeholder="ایمیل" autocomplete="username"><input id="settingsSyncPass" type="password" placeholder="رمز عبور" autocomplete="current-password"><div class="settings-actions"><button class="primary" onclick="loginFromSettings()">🔐 ورود</button></div>`;
+ }
+}
+function renderAdminEntry(){
+ const box=$("adminPanelEntry");if(!box)return;
+ box.innerHTML=(sync.user&&sync.license?.isAdmin)?`<div class="settings-actions"><button class="primary" onclick="openAdminPanel()">🛠 پنل مدیریت (ادمین)</button></div>`:"";
+}
+/* -- Admin panel: create/list/renew/revoke licensed accounts -- */
+function secondaryAuth(){
+ const cfg=syncConfig();
+ let secApp;try{secApp=firebase.app("Secondary")}catch(e){secApp=firebase.initializeApp(cfg,"Secondary")}
+ return secApp.auth();
+}
+async function createLicensedAccount(){
+ const email=$("newAccEmail")?.value.trim(),pass=$("newAccPass")?.value,plan=$("newAccPlan")?.value;
+ if(!email||!pass)return alert("ایمیل و رمز را وارد کن");
+ if(pass.length<6)return alert("رمز باید حداقل ۶ کاراکتر باشد");
+ const sAuth=secondaryAuth();
+ try{
+  const cred=await sAuth.createUserWithEmailAndPassword(email,pass);
+  const uidNew=cred.user.uid;
+  const isAdminPlan=plan==="forever_admin",permanent=plan==="forever"||plan==="forever_admin";
+  const expiresAt=permanent?null:new Date(Date.now()+LICENSE_PLAN_DAYS[plan]*86400000).toISOString();
+  await licenseDocRef(uidNew).set({email,plan,isAdmin:isAdminPlan,permanent,status:"active",expiresAt,createdAt:new Date().toISOString(),createdBy:sync.user.email,updatedAt:new Date().toISOString()});
+  try{await sAuth.signOut()}catch(e){}
+  alert("حساب با موفقیت ساخته شد:\n"+email+" — "+LICENSE_PLAN_LABELS[plan]);
+  logEvent("ساخت حساب لایسنس‌دار",email+" — "+LICENSE_PLAN_LABELS[plan],"auth");
+  $("newAccEmail").value="";$("newAccPass").value="";
+  refreshAdminPanelList();
+ }catch(e){alert("ساخت حساب ناموفق: "+(e.message||e))}
+}
+async function loadAllLicenses(){const snap=await sync.db.collection(LICENSE_COLLECTION).get();return snap.docs.map(d=>({uid:d.id,...d.data()}))}
+function licenseRowHtml(l){
+ const expTxt=l.permanent?"دائم":(l.expiresAt?new Date(l.expiresAt).toLocaleDateString("fa-IR"):"—");
+ const statusTxt=l.status==="revoked"?"❌ باطل":"✅ فعال";
+ const opts=Object.entries(LICENSE_PLAN_LABELS).map(([k,v])=>`<option value="${k}" ${l.plan===k?"selected":""}>${esc(v)}</option>`).join("");
+ return `<div class="item" style="padding:10px;margin-bottom:8px">
+  <div><b>${esc(l.email||l.uid)}</b> ${l.isAdmin?"👑":""}</div>
+  <div class="hint">وضعیت: ${statusTxt} • پایان: ${esc(expTxt)}</div>
+  <select id="planSel-${l.uid}">${opts}</select>
+  <div class="settings-actions" style="margin-top:6px">
+   <button onclick="updateLicensePlan('${l.uid}')">🔄 تمدید/به‌روزرسانی</button>
+   <button onclick="toggleRevoke('${l.uid}','${l.status||"active"}')">${l.status==="revoked"?"✅ فعال‌سازی":"⛔ باطل کردن"}</button>
+  </div></div>`;
+}
+async function refreshAdminPanelList(){
+ const box=$("adminLicenseList");if(!box)return;
+ box.innerHTML="در حال دریافت فهرست...";
+ try{const list=await loadAllLicenses();box.innerHTML=list.length?list.map(licenseRowHtml).join(""):"<p class='hint'>هنوز حسابی ساخته نشده.</p>"}
+ catch(e){box.innerHTML="⚠️ دریافت فهرست ناموفق: "+(e.message||e)}
+}
+async function updateLicensePlan(uidTarget){
+ const sel=$("planSel-"+uidTarget);if(!sel)return;
+ const plan=sel.value,isAdminPlan=plan==="forever_admin",permanent=plan==="forever"||plan==="forever_admin";
+ const expiresAt=permanent?null:new Date(Date.now()+LICENSE_PLAN_DAYS[plan]*86400000).toISOString();
+ try{await licenseDocRef(uidTarget).set({plan,isAdmin:isAdminPlan,permanent,expiresAt,status:"active",updatedAt:new Date().toISOString(),updatedBy:sync.user.email},{merge:true});alert("تمدید/به‌روزرسانی انجام شد.");logEvent("تمدید لایسنس",uidTarget,"auth");refreshAdminPanelList()}
+ catch(e){alert("ناموفق: "+(e.message||e))}
+}
+async function toggleRevoke(uidTarget,curStatus){
+ const next=curStatus==="revoked"?"active":"revoked";
+ try{await licenseDocRef(uidTarget).set({status:next,updatedAt:new Date().toISOString(),updatedBy:sync.user.email},{merge:true});logEvent(next==="revoked"?"باطل کردن لایسنس":"فعال‌سازی مجدد لایسنس",uidTarget,"auth");refreshAdminPanelList()}
+ catch(e){alert("ناموفق: "+(e.message||e))}
+}
+function openAdminPanel(){
+ if(!sync.license?.isAdmin)return alert("دسترسی ادمین لازم است");
+ const opts=Object.entries(LICENSE_PLAN_LABELS).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join("");
+ openModal(`<h2>🛠 پنل مدیریت لایسنس‌ها</h2><div class="form">
+  <p class="hint">ساخت حساب جدید برای مشتری؛ مدت اشتراک را انتخاب کن. گزینه «دائمی + ادمین» یک ادمین جدید می‌سازد که او هم می‌تواند از همین پنل حساب بسازد.</p>
+  <input id="newAccEmail" type="email" placeholder="ایمیل حساب جدید" autocomplete="off">
+  <input id="newAccPass" type="password" placeholder="رمز حساب جدید (حداقل ۶ کاراکتر)" autocomplete="new-password">
+  <select id="newAccPlan">${opts}</select>
+  <button class="primary" onclick="createLicensedAccount()">➕ ایجاد حساب</button>
+  </div><hr><h3>📋 فهرست حساب‌های ثبت‌شده</h3>
+  <div class="settings-actions"><button onclick="refreshAdminPanelList()">🔄 بروزرسانی فهرست</button></div>
+  <div id="adminLicenseList" class="hint">در حال دریافت...</div>`);
+ refreshAdminPanelList();
+}
 function autoBackupEnabled(){return localStorage.getItem(AUTO_BACKUP_ENABLED_KEY)!=="false"}
 function setAutoBackupEnabled(v){localStorage.setItem(AUTO_BACKUP_ENABLED_KEY,v?"true":"false"); if(v) createAutoBackup("فعال‌سازی پشتیبان خودکار"); logEvent(v?"پشتیبان خودکار فعال شد":"پشتیبان خودکار غیرفعال شد",v?"از این پس هر ۶ ساعت یک فایل پشتیبان واقعی داخل گوشی ساخته می‌شود":"پشتیبان‌گیری خودکار خاموش شد","settings",false); renderSettingsFeatures()}
 /* ---- Real file auto-backup -----------------------------------------
@@ -282,13 +459,11 @@ function updateSettingsDots(){
  set("dotSync",!sync?.user);
  set("dotBranding",!(data.branding?.storeName||data.branding?.logo));
 }
-function renderSettingsFeatures(){const e=$("autoBackupToggle");if(e)e.checked=autoBackupEnabled(); const last=$("autoBackupLast"); if(last){const d=getAutoBackupInfo();const f=getAutoBackupFileInfo();last.textContent=d?"آخرین پشتیبان: "+d.toLocaleString("fa-IR")+(f?.filename?` • فایل: ${f.filename} (${f.where})`:""):"هنوز پشتیبان خودکاری ساخته نشده";} const v=$("appVersionText");if(v)v.textContent=APP_VERSION; const vp=$("versionPill");if(vp)vp.textContent=APP_VERSION;updateSettingsDots();renderColorThemeSwatches();
+function renderSettingsFeatures(){const e=$("autoBackupToggle");if(e)e.checked=autoBackupEnabled(); const last=$("autoBackupLast"); if(last){const d=getAutoBackupInfo();const f=getAutoBackupFileInfo();last.textContent=d?"آخرین پشتیبان: "+d.toLocaleString("fa-IR")+(f?.filename?` • فایل: ${f.filename} (${f.where})`:""):"هنوز پشتیبان خودکاری ساخته نشده";} const v=$("appVersionText");if(v)v.textContent=APP_VERSION; const vp=$("versionPill");if(vp)vp.textContent=APP_VERSION;renderSyncLoginBox();renderAdminEntry();updateSettingsDots();renderColorThemeSwatches();
  const bio=$("biometricToggle");if(bio)bio.checked=!!data.biometricEnabled;
  const mh=$("securityMethodHint");if(mh)mh.textContent=hasLockCode()?("روش فعلی: "+(data.lockMethod==="pattern"?"رمز الگو":"رمز عددی")+(data.biometricEnabled?" + بیومتریک":"")):"هنوز رمزی برای ورود تنظیم نشده.";
  const lt=$("langToggle");if(lt){lt.textContent=data.lang==="en"?"فا":"EN";lt.setAttribute("aria-label",data.lang==="en"?"تغییر زبان به فارسی":"Switch language to English")}
- const aiStatus=$("anthropicKeyStatus");if(aiStatus)aiStatus.textContent=anthropicKey()?"🟢 کلید API تنظیم شده است":"🔴 هنوز کلیدی تنظیم نشده";
- const su=$("smartNoteUrlInput");if(su&&!su.value)su.value=localStorage.getItem(SMART_NOTE_URL_STORAGE)||"";
- const sm=$("smartNoteModelInput");if(sm&&!sm.value)sm.value=localStorage.getItem(SMART_NOTE_MODEL_STORAGE)||"";
+ const aiStatus=$("anthropicKeyStatus");if(aiStatus)aiStatus.textContent=anthropicKey()?"🟢 کلید Claude تنظیم شده است":"🔴 هنوز کلیدی تنظیم نشده";
  applyAppMode();
 }
 function setSyncStatus(t){const e=$("syncStatus");if(e)e.textContent=t||"";const b=$("syncBadge");if(!b)return;const s=String(t||"");let cls="offline",label="☁️ آفلاین";if(s.includes("آنلاین")||s.includes("انجام شد")||s.includes("متصل است")){cls="online";label="☁️ متصل"}else if(s.includes("⚠️")||s.includes("ناموفق")){cls="error";label="⚠️ خطای اتصال"}else if(s.includes("در حال")||s.includes("بررسی")){cls="pending";label="☁️ در حال اتصال..."}else if(s.includes("وارد شوید")||s.includes("ابتدا")){cls="offline";label="☁️ واردنشده"}b.textContent=label;b.className="sync-badge "+cls}
@@ -323,9 +498,9 @@ function getNativeLocalNotifications(){try{if(nativeNotifications)return nativeN
 function notificationIdForReminder(id){let h=0;for(const ch of String(id||""))h=((h<<5)-h+ch.charCodeAt(0))|0;return NATIVE_NOTIFICATION_ID_PREFIX+(Math.abs(h)%100000000)}
 function localDateFromInput(v){if(!v)return null;const d=new Date(v);return Number.isNaN(d.getTime())?null:d}
 function addMonthsSafe(d,n){const out=new Date(d.getTime()),day=out.getDate();out.setDate(1);out.setMonth(out.getMonth()+n);const last=new Date(out.getFullYear(),out.getMonth()+1,0).getDate();out.setDate(Math.min(day,last));return out}
-function nextReminderDate(r,now=new Date()){let d=localDateFromInput(r?.date);if(!d)return null;const rep=r.repeat||"once";if(rep==="once")return d>now?d:null;let guard=0;while(d<=now&&guard++<500){if(rep==="daily")d=new Date(d.getTime()+86400000);else if(rep==="weekly")d=new Date(d.getTime()+7*86400000);else if(rep==="monthly")d=addMonthsSafe(d,1);else return null}return d>now?d:null}
+function nextReminderDate(r,now=new Date()){let d=localDateFromInput(r?.date);if(!d)return null;const rep=r.repeat||"once";if(rep==="once")return d>now?d:null;let guard=0;while(d<=now&&guard++<500){if(rep==="daily")d=new Date(d.getTime()+86400000);else if(rep==="weekly")d=new Date(d.getTime()+7*86400000);else if(rep==="monthly")d=addMonthsSafe(d,1);else if(rep==="yearly")d=addMonthsSafe(d,12);else return null}return d>now?d:null}
 async function cancelNativeReminder(id){const p=getNativeLocalNotifications();if(!p)return;try{await p.cancel({notifications:[{id:notificationIdForReminder(id)}]})}catch(e){console.warn("cancel reminder",e)}}
-function repeatSchedule(rep){if(rep==="daily")return {repeats:true,every:"day"};if(rep==="weekly")return {repeats:true,every:"week"};if(rep==="monthly")return {repeats:true,every:"month"};return {repeats:false}}
+function repeatSchedule(rep){if(rep==="daily")return {repeats:true,every:"day"};if(rep==="weekly")return {repeats:true,every:"week"};if(rep==="monthly")return {repeats:true,every:"month"};if(rep==="yearly")return {repeats:true,every:"year"};return {repeats:false}}
 async function scheduleNativeReminder(r){const p=getNativeLocalNotifications();if(!p)return false;const at=nextReminderDate(r);if(!at)return false;try{await p.schedule({notifications:[{id:notificationIdForReminder(r.id),title:r.title||"یادآوری حسابدار",body:r.body||"زمان یادآوری فرا رسیده است.",schedule:{at,...repeatSchedule(r.repeat||"once")},extra:{reminderId:r.id,sourceNoteId:r.sourceNoteId||null}}]});return true}catch(e){console.warn("schedule reminder",e);return false}}
 async function rescheduleAllNativeReminders(){if(!getNativeLocalNotifications())return;for(const r of data.reminders||[]){await cancelNativeReminder(r.id);await scheduleNativeReminder(r)}}
 async function requestNativeNotifications(){const p=getNativeLocalNotifications();if(p){try{const perm=await p.requestPermissions();if(perm.display!=="granted")return false;if(typeof p.checkExactNotificationSetting==="function"){const exact=await p.checkExactNotificationSetting();if(exact.value!=="granted"&&typeof p.changeExactNotificationSetting==="function")try{await p.changeExactNotificationSetting()}catch(e){console.warn("exact notification setting",e)}}await rescheduleAllNativeReminders();return true}catch(e){console.warn("native notification permission",e);return false}}if("Notification"in window){try{return (await Notification.requestPermission())==="granted"}catch(e){}}return false}
@@ -686,25 +861,6 @@ function startDevicePresence(){if(sync.presenceTimer)clearInterval(sync.presence
 const FIREBASE_SDK_URLS=["https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js","https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js","https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"];
 const FIREBASE_LOAD_TIMEOUT_MS=9000;
 function withTimeout(promise,ms,msg){return Promise.race([promise,new Promise((_,rej)=>setTimeout(()=>rej(new Error(msg)),ms))])}
-/* v-t7: خواندن/نوشتن روی Firestore گاهی به‌جای خطای فوری، برای همیشه
-   "در حال بارگذاری" می‌ماند (وصل نمی‌شود ولی هم رد و هم قبول نمی‌شود) —
-   مخصوصاً روی اینترنت‌هایی که سرورهای گوگل فیلتر/محدود شده باشند. برای
-   همین هر عملیات Firestore با یک سقف زمانی (FIRESTORE_OP_TIMEOUT_MS)
-   اجرا می‌شود تا کاربر همیشه یک نتیجه یا پیام خطای روشن ببیند، نه یک
-   چرخِ بی‌پایان. friendlyFirestoreError هم پیام‌های فنی Firebase را به
-   یک توضیح قابل‌فهم و کاربردی (اینترنت/فیلترشکن، دسترسی Rules، و...)
-   تبدیل می‌کند. */
-const FIRESTORE_OP_TIMEOUT_MS=15000;
-function fsGet(ref){return withTimeout(ref.get(),FIRESTORE_OP_TIMEOUT_MS,"پاسخی از سرور Firebase دریافت نشد (زمان تمام شد)")}
-function fsSet(ref,data,opts){return withTimeout(opts?ref.set(data,opts):ref.set(data),FIRESTORE_OP_TIMEOUT_MS,"پاسخی از سرور Firebase دریافت نشد (زمان تمام شد)")}
-function friendlyFirestoreError(e){
-  const code=(e&&e.code)||"";
-  const msg=String((e&&e.message)||e||"");
-  if(code==="permission-denied"||/permission.denied/i.test(msg))return "دسترسی رد شد — تنظیمات Firestore Security Rules را بررسی کن.";
-  if(code==="unavailable"||/offline|client is offline/i.test(msg))return "اتصال به سرور Firebase برقرار نشد.\nاحتمال زیاد سرورهای گوگل روی این اینترنت فیلتر/محدود شده‌اند — یک VPN را روشن کن و دوباره امتحان کن.";
-  if(/زمان تمام شد/.test(msg))return msg+"\nاحتمالاً اینترنت ضعیف است یا سرورهای گوگل فیلتر شده‌اند؛ VPN را روشن کن و دوباره امتحان کن.";
-  return msg||"خطای نامشخص";
-}
 function loadScriptOnce(src){return new Promise((resolve,reject)=>{if([...document.scripts].some(s=>s.src===src)){resolve();return}const s=document.createElement("script");s.src=src;s.onload=()=>resolve();s.onerror=()=>reject(new Error("script load failed: "+src));document.head.appendChild(s)})}
 let firebaseLoadPromise=null;
 async function ensureFirebaseLoaded(){
@@ -722,29 +878,24 @@ async function initSync(){
   try{
     if(!sync.app)sync.app=firebase.apps.length?firebase.app():firebase.initializeApp(cfg);
     sync.auth=firebase.auth();sync.db=firebase.firestore();
-    /* v2.7 fix: force LOCAL persistence explicitly. Without this, some
-       WebViews (Android app builds) don't reliably keep the Firebase
-       Auth session across a full app close/reopen, which used to make
-       an already-activated license look "logged out" and forced the
-       ID/code screen again. */
-    try{await sync.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)}catch(e){console.warn("auth persistence",e)}
-    /* v-t7: experimentalAutoDetectLongPolling — روی خیلی از اینترنت‌های
-       محدود/فیلتر یا پشت VPN، اتصال استریمی پیش‌فرض Firestore (WebChannel)
-       هیچ‌وقت برقرار نمی‌شود و کلاینت برای همیشه "آفلاین" می‌ماند، در حالی
-       که خودِ اینترنت وصل است. سوییچ‌کردن خودکار به long-polling این مشکل
-       را در اکثر این حالت‌ها حل می‌کند. */
-    try{sync.db.settings({ignoreUndefinedProperties:true,experimentalAutoDetectLongPolling:true})}catch(e){}
+    try{sync.db.settings({ignoreUndefinedProperties:true})}catch(e){}
+    try{await sync.db.enablePersistence({synchronizeTabs:true})}catch(e){console.warn("firestore persistence unavailable",e)}
     if(sync.authListener)return;
     sync.authListener=true;
     sync.auth.onAuthStateChanged(async user=>{
-      sync.user=user;fillSettingsSyncEmail();refreshCloudLicense();
+      sync.user=user;renderSyncLoginBox();
       if(sync.timer)clearInterval(sync.timer);if(sync.unsubscribe){sync.unsubscribe();sync.unsubscribe=null}
-      if(!user){sync.ready=false;if(sync.presenceTimer)clearInterval(sync.presenceTimer);setSyncStatus("☁️ برای همگام‌سازی وارد شوید");return}
+      if(sync.licenseTimer){clearInterval(sync.licenseTimer);sync.licenseTimer=null}
+      if(!user){sync.ready=false;sync.license=null;sync.licenseStatus=null;renderAdminEntry();hideLicenseGate();if(sync.presenceTimer)clearInterval(sync.presenceTimer);setSyncStatus("☁️ برای همگام‌سازی وارد شوید");return}
+      const lic=await resolveLicenseForCurrentUser();const st=licenseStatusFrom(lic);
+      sync.license=lic;sync.licenseStatus=st;renderAdminEntry();
+      if(!st.ok){sync.ready=false;showLicenseGate(st);setSyncStatus("⚠️ اشتراک "+licenseReasonFa(st.reason));return}
+      hideLicenseGate();startLicenseRecheck();
       sync.ready=true;await hydrateSync();await rescheduleAllNativeReminders();startDevicePresence();await verifyTwoPhoneConnection(false);
       sync.unsubscribe=recordsCollection().onSnapshot(snap=>{
         if(sync.hydrating)return;
         const remote=snap.docs.map(d=>d.data());
-        if(mergeCloud(remote)){localStorage.setItem(KEY,JSON.stringify(data));render();syncSave();syncAllNotesToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error)}
+        if(mergeCloud(remote)){localStorage.setItem(KEY,JSON.stringify(data));render();syncSave();syncAllNotesToReminders().catch(console.error);syncAllPeopleToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error)}
         setSyncStatus("☁️ آنلاین • همگام‌سازی لحظه‌ای")
       },e=>setSyncStatus("⚠️ همگام‌سازی: "+(e.code||e.message)));
       sync.timer=setInterval(syncTick,SYNC_INTERVAL);
@@ -770,535 +921,35 @@ async function pullFromCloud(){
     mergeCloud(remote);localStorage.setItem(KEY,JSON.stringify(data));render();setSyncStatus("☁️ اطلاعات از ابر دریافت شد — "+dataSummary(data));alert("اطلاعات ابری دریافت شد\n"+dataSummary(data));
   }catch(e){alert("دریافت ناموفق: "+(e.code||'')+"\n"+e.message)}
 }
-/* v-t4: تنظیمات اتصال Firebase (apiKey/authDomain/...) قبلاً برای همه در
-   تنظیمات عمومی («همگام‌سازی دو گوشی») در دسترس بود؛ چون این اطلاعات
-   می‌تواند برنامه را به یک پروژه‌ی Firebase دیگر وصل کند، حالا فقط ادمین
-   می‌تواند این بخش را ببیند و باز کند (دکمه‌اش هم فقط داخل پنل مدیریت
-   لایسنس نمایش داده می‌شود). */
-function openSyncSettings(){
- if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
- const c=syncConfig()||{};
- openModal(`<h2>☁️ اتصال دو گوشی</h2><div class="form">
- <p class="hint">ایمیل و رمز یکسان را روی هر دو گوشی استفاده کن. بعد از ورود، اطلاعات موجود در ابر خودکار دریافت می‌شود.</p>
- <input id="fbApiKey" placeholder="apiKey" value="${esc(c.apiKey||"")}">
- <input id="fbAuthDomain" placeholder="authDomain" value="${esc(c.authDomain||"")}">
- <input id="fbProjectId" placeholder="projectId" value="${esc(c.projectId||"")}">
- <input id="fbStorageBucket" placeholder="storageBucket (اختیاری)" value="${esc(c.storageBucket||"")}">
- <input id="fbAppId" placeholder="appId" value="${esc(c.appId||"")}">
- <hr><input id="syncEmail" type="email" placeholder="ایمیل حساب مشترک" autocomplete="username">
- <input id="syncPass" type="password" placeholder="رمز حساب مشترک" autocomplete="current-password">
- <button class="primary" onclick="saveSyncSettings()">ذخیره و اتصال</button>
- <button onclick="createSyncAccount()">ساخت حساب همگام‌سازی</button>
- <button onclick="logoutSync()">خروج از حساب</button>
- </div>`);
-}
-async function saveSyncSettings(){
- const cfg={apiKey:$('fbApiKey').value.trim(),authDomain:$('fbAuthDomain').value.trim(),projectId:$('fbProjectId').value.trim(),storageBucket:$('fbStorageBucket').value.trim(),appId:$('fbAppId').value.trim()};
- if(!cfg.apiKey||!cfg.authDomain||!cfg.projectId||!cfg.appId)return alert("apiKey، authDomain، projectId و appId لازم است");
- localStorage.setItem(SYNC_KEY,JSON.stringify(cfg));
- try{await initSync();const email=$('syncEmail').value.trim(),pass=$('syncPass').value;if(email&&pass){await sync.auth.signInWithEmailAndPassword(email,pass);alert("اتصال و ورود انجام شد")}else alert("تنظیمات ذخیره شد؛ ایمیل و رمز را هم وارد کن تا وارد شوی");closeModal()}catch(e){alert("اتصال ناموفق: "+e.message)}}
-async function createSyncAccount(){
- const email=$('syncEmail')?.value.trim(),pass=$('syncPass')?.value;if(!email||!pass)return alert("ایمیل و رمز را وارد کن");
- const cfg={apiKey:$('fbApiKey').value.trim(),authDomain:$('fbAuthDomain').value.trim(),projectId:$('fbProjectId').value.trim(),storageBucket:$('fbStorageBucket').value.trim(),appId:$('fbAppId').value.trim()};
- if(!cfg.apiKey||!cfg.authDomain||!cfg.projectId||!cfg.appId)return alert("اول اطلاعات Firebase را کامل کن");
- localStorage.setItem(SYNC_KEY,JSON.stringify(cfg));
- try{await initSync();await sync.auth.createUserWithEmailAndPassword(email,pass);alert("حساب ساخته شد. همین ایمیل و رمز را روی گوشی دوم هم استفاده کن.")}catch(e){alert("ساخت حساب ناموفق: "+e.message)}}
-async function ensureSyncReady(silent){
+async function ensureSyncReady(){
  const cfg=syncConfig();
- if(!cfg||!cfg.apiKey||!cfg.authDomain||!cfg.projectId||!cfg.appId){if(!silent)alert("اول یک‌بار «تنظیم اتصال Firebase» را باز کن و اطلاعات Firebase را وارد کن.");return false}
+ if(!cfg||!cfg.apiKey||!cfg.authDomain||!cfg.projectId||!cfg.appId){alert("اول یک‌بار «تنظیم اتصال Firebase» را باز کن و اطلاعات Firebase را وارد کن.");return false}
  await initSync();
- if(!sync.auth){if(!silent)alert("اتصال به سرویس همگام‌سازی برقرار نشد.\nاحتمال زیاد سرورهای گوگل (gstatic.com / firebaseapp.com) روی این اینترنت در دسترس نیستند.\nیک VPN را روشن کن و دوباره امتحان کن."+(sync.lastLoadError?"\n\nجزئیات: "+sync.lastLoadError:""));return false}
+ if(!sync.auth){alert("اتصال به سرویس همگام‌سازی برقرار نشد.\nاحتمال زیاد سرورهای گوگل (gstatic.com / firebaseapp.com) روی این اینترنت در دسترس نیستند.\nیک VPN را روشن کن و دوباره امتحان کن."+(sync.lastLoadError?"\n\nجزئیات: "+sync.lastLoadError:""));return false}
  return true;
 }
-function fillSettingsSyncEmail(){const e=$("settingsSyncEmail");if(e&&sync.user)e.value=sync.user.email||""}
+/* Settings sync box now shows ONLY a login control (see renderSyncLoginBox
+ * above): email + password + a single "ورود" button. Creating accounts is
+ * an admin-only action (openAdminPanel). The one exception is the fixed
+ * master-admin email (ADMIN_EMAIL): if it doesn't exist yet in Firebase
+ * Auth, logging in with it creates it on the spot (see below), so the
+ * app's creator never needs a separate "create account" control either. */
 async function loginFromSettings(){
  const email=$("settingsSyncEmail")?.value.trim(), pass=$("settingsSyncPass")?.value;
  if(!email||!pass)return alert("ایمیل و رمز را وارد کن");
  if(!await ensureSyncReady())return;
- try{await sync.auth.signInWithEmailAndPassword(email,pass);alert("ورود با موفقیت انجام شد؛ همگام‌سازی فعال شد");logEvent("ورود به حساب همگام‌سازی",email,"auth");$("settingsSyncPass").value="";setSyncStatus("☁️ همگام‌سازی فعال است")}
- catch(e){alert("ورود ناموفق: "+(e.message||e))}
+ try{
+  await sync.auth.signInWithEmailAndPassword(email,pass);
+ }catch(e){
+  if(e.code==="auth/user-not-found"&&isMasterAdminEmail(email)){
+   try{await sync.auth.createUserWithEmailAndPassword(email,pass)}catch(e2){alert("ورود ناموفق: "+(e2.message||e2));return}
+  }else{alert("ورود ناموفق: "+(e.message||e));return}
+ }
+ logEvent("ورود به حساب همگام‌سازی",email,"auth");
+ if($("settingsSyncPass"))$("settingsSyncPass").value="";
+ alert("ورود انجام شد؛ در حال بررسی اشتراک...");
 }
-async function createFromSettings(){
- const email=$("settingsSyncEmail")?.value.trim(), pass=$("settingsSyncPass")?.value;
- if(!email||!pass)return alert("ایمیل و رمز را وارد کن");
- if(pass.length<6)return alert("رمز باید حداقل ۶ کاراکتر باشد");
- if(!await ensureSyncReady())return;
- try{await sync.auth.createUserWithEmailAndPassword(email,pass);alert("حساب ساخته شد و همگام‌سازی فعال است. همین ایمیل و رمز را روی گوشی دوم وارد کن.");logEvent("ساخت حساب همگام‌سازی",email,"auth");$("settingsSyncPass").value="";setSyncStatus("☁️ همگام‌سازی فعال است")}
- catch(e){alert("ساخت حساب ناموفق: "+(e.message||e))}
-}
-async function logoutSync(){try{const email=sync.user?.email||"";await sync.auth?.signOut();alert("از حساب همگام‌سازی خارج شد");logEvent("خروج از حساب همگام‌سازی",email,"auth")}catch(e){alert(e.message)}}
-
-/* ================= لایسنس و اشتراک (v2.3) =================
- * ۷ روز اول رایگان (محلی روی همین گوشی). بعد از آن برای ادامه‌ی
- * استفاده باید یک لایسنس فعال شود: آیدی+رمزی که از «پنل مدیریت
- * لایسنس» ساخته و به مشتری داده می‌شود. لایسنس‌ها در همان پروژه‌ی
- * Firebase موجود (کالکشن «licenses») نگه‌داری می‌شوند و وضعیت هر
- * حساب هم روی سند users/{uid} (فیلد license) ذخیره می‌شود.
- * پنل مدیریت فقط برای ایمیل ادمین (LICENSE_ADMIN_EMAIL) که وارد
- * حساب همگام‌سازی شده باشد نمایش داده می‌شود؛ محدودیت واقعیِ نوشتن
- * روی کالکشن licenses باید در Firestore Security Rules هم تنظیم
- * شود (متن آماده‌ی آن را جدا تحویل می‌دهیم).
- * ============================================================ */
-const LICENSE_ADMIN_EMAIL="mahdishakerinia68@gmail.com";
-const LICENSE_TRIAL_DAYS=7;
-const LICENSE_STATE_KEY="hesabdar-license-state-v1";
-const LICENSE_CLOUD_CACHE_KEY="hesabdar-license-cloud-v1";
-const LICENSE_PLAN_DAYS={m1:30,m3:90,m6:180,y1:365,lifetime:null,custom:null};
-const LICENSE_PLAN_LABEL={m1:"۱ ماهه",m3:"۳ ماهه",m6:"۶ ماهه",y1:"۱ ساله",lifetime:"دائمی",custom:"سفارشی"};
-
-function licenseLocalState(){try{return JSON.parse(localStorage.getItem(LICENSE_STATE_KEY)||"null")}catch{return null}}
-function ensureTrialStarted(){let s=licenseLocalState();if(!s){s={trialStart:new Date().toISOString()};localStorage.setItem(LICENSE_STATE_KEY,JSON.stringify(s))}return s}
-function isLicenseAdmin(){
-  if(sync.user&&sync.user.email&&sync.user.email.toLowerCase()===LICENSE_ADMIN_EMAIL)return true;
-  if(!sync.user)return false;
-  const cloud=licenseCloudCache();
-  if(cloud&&cloud.uid===sync.user.uid&&cloud.isAdmin)return true;
-  const local=licenseActiveState();
-  if(local&&local.uid===sync.user.uid&&local.isAdmin)return true;
-  return false;
-}
-function licenseCloudCache(){try{return JSON.parse(localStorage.getItem(LICENSE_CLOUD_CACHE_KEY)||"null")}catch{return null}}
-function saveLicenseCloudCache(v){localStorage.setItem(LICENSE_CLOUD_CACHE_KEY,JSON.stringify(v||null))}
-/* v2.7 fix: a second, independent record of "this device has an active
-   license". licenseCloudCache above is only trusted while sync.user is
-   already populated (i.e. Firebase Auth has finished resolving), which
-   on app startup can take a moment — or, on some devices, never
-   restores at all. That gap used to be read as "no license / trial",
-   which is why a paid license appeared to "not stay" after closing and
-   reopening the app. This record is written every time the cloud
-   confirms an active license, and licenseStatus() falls back to it
-   whenever the live session/cloud lookup above isn't available, so the
-   app keeps treating the license as active instead of asking for the
-   ID/code again. It is only cleared when the server explicitly confirms
-   (while online and signed in) that the license is no longer active. */
-const LICENSE_ACTIVE_KEY="hesabdar-license-active-v1";
-function licenseActiveState(){try{return JSON.parse(localStorage.getItem(LICENSE_ACTIVE_KEY)||"null")}catch{return null}}
-function saveLicenseActiveState(v){localStorage.setItem(LICENSE_ACTIVE_KEY,JSON.stringify(v||null))}
-function clearLicenseActiveState(){localStorage.removeItem(LICENSE_ACTIVE_KEY)}
-/* v-t1: "ادمین از طریق لایسنس". علاوه بر ایمیل ادمین ثابت (LICENSE_ADMIN_EMAIL)،
-   حالا هر لایسنسی که موقع ساخت/تاییدش تیک «ادمین» خورده باشد، برای کسی که آن را
-   فعال کرده هم دسترسی کامل ادمین (و لایسنس دائمی) می‌سازد؛ این پرچم روی خود سند
-   لایسنس (isAdmin) و روی users/{uid}.isAdmin نگه‌داری و کش می‌شود. */
-const LICENSE_REMEMBER_KEY="hesabdar-license-remember-v1";
-function getRememberedLicense(){try{return JSON.parse(localStorage.getItem(LICENSE_REMEMBER_KEY)||"null")}catch{return null}}
-function saveRememberedLicense(id,code){try{localStorage.setItem(LICENSE_REMEMBER_KEY,JSON.stringify({id,code}))}catch(e){}}
-function clearRememberedLicense(){localStorage.removeItem(LICENSE_REMEMBER_KEY)}
-function randToken(len){const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let s="";const arr=crypto.getRandomValues(new Uint32Array(len));for(let i=0;i<len;i++)s+=chars[arr[i]%chars.length];return s}
-function genLicenseId(){return "HSB-"+randToken(4)+"-"+randToken(4)}
-function genLicenseCode(){return randToken(8)}
-
-function licenseStatus(){
-  if(isLicenseAdmin())return {kind:"admin",label:"مدیر برنامه (دسترسی کامل و دائمی)",daysLeft:null,expiresAt:null};
-  const cloud=sync.user?licenseCloudCache():null;
-  if(cloud&&cloud.uid===sync.user?.uid&&cloud.license){
-    const lic=cloud.license;
-    if(lic.status==="active"&&lic.plan==="lifetime")return {kind:"lifetime",label:"لایسنس دائمی",daysLeft:null,expiresAt:null};
-    if(lic.status==="active"&&lic.expiresAt){
-      const left=Math.ceil((new Date(lic.expiresAt)-new Date())/86400000);
-      if(left>0)return {kind:"active",label:`لایسنس ${LICENSE_PLAN_LABEL[lic.plan]||""} فعال`,daysLeft:left,expiresAt:lic.expiresAt};
-    }
-  }
-  const local=licenseActiveState();
-  if(local&&local.status==="active"){
-    if(local.plan==="lifetime")return {kind:"lifetime",label:"لایسنس دائمی",daysLeft:null,expiresAt:null};
-    if(local.expiresAt){
-      const left=Math.ceil((new Date(local.expiresAt)-new Date())/86400000);
-      if(left>0)return {kind:"active",label:`لایسنس ${LICENSE_PLAN_LABEL[local.plan]||""} فعال`,daysLeft:left,expiresAt:local.expiresAt};
-    }
-  }
-  const s=ensureTrialStarted();
-  const trialEnd=new Date(new Date(s.trialStart).getTime()+LICENSE_TRIAL_DAYS*86400000);
-  const left=Math.ceil((trialEnd-new Date())/86400000);
-  if(left>0)return {kind:"trial",label:"نسخه آزمایشی رایگان",daysLeft:left,expiresAt:trialEnd.toISOString()};
-  return {kind:"expired",label:"دوره استفاده به پایان رسیده",daysLeft:0,expiresAt:null};
-}
-function licenseIsBlocked(){return licenseStatus().kind==="expired"}
-
-async function refreshCloudLicense(){
-  if(!sync.user||!sync.db){
-    /* No live session/connection right now — this does NOT mean the
-       license is invalid, it just means we can't check. Leave the
-       locally-persisted "active license" record (if any) untouched so
-       licenseStatus() keeps honoring it instead of falling back to the
-       trial/expired screen. */
-    renderLicensePage();licenseGate();return
-  }
-  try{
-    const doc=await fsGet(sync.db.collection("users").doc(sync.user.uid));
-    const lic=doc.exists?(doc.data().license||null):null;
-    const isAdminFlag=!!(doc.exists&&doc.data().isAdmin);
-    saveLicenseCloudCache({uid:sync.user.uid,license:lic,isAdmin:isAdminFlag});
-    if(lic&&lic.status==="active"&&lic.plan==="lifetime"){
-      saveLicenseActiveState({uid:sync.user.uid,email:sync.user.email,plan:"lifetime",expiresAt:null,status:"active",licenseId:lic.licenseId||null,isAdmin:isAdminFlag});
-    }else if(lic&&lic.status==="active"&&lic.expiresAt&&new Date(lic.expiresAt)>new Date()){
-      saveLicenseActiveState({uid:sync.user.uid,email:sync.user.email,plan:lic.plan,expiresAt:lic.expiresAt,status:"active",licenseId:lic.licenseId||null,isAdmin:isAdminFlag});
-    }else{
-      const local=licenseActiveState();
-      if(local&&local.uid===sync.user.uid)clearLicenseActiveState();
-    }
-  }catch(e){console.warn("license refresh failed",e)}
-  renderLicensePage();await licenseGate();
-}
-
-/* v-t1: opts = {id, code, remember, silent}. با فراخوانی بدون آرگومان (مثل قبل،
-   از دکمه‌ها) مقادیر از خودِ فرم/چک‌باکس‌های صفحه خوانده می‌شود. silent:true برای
-   تلاش خودکار (بی‌صدا، بدون alert) با اطلاعات به‌خاطرسپرده‌شده استفاده می‌شود؛
-   اگر ناموفق بود false برمی‌گرداند بدون هیچ پیام مزاحمی. */
-async function activateLicense(opts){
-  opts=opts||{};
-  const silent=!!opts.silent;
-  const warn=(msg)=>{if(!silent)alert(msg);return false};
-  const id=(opts.id!==undefined?opts.id:($("licenseLockId")?.value||$("licenseIdInput")?.value||"")).trim();
-  const code=(opts.code!==undefined?opts.code:($("licenseLockCode")?.value||$("licenseCodeInput")?.value||"")).trim();
-  if(!id||!code)return warn("آیدی و رمز لایسنس را وارد کن");
-  /* v-t5: قبلاً اینجا اگر هنوز وارد حساب نشده بودی، دو تا prompt() جدا
-     (اول ایمیل، بعد رمز) باز می‌شد که یعنی همان آیدی/رمز لایسنسی که بالا
-     زده بودی کافی نبود و یک مرحله‌ی اضافه‌ی گیج‌کننده اضافه می‌شد. حالا
-     چیزی جز همان آیدی/رمز لایسنس پرسیده نمی‌شود: پشت‌صحنه و بی‌صدا با یک
-     حساب ناشناس (Anonymous Auth) وارد می‌شویم تا فقط بشود سند Firestore
-     را خواند/نوشت؛ برای همین باید در Firebase Console → Authentication →
-     Sign-in method، روش «Anonymous» فعال باشد. */
-  if(!sync.user){
-    if(!await ensureSyncReady(silent))return false;
-    try{await sync.auth.signInAnonymously()}
-    catch(e){return warn("اتصال ناموفق: "+(e.message||e))}
-  }
-  if(!sync.db)return warn("اتصال به سرویس لایسنس برقرار نشد");
-  try{
-    const ref=sync.db.collection("licenses").doc(id);
-    const snap=await fsGet(ref);
-    if(!snap.exists)return warn("لایسنسی با این آیدی پیدا نشد");
-    const lic=snap.data();
-    if(lic.code!==code)return warn("رمز لایسنس نادرست است");
-    if(lic.status==="revoked")return warn("این لایسنس باطل شده است");
-    if(lic.redeemedBy&&lic.redeemedBy!==sync.user.uid)return warn("این لایسنس قبلاً روی یک حساب دیگر فعال شده است");
-    if(!(lic.status==="redeemed"&&lic.redeemedBy===sync.user.uid)){
-      const userRef=sync.db.collection("users").doc(sync.user.uid);
-      const userSnap=await fsGet(userRef);
-      const curLic=userSnap.exists?(userSnap.data().license||null):null;
-      /* v-t5: پشتیبانی از تاریخ انقضای دلخواه — اگر ادمین موقع ساخت
-         لایسنس یک تاریخ مشخص انتخاب کرده باشد (lic.plan==="custom")،
-         همان تاریخ دقیق به‌عنوان انقضا ثبت می‌شود؛ در غیر این صورت مثل
-         قبل بر اساس تعداد روزهای پلن حساب می‌شود. */
-      let newExpiresAt=null;
-      if(lic.plan==="custom"){
-        newExpiresAt=lic.customExpiresAt||null;
-      }else{
-        const days=LICENSE_PLAN_DAYS[lic.plan];
-        if(days!=null){
-          const base=(curLic&&curLic.status==="active"&&curLic.plan!=="lifetime"&&curLic.expiresAt&&new Date(curLic.expiresAt)>new Date())?new Date(curLic.expiresAt):new Date();
-          newExpiresAt=new Date(base.getTime()+days*86400000).toISOString();
-        }
-      }
-      const userSet={license:{status:"active",plan:lic.plan,expiresAt:newExpiresAt,licenseId:id,updatedAt:new Date().toISOString()}};
-      if(lic.isAdmin)userSet.isAdmin=true; // v-t1: لایسنسِ تیک‌خورده به‌عنوان «ادمین»، دسترسی کامل می‌دهد
-      await fsSet(userRef,userSet,{merge:true});
-      await fsSet(ref,{status:"redeemed",redeemedBy:sync.user.uid,redeemedByEmail:sync.user.email||null,redeemedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
-    }
-    /* v-t1: «همیشه من را به‌خاطر بسپار» */
-    const remember=opts.remember!==undefined?opts.remember:!!($("licenseLockRemember")?.checked||$("licenseRememberMe")?.checked);
-    if(remember)saveRememberedLicense(id,code);else if(opts.remember===false)clearRememberedLicense();
-    await refreshCloudLicense();
-    $("licenseLock")?.remove();
-    if($("licenseIdInput"))$("licenseIdInput").value="";
-    if($("licenseCodeInput"))$("licenseCodeInput").value="";
-    if(!silent){alert("لایسنس با موفقیت فعال شد ✅");logEvent("فعال‌سازی لایسنس",id,"system")}
-    return true;
-  }catch(e){return warn("فعال‌سازی ناموفق: "+friendlyFirestoreError(e))}
-}
-
-async function createLicense(){
-  if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
-  const isAdminChecked=!!$("licenseNewAdmin")?.checked;
-  const customExpiryVal=($("licenseNewCustomExpiry")?.value||"").trim();
-  /* v-t5: اگر ادمین یک تاریخ انقضای دلخواه انتخاب کرده باشد، پلن روی
-     "custom" ثبت می‌شود و همان تاریخ دقیق (پایان همان روز) به‌عنوان
-     customExpiresAt روی سند لایسنس ذخیره می‌شود؛ activateLicense همین
-     تاریخ را مستقیم به‌عنوان انقضا می‌گذارد، صرف‌نظر از تعداد روز. */
-  const plan=isAdminChecked?"lifetime":(customExpiryVal?"custom":($("licenseNewPlan")?.value||"m1"));
-  const customExpiresAt=(!isAdminChecked&&customExpiryVal)?new Date(customExpiryVal+"T23:59:59").toISOString():null;
-  const note=$("licenseNewNote")?.value.trim()||"";
-  const customCode=($("licenseNewCode")?.value||"").trim();
-  const id=genLicenseId(),code=customCode?customCode.toUpperCase():genLicenseCode();
-  try{
-    await fsSet(sync.db.collection("licenses").doc(id),{code,plan,customExpiresAt,note,status:"active",isAdmin:isAdminChecked,createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdBy:sync.user.email,redeemedBy:null,redeemedByEmail:null});
-    if($("licenseNewNote"))$("licenseNewNote").value="";
-    if($("licenseNewCode"))$("licenseNewCode").value="";
-    if($("licenseNewCustomExpiry"))$("licenseNewCustomExpiry").value="";
-    if($("licenseNewAdmin"))$("licenseNewAdmin").checked=false;
-    loadAdminLicenses();
-    showLicenseCredsModal(id,code,plan,note,isAdminChecked,customExpiresAt);
-  }catch(e){alert("ساخت لایسنس ناموفق: "+friendlyFirestoreError(e))}
-}
-function showLicenseCredsModal(id,code,plan,note,isAdminFlag,customExpiresAt){
-  openModal(`<h2>✅ لایسنس ساخته شد${isAdminFlag?" 👑":""}</h2>
-    <p class="hint">این دو مورد را برای مشتری بفرست:</p>
-    <div class="form">
-      <div>
-        <p class="hint" style="margin-bottom:4px">آیدی لایسنس</p>
-        <input class="amt-input" readonly value="${esc(id)}" onclick="this.select()" style="font-size:18px">
-      </div>
-      <div>
-        <p class="hint" style="margin-bottom:4px">رمز لایسنس</p>
-        <input class="amt-input" readonly value="${esc(code)}" onclick="this.select()" style="font-size:18px">
-      </div>
-      <p class="hint">نوع: ${esc(LICENSE_PLAN_LABEL[plan]||plan)}${plan==="custom"&&customExpiresAt?" (تا "+esc(new Date(customExpiresAt).toLocaleDateString("fa-IR"))+")":""}${isAdminFlag?" — 👑 ادمین (دسترسی کامل و دائمی، می‌تواند ادمین دیگری هم بسازد)":""}${note?" — "+esc(note):""}</p>
-      <button class="primary" onclick="copyLicenseCreds('${esc(id)}','${esc(code)}')">📋 کپی هر دو</button>
-      <button onclick="closeModal()">بستن</button>
-    </div>`);
-}
-function copyLicenseCreds(id,code){
-  const text=`آیدی: ${id}\nرمز: ${code}`;
-  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(()=>alert("کپی شد ✅")).catch(()=>alert(text));
-  else alert(text);
-}
-/* v2.8: renew/revoke now happen directly from the license's own row in
-   the list (✏️ پنسیل برای تمدید، 🗑 برای باطل‌کردن).
-   v-t1: مودال تمدید حالا وضعیت فعلیِ «ادمین» را هم می‌خواند و اجازه می‌دهد
-   موقع تمدید، ادمین‌بودن آن لایسنس را روشن/خاموش کنند. */
-async function openLicenseRenewModal(id){
-  if(!isLicenseAdmin())return;
-  let curAdmin=false;
-  try{const snap=await fsGet(sync.db.collection("licenses").doc(id));if(snap.exists)curAdmin=!!snap.data().isAdmin}catch(e){}
-  openModal(`<h2>🔄 تمدید لایسنس</h2>
-    <p class="hint" style="direction:ltr;text-align:center">${esc(id)}</p>
-    <div class="form">
-      <select id="licenseExtendPlan">
-        <option value="m1">افزودن ۱ ماه</option>
-        <option value="m3">افزودن ۳ ماه</option>
-        <option value="m6">افزودن ۶ ماه</option>
-        <option value="y1">افزودن ۱ سال</option>
-        <option value="lifetime">تبدیل به دائمی</option>
-      </select>
-      <label class="hint" style="margin-bottom:-4px">یا یک تاریخ انقضای دلخواه (اختیاری — اگر پر شود، به‌جای گزینه بالا استفاده می‌شود):</label>
-      <input id="licenseRenewCustomExpiry" type="date" style="direction:ltr">
-      <label class="hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="licenseRenewAdmin"${curAdmin?" checked":""}> 👑 ادمین باشد (دسترسی کامل)</label>
-      <button class="primary" onclick="renewLicenseById('${esc(id)}')">✅ تایید تمدید</button>
-      <button onclick="closeModal()">انصراف</button>
-    </div>`);
-}
-async function renewLicenseById(id){
-  if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
-  const plan=$("licenseExtendPlan")?.value||"m1";
-  const customExpiryVal=($("licenseRenewCustomExpiry")?.value||"").trim();
-  const customExpiresAt=customExpiryVal?new Date(customExpiryVal+"T23:59:59").toISOString():null;
-  const isAdminChecked=!!$("licenseRenewAdmin")?.checked;
-  try{
-    const ref=sync.db.collection("licenses").doc(id);
-    const snap=await fsGet(ref);
-    if(!snap.exists)return alert("لایسنسی با این آیدی پیدا نشد");
-    const lic=snap.data();
-    /* v-t5: تاریخ انقضای دلخواه بر گزینه‌ی «افزودن X ماه/سال» اولویت دارد. */
-    const newPlan=customExpiresAt?"custom":(plan==="lifetime"?"lifetime":lic.plan);
-    await fsSet(ref,{status:"active",plan:newPlan,customExpiresAt:customExpiresAt||null,isAdmin:isAdminChecked},{merge:true});
-    if(lic.redeemedBy){
-      const userRef=sync.db.collection("users").doc(lic.redeemedBy);
-      const userSnap=await fsGet(userRef);
-      const curLic=userSnap.exists?(userSnap.data().license||null):null;
-      let userSet;
-      if(customExpiresAt){
-        userSet={license:{status:"active",plan:"custom",expiresAt:customExpiresAt,licenseId:id,updatedAt:new Date().toISOString()}};
-      }else if(plan==="lifetime"){
-        userSet={license:{status:"active",plan:"lifetime",expiresAt:null,licenseId:id,updatedAt:new Date().toISOString()}};
-      }else{
-        const days=LICENSE_PLAN_DAYS[plan];
-        const base=(curLic&&curLic.expiresAt&&new Date(curLic.expiresAt)>new Date())?new Date(curLic.expiresAt):new Date();
-        const newExpiresAt=new Date(base.getTime()+days*86400000).toISOString();
-        userSet={license:{status:"active",plan:curLic?.plan||lic.plan,expiresAt:newExpiresAt,licenseId:id,updatedAt:new Date().toISOString()}};
-      }
-      userSet.isAdmin=isAdminChecked;
-      await fsSet(userRef,userSet,{merge:true});
-    }
-    alert("تمدید انجام شد ✅");
-    closeModal();
-    if(sync.user&&lic.redeemedBy===sync.user.uid)await refreshCloudLicense();
-    loadAdminLicenses();
-  }catch(e){alert("تمدید ناموفق: "+friendlyFirestoreError(e))}
-}
-async function revokeLicenseById(id){
-  if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
-  if(!id)return alert("آیدی لایسنس مشخص نیست");
-  if(!confirm("این لایسنس باطل شود؟ این کار قابل بازگشت نیست."))return;
-  try{
-    const ref=sync.db.collection("licenses").doc(id);
-    const snap=await fsGet(ref);
-    if(!snap.exists)return alert("لایسنسی با این آیدی پیدا نشد");
-    const lic=snap.data();
-    await fsSet(ref,{status:"revoked",isAdmin:false},{merge:true});
-    if(lic.redeemedBy){
-      const userRef=sync.db.collection("users").doc(lic.redeemedBy);
-      const userSnap=await fsGet(userRef);
-      const curLic=userSnap.exists?(userSnap.data().license||null):null;
-      if(curLic&&curLic.licenseId===id){
-        await fsSet(userRef,{license:{status:"revoked",plan:curLic.plan||null,expiresAt:curLic.expiresAt||null,licenseId:id,updatedAt:new Date().toISOString()},isAdmin:false},{merge:true});
-      }
-    }
-    alert("باطل شد");
-    if(sync.user&&lic.redeemedBy===sync.user.uid)await refreshCloudLicense();
-    loadAdminLicenses();
-  }catch(e){alert("عملیات ناموفق: "+friendlyFirestoreError(e))}
-}
-/* v-t5: طبق خواسته‌ی جدید، «ساخت لایسنس» دیگر هیچ حساب Firebase
-   (ایمیل/رمز) نمی‌سازد؛ چون این مسیر بارها باعث باگ و شکایت می‌شد. حالا
-   با زدن دکمه مستقیم به آیدی تلگرام ادمین می‌رود؛ هماهنگی و ساخت لایسنس
-   کاملاً دستی و توسط خودِ ادمین از پنل «ساخت لایسنس دستی» انجام می‌شود. */
-const LICENSE_TELEGRAM_ID="mahdi_shakerinia_1";
-function requestLicense(){
-  window.open("https://t.me/"+LICENSE_TELEGRAM_ID,"_blank");
-}
-function openLicenseApproveModal(id){
-  if(!isLicenseAdmin())return;
-  openModal(`<h2>🙋 تایید درخواست لایسنس</h2>
-    <p class="hint" style="direction:ltr;text-align:center">${esc(id)}</p>
-    <div class="form">
-      <select id="licenseApprovePlan">
-        <option value="m1">۱ ماهه</option>
-        <option value="m3">۳ ماهه</option>
-        <option value="m6">۶ ماهه</option>
-        <option value="y1">۱ ساله</option>
-        <option value="lifetime">دائمی</option>
-      </select>
-      <label class="hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="licenseApproveAdmin"> 👑 این کاربر ادمین باشد (دسترسی کامل و لایسنس دائمی)</label>
-      <button class="primary" onclick="approveLicenseRequest('${esc(id)}')">✅ تایید و فعال‌سازی</button>
-      <button class="danger-icon" onclick="rejectLicenseRequest('${esc(id)}')">❌ رد درخواست</button>
-      <button onclick="closeModal()">انصراف</button>
-    </div>`);
-}
-async function approveLicenseRequest(id){
-  if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
-  const isAdminChecked=!!$("licenseApproveAdmin")?.checked;
-  let plan=$("licenseApprovePlan")?.value||"m1";
-  if(isAdminChecked)plan="lifetime";
-  try{
-    const ref=sync.db.collection("licenses").doc(id);
-    const snap=await fsGet(ref);
-    if(!snap.exists)return alert("درخواستی با این آیدی پیدا نشد");
-    const reqData=snap.data();
-    if(!reqData.requestedBy)return alert("این یک درخواست معتبر نیست");
-    const code=genLicenseCode();
-    const days=LICENSE_PLAN_DAYS[plan];
-    const expiresAt=days!=null?new Date(Date.now()+days*86400000).toISOString():null;
-    await fsSet(ref,{status:"active",plan,code,isAdmin:isAdminChecked,approvedAt:firebase.firestore.FieldValue.serverTimestamp(),approvedBy:sync.user.email,redeemedBy:reqData.requestedBy,redeemedByEmail:reqData.requestedByEmail,redeemedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
-    const userRef=sync.db.collection("users").doc(reqData.requestedBy);
-    const userSet={license:{status:"active",plan,expiresAt,licenseId:id,updatedAt:new Date().toISOString()},isAdmin:isAdminChecked};
-    await fsSet(userRef,userSet,{merge:true});
-    alert("درخواست تایید و لایسنس فعال شد ✅");
-    closeModal();
-    if(sync.user&&reqData.requestedBy===sync.user.uid)await refreshCloudLicense();
-    loadAdminLicenses();
-  }catch(e){alert("تایید ناموفق: "+friendlyFirestoreError(e))}
-}
-async function rejectLicenseRequest(id){
-  if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
-  if(!confirm("این درخواست رد شود؟"))return;
-  try{
-    await fsSet(sync.db.collection("licenses").doc(id),{status:"rejected",rejectedAt:firebase.firestore.FieldValue.serverTimestamp(),rejectedBy:sync.user.email},{merge:true});
-    alert("درخواست رد شد");
-    closeModal();
-    loadAdminLicenses();
-  }catch(e){alert("عملیات ناموفق: "+friendlyFirestoreError(e))}
-}
-/* v-t3: قبلاً با orderBy("createdAt","desc") می‌خواندیم؛ اگر یک سند هر
-   دلیلی این فیلد را نداشته باشد یا قوانین امنیتی Firestore بر اساس
-   فیلد دیگری (مثلاً createdBy) محدودش کرده باشند، آن سند بی‌سروصدا از
-   نتیجه‌ی کوئری حذف می‌شود (نه خطا، فقط غیب می‌شود) و همین باعث می‌شد
-   لایسنس‌های خودساختِ کاربر (REQ-...) در فهرست ادمین دیده نشوند. حالا
-   بدون orderBy همه‌ی چیزی که قوانین اجازه‌ی خواندنش را بدهند می‌گیریم و
-   خودمان تو کد مرتب می‌کنیم. */
-function licenseSortTime(l){
-  const t=l.createdAt||l.requestedAt||l.redeemedAt||l.approvedAt;
-  if(t&&typeof t.toMillis==="function")return t.toMillis();
-  if(t&&t.seconds)return t.seconds*1000;
-  return 0;
-}
-async function loadAdminLicenses(){
-  const box=$("licenseListBox");if(!box||!isLicenseAdmin())return;
-  /* v-t7: قبلاً وقتی sync.db هنوز آماده نبود یا کوئری هیچ‌وقت جواب
-     نمی‌داد (نه خطا، نه نتیجه)، همین متن "در حال بارگذاری..." برای
-     همیشه روی صفحه می‌ماند. حالا هم یک سقف زمانی (fsGet) و هم یک دکمه‌ی
-     «تلاش دوباره» داریم تا کاربر هیچ‌وقت گیر نکند. */
-  box.innerHTML='<p class="hint">در حال بارگذاری...</p>';
-  if(!sync.db){box.innerHTML='<p class="hint">اتصال به Firebase برقرار نشد.</p><button onclick="loadAdminLicenses()">🔄 تلاش دوباره</button>';return}
-  try{
-    const snap=await fsGet(sync.db.collection("licenses").limit(300));
-    if(snap.empty){box.innerHTML='<p class="hint">هنوز لایسنس یا درخواستی ثبت نشده.</p>';return}
-    const docs=snap.docs.slice().sort((a,b)=>licenseSortTime(b.data())-licenseSortTime(a.data()));
-    box.innerHTML=docs.map(d=>{
-      const l=d.data();
-      const adminBadge=l.isAdmin?" 👑":"";
-      if(l.status==="pending"){
-        return `<div class="item"><div>🙋 <b style="direction:ltr;display:inline-block">${esc(d.id)}</b> — در انتظار تایید${l.requestedByEmail?"<br><small style=\"direction:ltr;display:inline-block\">"+esc(l.requestedByEmail)+"</small>":""}</div><div class="actions"><button title="بررسی" onclick="openLicenseApproveModal('${esc(d.id)}')">✅</button></div></div>`;
-      }
-      if(l.status==="rejected"){
-        return `<div class="item"><div>❌ <b style="direction:ltr;display:inline-block">${esc(d.id)}</b> — درخواست ردشده${l.requestedByEmail?"<br><small style=\"direction:ltr;display:inline-block\">"+esc(l.requestedByEmail)+"</small>":""}</div></div>`;
-      }
-      const st=l.status==="revoked"?"⛔ باطل‌شده":(l.redeemedBy?"✅ استفاده‌شده":"🕓 استفاده‌نشده");
-      const expiryTxt=l.plan==="custom"&&l.customExpiresAt?" (تا "+esc(new Date(l.customExpiresAt).toLocaleDateString("fa-IR"))+")":"";
-      return `<div class="item"><div><b style="direction:ltr;display:inline-block">${esc(d.id)}</b> — ${esc(LICENSE_PLAN_LABEL[l.plan]||l.plan||"")}${expiryTxt}${adminBadge} — ${st}${l.note?" — "+esc(l.note):""}${l.redeemedByEmail?"<br><small style=\"direction:ltr;display:inline-block\">مشتری: "+esc(l.redeemedByEmail)+"</small>":""}</div><div class="actions"><button title="تمدید" onclick="openLicenseRenewModal('${esc(d.id)}')">✏️</button><button title="باطل‌کردن" class="danger-icon" onclick="revokeLicenseById('${esc(d.id)}')">🗑</button></div></div>`;
-    }).join("");
-  }catch(e){box.innerHTML='<p class="hint">خطا در بارگذاری فهرست: '+esc(friendlyFirestoreError(e))+'</p><button onclick="loadAdminLicenses()">🔄 تلاش دوباره</button>';console.error("loadAdminLicenses",e)}
-}
-
-function renderLicensePage(){
-  const box=$("licenseStatusBox");
-  if(box){
-    const st=licenseStatus();
-    let html="";
-    if(st.kind==="admin")html=`<p>👑 ${st.label}</p>`;
-    else if(st.kind==="lifetime")html=`<p>♾ ${st.label}</p>`;
-    else if(st.kind==="active")html=`<p>✅ ${st.label} — ${st.daysLeft} روز باقی‌مانده (تا ${new Date(st.expiresAt).toLocaleDateString("fa-IR")})</p>`;
-    else if(st.kind==="trial")html=`<p>🎁 ${st.label} — ${st.daysLeft} روز باقی‌مانده</p>`;
-    else html='<p>⛔ '+st.label+'. برای ادامه استفاده، لایسنس تهیه کن.</p>';
-    box.innerHTML=html;
-  }
-  /* v-t1: پرکردن خودکار فیلدهای آیدی/رمز از حافظه (اگر «به‌خاطر بسپار» زده بودند) */
-  const remembered=getRememberedLicense();
-  if(remembered){
-    if($("licenseIdInput")&&!$("licenseIdInput").value)$("licenseIdInput").value=remembered.id;
-    if($("licenseCodeInput")&&!$("licenseCodeInput").value)$("licenseCodeInput").value=remembered.code;
-    if($("licenseRememberMe"))$("licenseRememberMe").checked=true;
-  }
-  const adminPanelIds=["licenseAdminPanel","licenseCreatePanel","licenseListPanel"];
-  const isAdmin=isLicenseAdmin();
-  adminPanelIds.forEach(id=>{const el=$(id);if(el)el.style.display=isAdmin?"":"none"});
-  /* v-t6: کارت «ساخت لایسنس» (که مشتری را به تلگرام ادمین می‌فرستد) فقط
-     برای مشتری‌ها معنی دارد؛ وقتی خودِ ادمین وارد است، به‌جایش همان کارت
-     «ساخت لایسنس دستی» (بالا، در adminPanelIds) نمایش داده می‌شود. */
-  const reqPanel=$("licenseRequestPanel");if(reqPanel)reqPanel.style.display=isAdmin?"none":"";
-  /* v-t4: دکمه‌ی تنظیمات اتصال Firebase فقط برای ادمین، فقط همین‌جا (پنل
-     مدیریت لایسنس) نشان داده می‌شود. */
-  ["licenseAdminFirebaseBtnWrap","licenseListFirebaseBtnWrap"].forEach(id=>{const el=$(id);if(el)el.style.display=isAdmin?"":"none"});
-  if(isAdmin)loadAdminLicenses();
-}
-function showLicenseLock(){
-  if(!licenseIsBlocked())return;
-  if($("licenseLock"))return;
-  const remembered=getRememberedLicense();
-  const d=document.createElement("div");d.id="licenseLock";d.className="lock";
-  d.innerHTML=`<div class="lockbox"><h1>🔑 حساب‌یار</h1><p>دوره استفاده رایگان به پایان رسیده است.</p><p class="hint">برای ادامه، آیدی و رمز لایسنس را وارد کن.</p>
-    <input id="licenseLockId" class="amt-input" placeholder="آیدی لایسنس" autocomplete="off" value="${remembered?esc(remembered.id):""}">
-    <input id="licenseLockCode" class="amt-input" placeholder="رمز لایسنس" autocomplete="off" value="${remembered?esc(remembered.code):""}">
-    <label class="hint" style="display:flex;align-items:center;gap:6px;justify-content:center;margin:8px 0 4px"><input type="checkbox" id="licenseLockRemember"${remembered?" checked":""}> همیشه من را به‌خاطر بسپار</label>
-    <button class="primary" id="licenseLockBtn">✅ فعال‌سازی</button>
-    <button id="licenseLockRequestBtn" style="margin-top:8px">📨 پیام در تلگرام (ساخت لایسنس)</button>
-    </div>`;
-  document.body.appendChild(d);
-  $("licenseLockBtn").onclick=()=>activateLicense();
-  $("licenseLockRequestBtn").onclick=requestLicense;
-}
-/* v-t1: قبل از نمایش صفحه‌ی قفل، اگر آیدی/رمز لایسنس قبلاً با «همیشه من را
-   به‌خاطر بسپار» ذخیره شده و کاربر وارد حساب است، بی‌صدا امتحان می‌کند —
-   یعنی دیگر لازم نیست هر بار دستی آیدی و رمز را وارد کند. */
-async function licenseGate(){
-  if(!licenseIsBlocked()){$("licenseLock")?.remove();return}
-  const remembered=getRememberedLicense();
-  if(remembered&&sync.user){
-    const ok=await activateLicense({id:remembered.id,code:remembered.code,remember:true,silent:true});
-    if(ok)return;
-    clearRememberedLicense();
-  }
-  showLicenseLock();
-}
+async function logoutSync(){try{const email=sync.user?.email||"";await sync.auth?.signOut();setLicenseCache(null);hideLicenseGate();alert("از حساب همگام‌سازی خارج شد");logEvent("خروج از حساب همگام‌سازی",email,"auth")}catch(e){alert(e.message)}}
 
 function normalize(s){return String(s||"").replace(/[۰-۹]/g,d=>"۰۱۲۳۴۵۶۷۸۹".indexOf(d)).replace(/[٬،]/g,",").replace(/\s+/g," ").trim()}
 function parseMoney(v){return Number(String(v).replace(/[^\d]/g,""))||0}
@@ -1391,54 +1042,19 @@ function showWhatsNewOnce(){
   <h2>🎉 به حساب‌یار خوش آمدی</h2>
   <p class="hint">این صفحه فقط یک‌بار در اولین اجرای این نسخه نمایش داده می‌شود.</p>
   <div class="whats-new-section">
-   <h3>🛠 تغییرات این نسخه (${toFaDigits(APP_VERSION)})</h3>
+   <h3>🛠 تغییرات این نسخه (۲.۴)</h3>
    <ul>
-    <li>رفع باگ مهمِ «آپدیت نصب نمی‌شود / ورژن عوض نمی‌شود»: نام کش سرویس‌ورکر به‌صورت ثابت نوشته شده بود و هیچ‌وقت خودکار عوض نمی‌شد، برای همین بعضی گوشی‌ها همیشه نسخه‌ی خیلی قدیمی‌تر برنامه را از حافظه نشان می‌دادند — نصب زیپ جدید هیچ فرقی نمی‌کرد، چون خودِ برنامه هیچ‌وقت فایل‌های جدید را واقعاً بارگذاری نمی‌کرد. حالا نام کش خودکار و همیشه هم‌راستا با شماره نسخه است، و به‌محض آماده‌شدن نسخه‌ی جدید یک‌بار به‌صورت خودکار صفحه تازه‌سازی می‌شود تا لازم نباشد برنامه کامل بسته و باز شود.</li>
+    <li>رفع باگ آفلاین بودن: قبلاً وقتی گوشی اینترنت نداشت، قفل پایان‌اشتراک اصلاً بررسی نمی‌شد (چون این بررسی به Firebase وابسته بود) — یعنی خاموش‌کردن اینترنت راهی برای دور زدن اشتراک منقضی بود. حالا آخرین وضعیت لایسنس در خود گوشی ذخیره می‌شود و همان لحظه‌ی باز شدن برنامه، بدون نیاز به اینترنت، اعمال می‌شود.</li>
+    <li>بررسی آنلاین لایسنس هم پایدارتر شد: اگر اتصال ضعیف/قطع باشد، بررسی حداکثر ۸ ثانیه صبر می‌کند و بعد به آخرین وضعیت ذخیره‌شده برمی‌گردد، به‌جای گیر کردن برنامه.</li>
+    <li>به محض وصل شدن دوباره‌ی اینترنت، وضعیت لایسنس خودکار دوباره از سرور بررسی می‌شود.</li>
    </ul>
   </div>
   <div class="whats-new-section">
-   <h3>🛠 تغییرات این نسخه (t6)</h3>
+   <h3>🛠 تغییرات نسخه قبل (۲.۳)</h3>
    <ul>
-    <li>دیگر هیچ‌جا آیدی تلگرام ادمین به‌صورت متن نمایش داده نمی‌شود؛ فقط یک دکمه «📨 پیام در تلگرام» هست که با زدنش مستقیم چت باز می‌شود.</li>
-    <li>کارت «➕ ساخت لایسنس» (که مشتری را به تلگرام می‌فرستد) فقط برای مشتری‌ها نمایش داده می‌شود؛ وقتی با حساب ادمین وارد شده باشی، این کارت دیده نمی‌شود و به‌جایش همان «ساخت لایسنس دستی» (که مستقیماً در Firebase ثبت می‌کند) در پنل مدیریت لایسنس در دسترس است — دیگر لازم نیست ادمین برای خودش پیام تلگرام بفرستد.</li>
-   </ul>
-  </div>
-  <div class="whats-new-section">
-   <h3>🛠 تغییرات نسخه قبل (t5)</h3>
-   <ul>
-    <li>«➕ ساخت لایسنس» دیگر هیچ حساب Firebase نمی‌سازد (که خودش منبع باگ‌های قبلی بود)؛ حالا با زدن دکمه مستقیم به تلگرام ادمین وصل می‌شود تا هماهنگی و ساخت لایسنس دستی و توسط ادمین انجام شود. این کارت فقط برای مشتری‌ها نشان داده می‌شود؛ وقتی با حساب ادمین وارد شده باشی، به‌جایش همان «ساخت لایسنس دستی» پایین صفحه در دسترس است.</li>
-    <li>فعال‌سازی لایسنس (فقط با آیدی و رمزی که ادمین می‌دهد) دیگر هیچ پیام یا فرم اضافه‌ای برای ایمیل/رمز حساب نشان نمی‌دهد؛ اتصال لازم به Firestore حالا پشت‌صحنه و بی‌صدا با یک نشست ناشناس (Anonymous) انجام می‌شود. عنوان «فعال‌سازی / تمدید» هم به «فعال‌سازی» ساده شد.</li>
-    <li>«ساخت لایسنس دستی» و «تمدید» حالا یک گزینه‌ی «تاریخ انقضای دلخواه» هم دارند: به‌جای انتخاب از بین ۱/۳/۶ ماهه و ۱ ساله، می‌توان یک تاریخ مشخص انتخاب کرد؛ درست بعد از همان تاریخ، لایسنس منقضی و برنامه غیرفعال می‌شود.</li>
-    <li>ادمین همچنان از «پنل مدیریت لایسنس» تمام لایسنس‌های ذخیره‌شده در Firebase را می‌بیند و می‌تواند تاریخ را تغییر دهد، تمدید یا باطل کند.</li>
-   </ul>
-  </div>
-  <div class="whats-new-section">
-   <h3>🛠 تغییرات نسخه قبل (t3)</h3>
-   <ul>
-    <li>«➕ ساخت لایسنس» دیگر با چند پیام ساده‌ی مرورگر ایمیل/رمز نمی‌گیرد؛ حالا همان فرم «همگام‌سازی دو گوشی» باز می‌شود، با ایمیلت (مثلاً جیمیل) و یک رمز دلخواه وارد می‌شوی یا حساب می‌سازی، و همان لحظه یک درخواست لایسنس برای ادمین ثبت می‌شود (همان حساب بعداً برای اتصال دو گوشی هم قابل استفاده است).</li>
-    <li>تنظیمات اتصال Firebase (apiKey/authDomain/...) که قبلاً برای همه در بخش «همگام‌سازی دو گوشی» تنظیمات در دسترس بود، حالا حذف شده و فقط داخل «پنل مدیریت لایسنس» (بالای فهرست لایسنس‌ها) و فقط برای ادمین نمایش داده می‌شود.</li>
-   </ul>
-  </div>
-  <div class="whats-new-section">
-   <h3>🛠 تغییرات نسخه قبل (۲.۹)</h3>
-   <ul>
-    <li>در پنل مدیریت لایسنس، تمدید و باطل‌کردن حالا مستقیم روی خودِ لایسنس در فهرست انجام می‌شود: کنار هر لایسنس یک دکمه ✏️ برای تمدید (باز شدن گزینه‌های تمدید) و یک دکمه 🗑 برای باطل‌کردن است — دیگر نیازی به تایپ دستی آیدی نیست.</li>
-    <li>هنگام ساخت لایسنس جدید، حالا می‌توان یک «رمز دلخواه» هم تعیین کرد؛ اگر خالی گذاشته شود مثل قبل به‌صورت خودکار ساخته می‌شود (آیدی همیشه خودکار است).</li>
-   </ul>
-  </div>
-  <div class="whats-new-section">
-   <h3>🛠 تغییرات نسخه قبل (۲.۸)</h3>
-   <ul>
-    <li>رفع باگ اصلیِ «لایسنس نگه نمی‌داشت»: بعد از فعال‌سازی لایسنس، با بستن و بازکردن دوباره‌ی برنامه دوباره صفحه‌ی آیدی/رمز لایسنس ظاهر می‌شد و انگار دوره‌ی ۷روزه از اول شروع می‌شد. علتش این بود که وضعیت لایسنس فقط به نشست ورودِ آنی حساب کاربری (Firebase) وابسته بود و آن نشست همیشه بعد از بستن کامل برنامه روی بعضی گوشی‌ها برنمی‌گشت. حالا یک رکورد جداگانه از «لایسنس فعال» روی خود گوشی نگه‌داری می‌شود و تا وقتی سرور صراحتاً باطل‌شدنش را تأیید نکند، برنامه همان را معتبر می‌داند؛ علاوه بر آن، نگه‌داری نشستِ ورود هم صریحاً تنظیم شد.</li>
-    <li>پنل مدیریت لایسنس به بخش‌های کاملاً جدا تقسیم شد: «ساخت لایسنس جدید» و «فهرست/تمدید/باطل‌کردن» هرکدام کارت مخصوص به خودشان را دارند.</li>
-    <li>رفع باگ: باطل‌کردن یک لایسنس، دسترسیِ حسابی که قبلاً آن را فعال کرده بود را واقعاً هم قطع می‌کند (قبلاً فقط خودِ کد لایسنس باطل می‌شد ولی حساب مشتری همچنان فعال می‌ماند).</li>
-   </ul>
-  </div>
-  <div class="whats-new-section">
-   <h3>🛠 تغییرات نسخه قبل (۲.۷)</h3>
-   <ul>
-    <li>سیستم لایسنس اضافه شد: ۷ روز اول رایگان است؛ بعد از آن برای ادامه‌ی استفاده باید از صفحه‌ی «🔑 لایسنس» یک لایسنس (۱/۳/۶ ماهه، ۱ ساله یا دائمی) فعال شود.</li>
-    <li>بخش «یادداشت هوشمند» دیگر مخصوص یک سرویس هوش مصنوعی خاص نیست؛ حالا با کلید API خودت (سازگار با فرمت OpenAI، مثل دیپ‌سیک) کار می‌کند.</li>
+    <li>بخش «همگام‌سازی دو گوشی» در تنظیمات ساده شد: فقط یک فرم ورود (ایمیل و رمز) باقی مانده و ساخت حساب حذف شد؛ حساب‌ها فقط توسط ادمین ساخته می‌شوند.</li>
+    <li>سامانه لایسنس/اشتراک اضافه شد: هر حساب یک مدت اشتراک دارد (۱، ۲، ۳، ۶ ماهه، ۱ ساله یا دائم)؛ وقتی اشتراک تمام یا باطل شود، برنامه قفل می‌شود و فقط «ورود مجدد» یا «تمدید اشتراک» در دسترس است.</li>
+    <li>پنل مدیریت ادمین اضافه شد: ساخت حساب جدید با مدت اشتراک دلخواه (از جمله حساب ادمین دائمی)، و فهرست همه حساب‌های ثبت‌شده با امکان تمدید و باطل/فعال کردن.</li>
    </ul>
   </div>
   <div class="whats-new-section">
@@ -1597,7 +1213,6 @@ function goToPage(name,fromNav){
  if(appMode()==="store"&&!STORE_ALLOWED_PAGES.includes(name))name="invoices";
  if(!$(name))return;
  const page=activatePage(name);
- if(name==="license")renderLicensePage();
  if(pageHistory[pageHistory.length-1]!==name)pageHistory.push(name);
  if(fromNav)closeMenu();
  logEvent("ورود به بخش",page?.querySelector("h2")?.textContent||name,"nav");
@@ -2209,7 +1824,7 @@ async function shareCustomerStatement(id){
 }
 function exportAllCustomersExcel(){const rows=data.customers.map(c=>{const st=customerStats(c);return [c.name,c.phone||"",st.count,st.total,st.paid,st.due]});exportXLS('همه-مشتریان',['نام مشتری','شماره تماس','تعداد فاکتور','مجموع خرید','مجموع پرداخت','مانده'],rows)}
 
-function openPerson(id=null){const p=id&&data.people.find(x=>x.id===id);const instCount=p?.installments?.count||1;openModal(`<h2>${p?"ویرایش بدهکار/بستانکار":"بدهکار / بستانکار"}</h2><div class="form"><select id="pt"><option value="debt" ${p?.type==="debt"?"selected":""}>من بدهکارم</option><option value="credit" ${p?.type==="credit"?"selected":""}>من طلبکارم</option></select><input id="pn" placeholder="نام شخص" value="${esc(p?.name||"")}"><input id="pa" type="text" inputmode="numeric" class="amt-input" placeholder="مبلغ کل" value="${fmtAmtValue(p?.amount)}">${simpleDateField("pd",jalaliInputValue(p?.due||""))}${invField("تعداد اقساط","اگر پرداخت قسطی است عددی بزرگ‌تر از ۱ بگذار؛ برای پرداخت یکجا همان ۱ بماند",`<input id="pInstCount" type="number" min="1" value="${instCount}">`)}<textarea id="pnote" placeholder="توضیحات">${esc(p?.note||"")}</textarea><button class="primary" onclick="savePerson('${p?.id||""}')">${p?"ذخیره تغییرات":"ذخیره"}</button></div>`)}
+function openPerson(id=null){const p=id&&data.people.find(x=>x.id===id);const instCount=p?.installments?.count||1;openModal(`<h2>${p?"ویرایش بدهکار/بستانکار":"بدهکار / بستانکار"}</h2><div class="form"><select id="pt"><option value="debt" ${p?.type==="debt"?"selected":""}>من بدهکارم</option><option value="credit" ${p?.type==="credit"?"selected":""}>من طلبکارم</option></select><input id="pn" placeholder="نام شخص" value="${esc(p?.name||"")}"><input id="pa" type="text" inputmode="numeric" class="amt-input" placeholder="مبلغ کل" value="${fmtAmtValue(p?.amount)}">${simpleDateField("pd",jalaliInputValue(p?.due||""))}${invField("یادآوری سررسید","مشخص کن یادآوری این تاریخ فقط یک‌بار اعلام شود یا هر هفته/ماه/سال تکرار شود",`<select id="pRepeat"><option value="once" ${(p?.repeat||"once")==="once"?"selected":""}>یک‌بار</option><option value="weekly" ${p?.repeat==="weekly"?"selected":""}>هفتگی</option><option value="monthly" ${p?.repeat==="monthly"?"selected":""}>ماهانه</option><option value="yearly" ${p?.repeat==="yearly"?"selected":""}>سالانه</option></select>`)}${invField("تعداد اقساط","اگر پرداخت قسطی است عددی بزرگ‌تر از ۱ بگذار؛ برای پرداخت یکجا همان ۱ بماند",`<input id="pInstCount" type="number" min="1" value="${instCount}">`)}<textarea id="pnote" placeholder="توضیحات">${esc(p?.note||"")}</textarea><button class="primary" onclick="savePerson('${p?.id||""}')">${p?"ذخیره تغییرات":"ذخیره"}</button></div>`)}
 function generateInstallments(amount,count,startISO){
   count=Math.max(1,Math.floor(count)||1);
   const base=Math.floor(amount/count);
@@ -2223,12 +1838,14 @@ function generateInstallments(amount,count,startISO){
   }
   return {count,items};
 }
-function savePerson(id){
+async function savePerson(id){
   const name=$("pn").value.trim(),amount=parseMoney($("pa").value);
   if(!name||!amount)return alert("نام و مبلغ را وارد کنید");
   const instCount=Math.max(1,parseInt($("pInstCount")?.value)||1);
   const due=jalaliToISO($("pd").value);
-  const o={type:$("pt").value,name,amount,due,note:$("pnote").value.trim()};
+  const repeat=$("pRepeat")?.value||"once";
+  const o={type:$("pt").value,name,amount,due,repeat,note:$("pnote").value.trim()};
+  let person;
   if(id){
     const p=data.people.find(x=>x.id===id);if(!p)return alert("این شخص پیدا نشد");
     const prevCount=p.installments?.count||1;
@@ -2238,14 +1855,17 @@ function savePerson(id){
     }else{delete p.installments}
     p.paid=Math.min(Number(p.paid)||0,amount);
     touch(p);markDirty("people",p.id,false,p,p.updatedAt);
+    person=p;
   }else{
     const np=touch({id:uid(),paid:0,...o});
     if(instCount>1)np.installments=generateInstallments(amount,instCount,due);
     data.people.push(np);markDirty("people",np.id,false,np,np.updatedAt);
+    person=np;
   }
-  localStorage.setItem(KEY,JSON.stringify(data));render();syncSave();logEvent(id?"ویرایش شخص":"ایجاد شخص",`${name} • ${money(amount)}`,id?"edit":"create");closeModal()
+  localStorage.setItem(KEY,JSON.stringify(data));render();syncSave();logEvent(id?"ویرایش شخص":"ایجاد شخص",`${name} • ${money(amount)}`,id?"edit":"create");closeModal();
+  await upsertReminderForPerson(person);
 }
-function deletePerson(id){if(confirm("این مورد حذف شود؟")){const p=data.people.find(x=>x.id===id);if(p?.invoiceId){const inv=data.invoices.find(x=>x.id===p.invoiceId);if(inv){inv.personId="";touch(inv);markDirty("invoices",inv.id,false,inv,inv.updatedAt)}}removeRecord("people",id);logEvent("حذف شخص",p?.name||id,"delete")}}
+async function deletePerson(id){if(confirm("این مورد حذف شود؟")){const p=data.people.find(x=>x.id===id);if(p?.invoiceId){const inv=data.invoices.find(x=>x.id===p.invoiceId);if(inv){inv.personId="";touch(inv);markDirty("invoices",inv.id,false,inv,inv.updatedAt)}}await removeReminderForPerson(id);removeRecord("people",id);logEvent("حذف شخص",p?.name||id,"delete")}}
 function payPerson(id){openPersonPayment(id)}
 function openPersonPayment(id){
   const p=data.people.find(x=>x.id===id);if(!p)return;
@@ -2579,7 +2199,7 @@ function toggleAccordion(btn,event){
 
 
 function reminderFormInner(r){
- return `<input id="rt" placeholder="عنوان" value="${esc(r?.title||"")}"><input id="ra" type="text" inputmode="numeric" class="amt-input" placeholder="مبلغ" value="${fmtAmtValue(r?.amount)}">${pickerBox("rdPicker","rtPicker",r?.date||new Date().toISOString())}<select id="rr"><option value="once" ${r?.repeat==="once"?"selected":""}>یک‌بار</option><option value="monthly" ${r?.repeat==="monthly"?"selected":""}>ماهانه</option><option value="weekly" ${r?.repeat==="weekly"?"selected":""}>هفتگی</option></select><select id="rb"><option value="expense" ${r?.type==="expense"?"selected":""}>پرداخت</option><option value="income" ${r?.type==="income"?"selected":""}>دریافت</option></select><button class="primary" onclick="saveReminder('${r?.id||""}')">${r?"ذخیره تغییرات":"ذخیره"}</button>`;
+ return `<input id="rt" placeholder="عنوان" value="${esc(r?.title||"")}"><input id="ra" type="text" inputmode="numeric" class="amt-input" placeholder="مبلغ" value="${fmtAmtValue(r?.amount)}">${pickerBox("rdPicker","rtPicker",r?.date||new Date().toISOString())}<select id="rr"><option value="once" ${(r?.repeat||"once")==="once"?"selected":""}>یک‌بار</option><option value="weekly" ${r?.repeat==="weekly"?"selected":""}>هفتگی</option><option value="monthly" ${r?.repeat==="monthly"?"selected":""}>ماهانه</option><option value="yearly" ${r?.repeat==="yearly"?"selected":""}>سالانه</option></select><select id="rb"><option value="expense" ${r?.type==="expense"?"selected":""}>پرداخت</option><option value="income" ${r?.type==="income"?"selected":""}>دریافت</option></select><button class="primary" onclick="saveReminder('${r?.id||""}')">${r?"ذخیره تغییرات":"ذخیره"}</button>`;
 }
 function openReminder(id=null){const r=id&&data.reminders.find(x=>x.id===id);openModal(`<h2>${r?"ویرایش یادآوری":"یادآوری"}</h2><div class="form">${reminderFormInner(r)}</div>`)}
 /* --- مرکز ثبت سریع یادداشت/یادآوری از صفحه خانه: دقیقاً مثل تب‌های «صدور فاکتور»،
@@ -2697,38 +2317,46 @@ async function upsertReminderForCheck(check,renderAfter=true){
 async function removeReminderForCheck(checkId){const matches=(data.reminders||[]).filter(r=>r.sourceCheckId===checkId);for(const r of matches){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id)}if(matches.length)save()}
 async function syncAllChecksToReminders(){let changed=false;const checkIds=new Set((data.checks||[]).map(c=>c.id));for(const c of data.checks||[]){const before=(data.reminders||[]).length;await upsertReminderForCheck(c,false);if((data.reminders||[]).length!==before)changed=true}for(const r of [...(data.reminders||[])]){if(r.sourceCheckId&&!checkIds.has(r.sourceCheckId)){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id);changed=true}}if(changed){localStorage.setItem(KEY,JSON.stringify(data));syncSave();render()}}
 
+/* ---- v3.12: یادآوری سررسید بدهکار/طلبکار ----
+ * دقیقاً مثل چک و یادداشت (upsertReminderForCheck / upsertReminderForNote)،
+ * وقتی برای یک شخص در لیست بدهکار/طلبکار تاریخ سررسید ثبت شود، یک یادآوری
+ * واقعی (با اعلان) ساخته یا به‌روزرسانی می‌شود. کاربر هنگام ثبت شخص مشخص
+ * می‌کند این یادآوری فقط یک‌بار در همان تاریخ اعلام شود یا هر هفته/ماه/سال
+ * تکرار گردد (فیلد repeat روی خود شخص ذخیره می‌شود). با حذف تاریخ یا حذف
+ * شخص، یادآوری مرتبط هم لغو و حذف می‌شود. */
+async function upsertReminderForPerson(person,renderAfter=true){
+ if(!person?.id)return;
+ const linked=(data.reminders||[]).filter(x=>x.sourcePersonId===person.id);
+ let r=linked[0];
+ for(const dup of linked.slice(1)){await cancelNativeReminder(dup.id);removeRecordSilent("reminders",dup.id)}
+ if(!person.due){if(r){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id);if(renderAfter)save();else{localStorage.setItem(KEY,JSON.stringify(data));syncSave()}}return}
+ const isCredit=person.type==="credit";
+ const dueLabel=isCredit?"سررسید واریز":"سررسید پرداخت";
+ const o={title:`${isCredit?"💰 طلب از":"⚠️ بدهی به"} ${person.name}`,amount:person.amount||0,date:person.due,repeat:person.repeat&&person.repeat!=="none"?person.repeat:"once",type:isCredit?"income":"expense",sourcePersonId:person.id,body:`${dueLabel}: ${jalaliLabel(person.due)} • مانده: ${money(Math.max(0,(Number(person.amount)||0)-(Number(person.paid)||0)))}`};
+ if(r){Object.assign(r,o);touch(r);markDirty("reminders",r.id,false,r,r.updatedAt)}else{r=touch({id:uid(),...o});data.reminders.push(r);markDirty("reminders",r.id,false,r,r.updatedAt)}
+ if(renderAfter)save();else{localStorage.setItem(KEY,JSON.stringify(data));syncSave()}
+ await cancelNativeReminder(r.id);await scheduleNativeReminder(r);
+}
+async function removeReminderForPerson(personId){const matches=(data.reminders||[]).filter(r=>r.sourcePersonId===personId);for(const r of matches){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id)}if(matches.length)save()}
+async function syncAllPeopleToReminders(){let changed=false;const peopleIds=new Set((data.people||[]).map(p=>p.id));for(const p of data.people||[]){const before=(data.reminders||[]).length;await upsertReminderForPerson(p,false);if((data.reminders||[]).length!==before)changed=true}for(const r of [...(data.reminders||[])]){if(r.sourcePersonId&&!peopleIds.has(r.sourcePersonId)){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id);changed=true}}if(changed){localStorage.setItem(KEY,JSON.stringify(data));syncSave();render()}}
+
 
 /* ============================================================
- * یادداشت هوشمند (Smart Note) — تحلیل متن آزاد با دیپ‌سیک (DeepSeek)
+ * یادداشت هوشمند (Smart Note) — تحلیل متن آزاد با Claude (Anthropic)
  * متن فارسی کاربر تحلیل می‌شود و مواردی مثل بدهی/طلب، یادآوری
  * یا تراکنش از آن استخراج و برای تایید نهایی به کاربر نشان داده می‌شود.
  * ============================================================ */
-const DEEPSEEK_MODEL_DEFAULT="deepseek-chat";
-const DEEPSEEK_URL_DEFAULT="https://api.deepseek.com/chat/completions";
-const SMART_NOTE_URL_STORAGE="hesabdar-smartnote-url-v1";
-const SMART_NOTE_MODEL_STORAGE="hesabdar-smartnote-model-v1";
+const ANTHROPIC_MODEL="claude-haiku-4-5-20251001";
 function anthropicKey(){return (localStorage.getItem(ANTHROPIC_KEY_STORAGE)||"").trim()}
-function smartNoteUrl(){return (localStorage.getItem(SMART_NOTE_URL_STORAGE)||"").trim()||DEEPSEEK_URL_DEFAULT}
-function smartNoteModel(){return (localStorage.getItem(SMART_NOTE_MODEL_STORAGE)||"").trim()||DEEPSEEK_MODEL_DEFAULT}
-function saveAnthropicKey(){
-  const v=$("anthropicKeyInput")?.value.trim();
-  if(!v)return alert("کلید API را وارد کن");
-  localStorage.setItem(ANTHROPIC_KEY_STORAGE,v);
-  const urlV=$("smartNoteUrlInput")?.value.trim();
-  if(urlV)localStorage.setItem(SMART_NOTE_URL_STORAGE,urlV);else localStorage.removeItem(SMART_NOTE_URL_STORAGE);
-  const modelV=$("smartNoteModelInput")?.value.trim();
-  if(modelV)localStorage.setItem(SMART_NOTE_MODEL_STORAGE,modelV);else localStorage.removeItem(SMART_NOTE_MODEL_STORAGE);
-  if($("anthropicKeyInput"))$("anthropicKeyInput").value="";
-  renderSettingsFeatures();alert("تنظیمات ذخیره شد.")
-}
-function clearAnthropicKey(){if(!anthropicKey())return alert("کلیدی ثبت نشده است");if(!confirm("کلید و تنظیمات هوش مصنوعی حذف شود؟"))return;localStorage.removeItem(ANTHROPIC_KEY_STORAGE);localStorage.removeItem(SMART_NOTE_URL_STORAGE);localStorage.removeItem(SMART_NOTE_MODEL_STORAGE);renderSettingsFeatures();alert("کلید حذف شد.")}
+function saveAnthropicKey(){const v=$("anthropicKeyInput")?.value.trim();if(!v)return alert("کلید Claude را وارد کن");localStorage.setItem(ANTHROPIC_KEY_STORAGE,v);if($("anthropicKeyInput"))$("anthropicKeyInput").value="";renderSettingsFeatures();alert("کلید Claude ذخیره شد.")}
+function clearAnthropicKey(){if(!anthropicKey())return alert("کلیدی ثبت نشده است");if(!confirm("کلید Claude حذف شود؟"))return;localStorage.removeItem(ANTHROPIC_KEY_STORAGE);renderSettingsFeatures();alert("کلید Claude حذف شد.")}
 
 const SMART_NOTE_KIND_LABEL={debt:"من بدهکارم",credit:"من طلبکارم",reminder:"یادآوری",expense:"هزینه (پرداخت شد)",income:"دریافت (پول گرفتم)"};
 let smartNoteItems=[];
 
 function openSmartNote(){
   if(!anthropicKey()){
-    if(confirm("برای یادداشت هوشمند اول باید یک کلید API (سازگار با OpenAI، مثل دیپ‌سیک یا هر سرویس مشابه) در تنظیمات ثبت کنی. الان به تنظیمات بروم؟")){closeModal();goToPage("settings");setTimeout(()=>$("anthropicKeyInput")?.focus(),300)}
+    if(confirm("برای یادداشت هوشمند اول باید یک کلید API از Claude (Anthropic) در تنظیمات ثبت کنی. الان به تنظیمات بروم؟")){closeModal();goToPage("settings");setTimeout(()=>$("anthropicKeyInput")?.focus(),300)}
     return;
   }
   smartNoteItems=[];
@@ -2739,7 +2367,7 @@ async function analyzeSmartNote(){
   const text=$("smartNoteText")?.value.trim();
   if(!text)return alert("اول متن یادداشت را بنویس");
   const key=anthropicKey();
-  if(!key)return alert("کلید API تنظیم نشده است");
+  if(!key)return alert("کلید Claude تنظیم نشده است");
   const btn=$("smartNoteAnalyzeBtn");
   const resultsBox=$("smartNoteResults");
   if(btn){btn.disabled=true;btn.textContent="⏳ در حال تحلیل..."}
@@ -2757,15 +2385,15 @@ async function analyzeSmartNote(){
 فقط و فقط یک JSON خام با این ساختار برگردان، بدون هیچ توضیح اضافه و بدون بک‌تیک یا کد بلاک:
 {"items":[{"kind":"debt|credit|reminder|expense|income","person":"نام شخص یا خالی","title":"عنوان کوتاه","amount":عدد به تومان یا 0 اگر نامشخص,"date":"YYYY/MM/DD شمسی یا خالی","note":"توضیح کوتاه اختیاری"}]}
 اگر متن هیچ مورد قابل استخراجی نداشت، items را آرایه خالی بگذار.`;
-    const res=await fetch(smartNoteUrl(),{
+    const res=await fetch("https://api.anthropic.com/v1/messages",{
       method:"POST",
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-      body:JSON.stringify({model:smartNoteModel(),max_tokens:1024,temperature:0,messages:[{role:"system",content:sys},{role:"user",content:text}]})
+      headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:ANTHROPIC_MODEL,max_tokens:1024,temperature:0,system:sys,messages:[{role:"user",content:text}]})
     });
     if(!res.ok){const errBody=await res.text().catch(()=>"")
       ;throw new Error("HTTP "+res.status+" "+errBody.slice(0,200))}
     const data2=await res.json();
-    const raw=data2?.choices?.[0]?.message?.content||"{}";
+    const raw=(data2?.content||[]).map(b=>b?.text||"").join("")||"{}";
     const clean=raw.replace(/```json|```/g,"").trim();
     let parsed;try{parsed=JSON.parse(clean)}catch(e){throw new Error("پاسخ هوش مصنوعی قابل خواندن نبود")}
     const items=Array.isArray(parsed.items)?parsed.items:[];
@@ -2782,7 +2410,7 @@ async function analyzeSmartNote(){
     renderSmartNoteResults();
   }catch(e){
     console.warn("smart note analyze",e);
-    if(resultsBox)resultsBox.innerHTML=`<div class="card hint">⚠️ تحلیل انجام نشد. اتصال اینترنت یا اعتبار حساب دیپ‌سیک را بررسی کن.<br><small>${esc(e.message||"")}</small></div>`;
+    if(resultsBox)resultsBox.innerHTML=`<div class="card hint">⚠️ تحلیل انجام نشد. کلید API، اتصال اینترنت یا اعتبار حساب Claude را بررسی کن.<br><small>${esc(e.message||"")}</small></div>`;
   }finally{
     if(btn){btn.disabled=false;btn.textContent="🔎 تحلیل با هوش مصنوعی"}
   }
@@ -3713,4 +3341,4 @@ async function importData(e){
   alert(msg)}
 }
 function clearData(){if(confirm("همه اطلاعات حذف شود؟")){const pin=data.pin,pinHash=data.pinHash,pinSalt=data.pinSalt,patternHash=data.patternHash,patternSalt=data.patternSalt,lockMethod=data.lockMethod,biometricEnabled=data.biometricEnabled,webauthnCredId=data.webauthnCredId,lang=data.lang;data=blankData();data.pin=pin;data.pinHash=pinHash;data.pinSalt=pinSalt;data.patternHash=patternHash;data.patternSalt=patternSalt;data.lockMethod=lockMethod;data.biometricEnabled=biometricEnabled;data.webauthnCredId=webauthnCredId;data.lang=lang;save();logEvent("پاک کردن اطلاعات","اطلاعات برنامه پاک شد","delete");}}
-(async function initApp(){normalizeData();purgeOldTrash();applyAccentThemeOnLoad();await migratePinSecurity();showLock();render();applyDashboardConfig();applyAppMode();renderBrandingInSettings();renderSettingsFeatures();applyLanguage();maybeAutoBackup("اجرای برنامه");processRecurringTransactions();logEvent("اجرای برنامه","برنامه حسابدار اجرا شد","system");ensureTrialStarted();licenseGate();setInterval(licenseGate,30*60*1000);await initSync();if(!sync.auth){[4000,12000,30000].forEach(ms=>setTimeout(()=>{if(!sync.auth)initSync()},ms))}syncAllNotesToReminders().catch(console.error);syncAllChecksToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error);startUpdateChecker();startReminderChecker();if(!hasLockCode())setTimeout(showWhatsNewOnce,320);})();
+(async function initApp(){normalizeData();purgeOldTrash();applyAccentThemeOnLoad();await migratePinSecurity();showLock();enforceCachedLicenseAtBoot();render();applyDashboardConfig();applyAppMode();renderBrandingInSettings();renderSettingsFeatures();applyLanguage();maybeAutoBackup("اجرای برنامه");processRecurringTransactions();logEvent("اجرای برنامه","برنامه حسابدار اجرا شد","system");await initSync();if(!sync.auth){[4000,12000,30000].forEach(ms=>setTimeout(()=>{if(!sync.auth)initSync()},ms))}window.addEventListener("online",onNetworkBackOnline);syncAllNotesToReminders().catch(console.error);syncAllChecksToReminders().catch(console.error);syncAllPeopleToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error);startUpdateChecker();startReminderChecker();if(!hasLockCode())setTimeout(showWhatsNewOnce,320);})();
