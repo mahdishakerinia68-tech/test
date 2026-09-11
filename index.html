@@ -22,7 +22,7 @@
     <button id="menuBtn" class="menu-trigger" aria-label="باز کردن منو" aria-haspopup="true" aria-expanded="false" aria-controls="menuModal">⋯</button>
     <img class="app-logo" src="logo.png" alt="حساب‌یار">
     <div class="top-bar-titles">
-      <h1>حساب‌یار <span class="version-pill" id="versionPill">t3</span></h1>
+      <h1>حساب‌یار <span class="version-pill" id="versionPill">t4</span></h1>
       <div id="syncBadge" class="sync-badge">☁️ آفلاین</div>
     </div>
   </div>
@@ -188,12 +188,15 @@
   </div>
   <div class="card" style="margin-bottom:10px">
     <h3>➕ ساخت لایسنس</h3>
-    <p class="hint">اگر هنوز آیدی و رمز لایسنس نگرفته‌ای، از همینجا برای خودت یک لایسنس بساز (ایمیل و رمز حساب کاربری‌ات را می‌پرسد). لایسنس در فایربیس ثبت می‌شود و ادمین از داخل برنامه (پنل مدیریت لایسنس، دکمه بروزرسانی) آن را می‌بیند و برایش مدت‌زمان (۱ ماهه، ۳ ماهه، ۶ ماهه، ۱ ساله یا دائمی) تعیین و فعال می‌کند.</p>
+    <p class="hint">اگر هنوز آیدی و رمز لایسنس نگرفته‌ای، از همینجا برای خودت یک لایسنس بساز: با ایمیلت (مثلاً جیمیل) و یک رمز دلخواه وارد شو یا حساب بساز — همین حساب برای همگام‌سازی دو گوشی هم استفاده می‌شود. درخواست در فایربیس ثبت می‌شود و ادمین از داخل برنامه (پنل مدیریت لایسنس، دکمه بروزرسانی) آن را می‌بیند و برایش مدت‌زمان (۱ ماهه، ۳ ماهه، ۶ ماهه، ۱ ساله یا دائمی) تعیین و فعال می‌کند.</p>
     <button onclick="requestLicense()">➕ ساخت لایسنس</button>
   </div>
   <div class="card" id="licenseAdminPanel" style="display:none;margin-bottom:10px">
     <h3>🛠 پنل مدیریت لایسنس (فقط ادمین)</h3>
     <p class="hint">درخواست‌های در انتظار تایید با 🙋 مشخص شده‌اند (دکمه ✅ برای بررسی و تایید/رد). برای تمدید یا باطل‌کردنِ لایسنس‌های فعال، از دکمه‌های ✏️ (تمدید) و 🗑 (باطل‌کردن) کنار همان لایسنس در فهرست پایین استفاده کن. علامت 👑 یعنی آن لایسنس «ادمین» است.</p>
+    <div id="licenseAdminFirebaseBtnWrap" style="display:none;margin-top:8px">
+      <button onclick="openSyncSettings()">⚙️ تنظیم اتصال Firebase</button>
+    </div>
   </div>
 
   <div class="card" id="licenseCreatePanel" style="display:none;margin-bottom:10px">
@@ -216,6 +219,9 @@
   <div class="card" id="licenseListPanel" style="display:none;margin-bottom:10px">
     <h3>📋 فهرست لایسنس‌ها و درخواست‌ها</h3>
     <button onclick="loadAdminLicenses()">🔄 بروزرسانی فهرست</button>
+    <span id="licenseListFirebaseBtnWrap" style="display:none">
+      <button onclick="openSyncSettings()">⚙️ تنظیم اتصال Firebase</button>
+    </span>
     <div id="licenseListBox"></div>
   </div>
 </section>
@@ -339,7 +345,6 @@
           <button class="primary" onclick="loginFromSettings()">🔐 ورود با ایمیل</button>
           <button onclick="createFromSettings()">➕ ساخت حساب با ایمیل</button>
           <button onclick="logoutSync()">🚪 خروج از حساب</button>
-          <button onclick="openSyncSettings()">⚙️ تنظیم اتصال Firebase</button>
         </div>
         <div id="syncStatus" class="hint"></div>
         <div class="settings-actions">
@@ -503,7 +508,7 @@
 <script src="capacitor-biometric-bridge.js"></script>
 <script src="app.js"></script>
 <script>if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js?v=t3",{updateViaCache:"none"}).catch(console.error);
+  navigator.serviceWorker.register("sw.js?v=t4",{updateViaCache:"none"}).catch(console.error);
   /* v3.0: once the new service worker (with the fresh cache) takes
      control, reload once automatically so the update is visible right
      away in this same session instead of only after fully closing and

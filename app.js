@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="t3";
+const APP_VERSION="t4";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -746,7 +746,13 @@ async function pullFromCloud(){
     mergeCloud(remote);localStorage.setItem(KEY,JSON.stringify(data));render();setSyncStatus("☁️ اطلاعات از ابر دریافت شد — "+dataSummary(data));alert("اطلاعات ابری دریافت شد\n"+dataSummary(data));
   }catch(e){alert("دریافت ناموفق: "+(e.code||'')+"\n"+e.message)}
 }
+/* v-t4: تنظیمات اتصال Firebase (apiKey/authDomain/...) قبلاً برای همه در
+   تنظیمات عمومی («همگام‌سازی دو گوشی») در دسترس بود؛ چون این اطلاعات
+   می‌تواند برنامه را به یک پروژه‌ی Firebase دیگر وصل کند، حالا فقط ادمین
+   می‌تواند این بخش را ببیند و باز کند (دکمه‌اش هم فقط داخل پنل مدیریت
+   لایسنس نمایش داده می‌شود). */
 function openSyncSettings(){
+ if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
  const c=syncConfig()||{};
  openModal(`<h2>☁️ اتصال دو گوشی</h2><div class="form">
  <p class="hint">ایمیل و رمز یکسان را روی هر دو گوشی استفاده کن. بعد از ورود، اطلاعات موجود در ابر خودکار دریافت می‌شود.</p>
@@ -1089,18 +1095,40 @@ async function revokeLicenseById(id){
    کالکشن «licenses» با شناسه REQ-{uid} و status:"pending" می‌سازد تا در
    فهرست ادمین دیده شود؛ با تایید ادمین مستقیماً روی همان حساب فعال می‌شود
    (نیازی به آیدی/رمز دستی نیست چون از قبل به uid همان کاربر وصل است). */
+/* v-t4: «ساخت لایسنس» قبلاً با چند prompt() خام مرورگر (زشت و روی بعضی
+   وب‌ویوهای اندروید غیرقابل‌اعتماد) ایمیل/رمز می‌گرفت. حالا دقیقاً همان
+   فرم «☁️ همگام‌سازی دو گوشی» باز می‌شود: کاربر ایمیلش (مثلاً جیمیل) و یک
+   رمز دلخواه می‌زند، با همان حساب وارد می‌شود یا می‌سازد، و همان حساب از
+   همین‌جا هم برای اتصال دو گوشی قابل استفاده است. بلافاصله بعد از ورود،
+   یک سند «درخواست لایسنس» (REQ-{uid}) در کالکشن licenses ساخته می‌شود که
+   در فهرست ادمین (🙋 در انتظار تایید) دیده و تایید/رد می‌شود. */
 async function requestLicense(){
-  if(!sync.user){
-    const email=prompt("برای ساخت لایسنس اول باید ایمیل و رمز حساب کاربری‌ات را وارد کنی.\nایمیل حساب:");
-    if(!email)return;
-    const pass=prompt("رمز حساب (اگر حساب نداری، همین‌جا یک رمز جدید بساز):");
-    if(!pass)return;
-    if(!await ensureSyncReady())return;
-    try{
-      try{await sync.auth.signInWithEmailAndPassword(email,pass)}
-      catch(e){if(e.code==="auth/user-not-found"||e.code==="auth/invalid-credential")await sync.auth.createUserWithEmailAndPassword(email,pass);else throw e}
-    }catch(e){return alert("ورود/ساخت حساب ناموفق: "+(e.message||e))}
-  }
+  if(sync.user)return createLicenseRequestForCurrentUser();
+  openLicenseRequestModal();
+}
+function openLicenseRequestModal(){
+  openModal(`<h2>☁️ ساخت لایسنس</h2>
+    <p class="hint">با ایمیلت (مثلاً جیمیل) و یک رمز دلخواه وارد شو یا حساب بساز. همین حساب هم برای همگام‌سازی دو گوشی استفاده می‌شود. بعد از ورود، یک درخواست لایسنس خودکار برای ادمین ثبت می‌شود.</p>
+    <div class="form">
+      <input id="licenseReqEmail" type="email" placeholder="ایمیل (مثلاً جیمیل)" autocomplete="username">
+      <input id="licenseReqPass" type="password" placeholder="رمز دلخواه" autocomplete="current-password">
+      <button class="primary" onclick="submitLicenseRequest()">✅ ورود / ساخت حساب و ثبت درخواست</button>
+      <button onclick="closeModal()">انصراف</button>
+    </div>`);
+}
+async function submitLicenseRequest(){
+  const email=$("licenseReqEmail")?.value.trim(),pass=$("licenseReqPass")?.value;
+  if(!email||!pass)return alert("ایمیل و رمز را وارد کن");
+  if(!await ensureSyncReady())return;
+  try{
+    try{await sync.auth.signInWithEmailAndPassword(email,pass)}
+    catch(e){if(e.code==="auth/user-not-found"||e.code==="auth/invalid-credential")await sync.auth.createUserWithEmailAndPassword(email,pass);else throw e}
+  }catch(e){return alert("ورود/ساخت حساب ناموفق: "+(e.message||e))}
+  closeModal();
+  await createLicenseRequestForCurrentUser();
+}
+async function createLicenseRequestForCurrentUser(){
+  if(!sync.user)return;
   if(!sync.db)return alert("اتصال به سرویس لایسنس برقرار نشد");
   try{
     const reqId="REQ-"+sync.user.uid;
@@ -1112,7 +1140,7 @@ async function requestLicense(){
       if(d.status==="active"||d.redeemedBy)return alert("لایسنس تو همین الان فعال است.");
     }
     await ref.set({status:"pending",requestedBy:sync.user.uid,requestedByEmail:sync.user.email,requestedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:firebase.firestore.FieldValue.serverTimestamp(),plan:null,code:null,redeemedBy:null,redeemedByEmail:null},{merge:true});
-    alert("لایسنس ساخته شد ✅\nهر وقت ادمین از پنل مدیریت لایسنس (دکمه بروزرسانی فهرست) آن را تایید کند و برایش زمان تعیین کند، لایسنس خودکار روی همین حساب فعال می‌شود.");
+    alert("درخواست لایسنس ثبت شد ✅\nهر وقت ادمین از پنل مدیریت لایسنس (دکمه بروزرسانی فهرست) آن را تایید کند و برایش زمان تعیین کند، لایسنس خودکار روی همین حساب فعال می‌شود.");
     $("licenseLock")?.remove();
     renderLicensePage();
   }catch(e){alert("ثبت درخواست ناموفق: "+(e.message||e))}
@@ -1226,6 +1254,9 @@ function renderLicensePage(){
   const adminPanelIds=["licenseAdminPanel","licenseCreatePanel","licenseListPanel"];
   const isAdmin=isLicenseAdmin();
   adminPanelIds.forEach(id=>{const el=$(id);if(el)el.style.display=isAdmin?"":"none"});
+  /* v-t4: دکمه‌ی تنظیمات اتصال Firebase فقط برای ادمین، فقط همین‌جا (پنل
+     مدیریت لایسنس) نشان داده می‌شود. */
+  ["licenseAdminFirebaseBtnWrap","licenseListFirebaseBtnWrap"].forEach(id=>{const el=$(id);if(el)el.style.display=isAdmin?"":"none"});
   if(isAdmin)loadAdminLicenses();
 }
 function showLicenseLock(){
@@ -1352,6 +1383,13 @@ function showWhatsNewOnce(){
    <h3>🛠 تغییرات این نسخه (${toFaDigits(APP_VERSION)})</h3>
    <ul>
     <li>رفع باگ مهمِ «آپدیت نصب نمی‌شود / ورژن عوض نمی‌شود»: نام کش سرویس‌ورکر به‌صورت ثابت نوشته شده بود و هیچ‌وقت خودکار عوض نمی‌شد، برای همین بعضی گوشی‌ها همیشه نسخه‌ی خیلی قدیمی‌تر برنامه را از حافظه نشان می‌دادند — نصب زیپ جدید هیچ فرقی نمی‌کرد، چون خودِ برنامه هیچ‌وقت فایل‌های جدید را واقعاً بارگذاری نمی‌کرد. حالا نام کش خودکار و همیشه هم‌راستا با شماره نسخه است، و به‌محض آماده‌شدن نسخه‌ی جدید یک‌بار به‌صورت خودکار صفحه تازه‌سازی می‌شود تا لازم نباشد برنامه کامل بسته و باز شود.</li>
+   </ul>
+  </div>
+  <div class="whats-new-section">
+   <h3>🛠 تغییرات نسخه قبل (t3)</h3>
+   <ul>
+    <li>«➕ ساخت لایسنس» دیگر با چند پیام ساده‌ی مرورگر ایمیل/رمز نمی‌گیرد؛ حالا همان فرم «همگام‌سازی دو گوشی» باز می‌شود، با ایمیلت (مثلاً جیمیل) و یک رمز دلخواه وارد می‌شوی یا حساب می‌سازی، و همان لحظه یک درخواست لایسنس برای ادمین ثبت می‌شود (همان حساب بعداً برای اتصال دو گوشی هم قابل استفاده است).</li>
+    <li>تنظیمات اتصال Firebase (apiKey/authDomain/...) که قبلاً برای همه در بخش «همگام‌سازی دو گوشی» تنظیمات در دسترس بود، حالا حذف شده و فقط داخل «پنل مدیریت لایسنس» (بالای فهرست لایسنس‌ها) و فقط برای ادمین نمایش داده می‌شود.</li>
    </ul>
   </div>
   <div class="whats-new-section">
