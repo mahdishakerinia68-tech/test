@@ -1,0 +1,45 @@
+علت احتمالی مشکل «ادمین لایسنسِ ساخته‌شده توسط کاربر رو تو فهرست نمی‌بینه»:
+=========================================================================
+این مشکل تقریباً همیشه به قوانین امنیتی Firestore (Firestore Security Rules)
+مربوط می‌شود، نه کد برنامه. وقتی کاربر عادی یک لایسنس/درخواست برای خودش
+می‌سازد (سند REQ-<uid> در کالکشن licenses)، اگر قانون فعلی‌ات اجازه‌ی
+خواندن (read) را فقط برای اسنادی داده که خودِ ادمین ساخته (مثلاً بر اساس
+فیلد createdBy)، سندهای ساخته‌شده توسط کاربر عادی -بی‌آنکه خطایی نشان داده
+شود- به‌سادگی از نتیجه‌ی کوئری فهرست حذف می‌شوند.
+
+قانون پیشنهادی (باید با بقیه‌ی قوانین فعلی پروژه‌ات ترکیب/ادغام شود؛ این فقط
+بخش مربوط به کالکشن‌های licenses و users است و جایگزین کل فایل rules.txt
+تو نیست):
+
+-------------------------------------------------------------------------
+match /users/{uid} {
+  allow read, write: if request.auth != null && request.auth.uid == uid;
+}
+
+match /licenses/{licenseId} {
+  // ادمین اصلی (ایمیل ثابت) یا هر کاربری که روی سند users/{uid} خودش
+  // isAdmin:true داشته باشد، به همه‌ی اسناد این کالکشن دسترسی کامل دارد.
+  allow read, write: if request.auth != null && (
+    request.auth.token.email == "mahdishakerinia68@gmail.com" ||
+    (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)
+  );
+
+  // کاربر معمولی فقط اجازه دارد سند «درخواست لایسنسِ» خودش را با شناسه
+  // REQ-<uid-خودش> و وضعیت pending بسازد.
+  allow create: if request.auth != null &&
+    licenseId == "REQ-" + request.auth.uid &&
+    request.resource.data.status == "pending" &&
+    request.resource.data.requestedBy == request.auth.uid;
+
+  // و فقط بتواند سند درخواستی/لایسنسِ خودش را بخواند.
+  allow read: if request.auth != null && resource.data.requestedBy == request.auth.uid;
+  allow read: if request.auth != null && resource.data.redeemedBy == request.auth.uid;
+}
+-------------------------------------------------------------------------
+
+نکته: اگر رول‌های فعلی‌ات را جایی نگه داشته‌ای، این بخش را جای بخش
+مشابهِ «licenses» و «users» در همان فایل جایگزین کن، نه اینکه کل فایل را
+با این چند خط عوض کنی. بعد از ذخیره در Firebase Console → Firestore
+Database → Rules → Publish، دوباره داخل برنامه دکمه‌ی «🔄 بروزرسانی
+فهرست» را بزن.

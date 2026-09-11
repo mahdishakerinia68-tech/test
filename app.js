@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="t2";
+const APP_VERSION="t3";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -1169,13 +1169,27 @@ async function rejectLicenseRequest(id){
     loadAdminLicenses();
   }catch(e){alert("عملیات ناموفق: "+(e.message||e))}
 }
+/* v-t3: قبلاً با orderBy("createdAt","desc") می‌خواندیم؛ اگر یک سند هر
+   دلیلی این فیلد را نداشته باشد یا قوانین امنیتی Firestore بر اساس
+   فیلد دیگری (مثلاً createdBy) محدودش کرده باشند، آن سند بی‌سروصدا از
+   نتیجه‌ی کوئری حذف می‌شود (نه خطا، فقط غیب می‌شود) و همین باعث می‌شد
+   لایسنس‌های خودساختِ کاربر (REQ-...) در فهرست ادمین دیده نشوند. حالا
+   بدون orderBy همه‌ی چیزی که قوانین اجازه‌ی خواندنش را بدهند می‌گیریم و
+   خودمان تو کد مرتب می‌کنیم. */
+function licenseSortTime(l){
+  const t=l.createdAt||l.requestedAt||l.redeemedAt||l.approvedAt;
+  if(t&&typeof t.toMillis==="function")return t.toMillis();
+  if(t&&t.seconds)return t.seconds*1000;
+  return 0;
+}
 async function loadAdminLicenses(){
   const box=$("licenseListBox");if(!box||!isLicenseAdmin())return;
   box.innerHTML="در حال بارگذاری...";
   try{
-    const snap=await sync.db.collection("licenses").orderBy("createdAt","desc").limit(200).get();
+    const snap=await sync.db.collection("licenses").limit(300).get();
     if(snap.empty){box.innerHTML='<p class="hint">هنوز لایسنس یا درخواستی ثبت نشده.</p>';return}
-    box.innerHTML=snap.docs.map(d=>{
+    const docs=snap.docs.slice().sort((a,b)=>licenseSortTime(b.data())-licenseSortTime(a.data()));
+    box.innerHTML=docs.map(d=>{
       const l=d.data();
       const adminBadge=l.isAdmin?" 👑":"";
       if(l.status==="pending"){
@@ -1187,7 +1201,7 @@ async function loadAdminLicenses(){
       const st=l.status==="revoked"?"⛔ باطل‌شده":(l.redeemedBy?"✅ استفاده‌شده":"🕓 استفاده‌نشده");
       return `<div class="item"><div><b style="direction:ltr;display:inline-block">${esc(d.id)}</b> — ${esc(LICENSE_PLAN_LABEL[l.plan]||l.plan||"")}${adminBadge} — ${st}${l.note?" — "+esc(l.note):""}${l.redeemedByEmail?"<br><small style=\"direction:ltr;display:inline-block\">مشتری: "+esc(l.redeemedByEmail)+"</small>":""}</div><div class="actions"><button title="تمدید" onclick="openLicenseRenewModal('${esc(d.id)}')">✏️</button><button title="باطل‌کردن" class="danger-icon" onclick="revokeLicenseById('${esc(d.id)}')">🗑</button></div></div>`;
     }).join("");
-  }catch(e){box.innerHTML='<p class="hint">خطا در بارگذاری: '+esc(e.message||"")+'</p>'}
+  }catch(e){box.innerHTML='<p class="hint">خطا در بارگذاری (احتمالاً محدودیت Firestore Rules): '+esc(e.message||"")+'</p>';console.error("loadAdminLicenses",e)}
 }
 
 function renderLicensePage(){
