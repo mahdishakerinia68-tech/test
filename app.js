@@ -71,8 +71,10 @@ async function activateLicenseInput(){
   const v=$("licenseLinkInput")?.value.trim();if(!v)return alert("لینک لایسنس را وارد کن.");let id=v;
   try{id=new URL(v,location.href).searchParams.get("license")||v}catch{}
   if(!/^[A-F0-9]{18}$/i.test(id))return alert("لینک لایسنس نامعتبر است.");
-  const remote=await fetchCloudLicense(id).catch(()=>null);
-  if(!remote||!LICENSE_PLANS[remote.plan])return alert("این لایسنس در فایربیس پیدا نشد.");
+  let remote,fetchErr;
+  try{remote=await fetchCloudLicense(id)}catch(e){fetchErr=e}
+  if(fetchErr)return alert("اتصال به فایربیس برای فعال‌سازی لایسنس انجام نشد.\nاحتمال فیلتر بودن سرورهای گوگل (firestore.googleapis.com) روی این اینترنت است؛ یک VPN را روشن کن و دوباره امتحان کن.\n\nجزئیات فنی: "+(fetchErr.message||fetchErr));
+  if(!remote||!LICENSE_PLANS[remote.plan])return alert("این لایسنس در فایربیس پیدا نشد (کد نامعتبر است یا هنوز ساخته نشده).");
   if(!licenseActive(remote))return alert(remote.status==="revoked"?"این لایسنس باطل شده است.":"این لایسنس منقضی شده است.");
   setCurrentLicense({...remote,status:"active",activatedAt:new Date().toISOString()});closeModal();renderLicenseStatus();alert("لایسنس با موفقیت از فایربیس فعال شد.");
 }
