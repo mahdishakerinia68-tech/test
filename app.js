@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="2.7";
+const APP_VERSION="2.8";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -703,6 +703,12 @@ async function initSync(){
   try{
     if(!sync.app)sync.app=firebase.apps.length?firebase.app():firebase.initializeApp(cfg);
     sync.auth=firebase.auth();sync.db=firebase.firestore();
+    /* v2.7 fix: force LOCAL persistence explicitly. Without this, some
+       WebViews (Android app builds) don't reliably keep the Firebase
+       Auth session across a full app close/reopen, which used to make
+       an already-activated license look "logged out" and forced the
+       ID/code screen again. */
+    try{await sync.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)}catch(e){console.warn("auth persistence",e)}
     try{sync.db.settings({ignoreUndefinedProperties:true})}catch(e){}
     if(sync.authListener)return;
     sync.authListener=true;
@@ -815,6 +821,22 @@ function ensureTrialStarted(){let s=licenseLocalState();if(!s){s={trialStart:new
 function isLicenseAdmin(){return !!(sync.user&&sync.user.email&&sync.user.email.toLowerCase()===LICENSE_ADMIN_EMAIL)}
 function licenseCloudCache(){try{return JSON.parse(localStorage.getItem(LICENSE_CLOUD_CACHE_KEY)||"null")}catch{return null}}
 function saveLicenseCloudCache(v){localStorage.setItem(LICENSE_CLOUD_CACHE_KEY,JSON.stringify(v||null))}
+/* v2.7 fix: a second, independent record of "this device has an active
+   license". licenseCloudCache above is only trusted while sync.user is
+   already populated (i.e. Firebase Auth has finished resolving), which
+   on app startup can take a moment — or, on some devices, never
+   restores at all. That gap used to be read as "no license / trial",
+   which is why a paid license appeared to "not stay" after closing and
+   reopening the app. This record is written every time the cloud
+   confirms an active license, and licenseStatus() falls back to it
+   whenever the live session/cloud lookup above isn't available, so the
+   app keeps treating the license as active instead of asking for the
+   ID/code again. It is only cleared when the server explicitly confirms
+   (while online and signed in) that the license is no longer active. */
+const LICENSE_ACTIVE_KEY="hesabdar-license-active-v1";
+function licenseActiveState(){try{return JSON.parse(localStorage.getItem(LICENSE_ACTIVE_KEY)||"null")}catch{return null}}
+function saveLicenseActiveState(v){localStorage.setItem(LICENSE_ACTIVE_KEY,JSON.stringify(v||null))}
+function clearLicenseActiveState(){localStorage.removeItem(LICENSE_ACTIVE_KEY)}
 function randToken(len){const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let s="";const arr=crypto.getRandomValues(new Uint32Array(len));for(let i=0;i<len;i++)s+=chars[arr[i]%chars.length];return s}
 function genLicenseId(){return "HSB-"+randToken(4)+"-"+randToken(4)}
 function genLicenseCode(){return randToken(8)}
@@ -830,6 +852,14 @@ function licenseStatus(){
       if(left>0)return {kind:"active",label:`لایسنس ${LICENSE_PLAN_LABEL[lic.plan]||""} فعال`,daysLeft:left,expiresAt:lic.expiresAt};
     }
   }
+  const local=licenseActiveState();
+  if(local&&local.status==="active"){
+    if(local.plan==="lifetime")return {kind:"lifetime",label:"لایسنس دائمی",daysLeft:null,expiresAt:null};
+    if(local.expiresAt){
+      const left=Math.ceil((new Date(local.expiresAt)-new Date())/86400000);
+      if(left>0)return {kind:"active",label:`لایسنس ${LICENSE_PLAN_LABEL[local.plan]||""} فعال`,daysLeft:left,expiresAt:local.expiresAt};
+    }
+  }
   const s=ensureTrialStarted();
   const trialEnd=new Date(new Date(s.trialStart).getTime()+LICENSE_TRIAL_DAYS*86400000);
   const left=Math.ceil((trialEnd-new Date())/86400000);
@@ -839,11 +869,26 @@ function licenseStatus(){
 function licenseIsBlocked(){return licenseStatus().kind==="expired"}
 
 async function refreshCloudLicense(){
-  if(!sync.user||!sync.db){saveLicenseCloudCache(null);renderLicensePage();licenseGate();return}
+  if(!sync.user||!sync.db){
+    /* No live session/connection right now — this does NOT mean the
+       license is invalid, it just means we can't check. Leave the
+       locally-persisted "active license" record (if any) untouched so
+       licenseStatus() keeps honoring it instead of falling back to the
+       trial/expired screen. */
+    renderLicensePage();licenseGate();return
+  }
   try{
     const doc=await sync.db.collection("users").doc(sync.user.uid).get();
     const lic=doc.exists?(doc.data().license||null):null;
     saveLicenseCloudCache({uid:sync.user.uid,license:lic});
+    if(lic&&lic.status==="active"&&lic.plan==="lifetime"){
+      saveLicenseActiveState({uid:sync.user.uid,email:sync.user.email,plan:"lifetime",expiresAt:null,status:"active",licenseId:lic.licenseId||null});
+    }else if(lic&&lic.status==="active"&&lic.expiresAt&&new Date(lic.expiresAt)>new Date()){
+      saveLicenseActiveState({uid:sync.user.uid,email:sync.user.email,plan:lic.plan,expiresAt:lic.expiresAt,status:"active",licenseId:lic.licenseId||null});
+    }else{
+      const local=licenseActiveState();
+      if(local&&local.uid===sync.user.uid)clearLicenseActiveState();
+    }
   }catch(e){console.warn("license refresh failed",e)}
   renderLicensePage();licenseGate();
 }
@@ -930,7 +975,7 @@ function copyLicenseCreds(id,code){
 }
 async function renewLicenseById(){
   if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
-  const id=$("licenseSearchId")?.value.trim();if(!id)return alert("آیدی لایسنس را وارد کن");
+  const id=($("licenseRenewId")?.value||"").trim();if(!id)return alert("آیدی لایسنس را وارد کن");
   const plan=$("licenseExtendPlan")?.value||"m1";
   try{
     const ref=sync.db.collection("licenses").doc(id);
@@ -952,16 +997,34 @@ async function renewLicenseById(){
       }
     }
     alert("تمدید انجام شد ✅");
+    if($("licenseRenewId"))$("licenseRenewId").value="";
     if(sync.user&&lic.redeemedBy===sync.user.uid)await refreshCloudLicense();
     loadAdminLicenses();
   }catch(e){alert("تمدید ناموفق: "+(e.message||e))}
 }
 async function revokeLicenseById(){
   if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
-  const id=$("licenseSearchId")?.value.trim();if(!id)return alert("آیدی لایسنس را وارد کن");
-  if(!confirm("این لایسنس باطل شود؟"))return;
-  try{await sync.db.collection("licenses").doc(id).set({status:"revoked"},{merge:true});alert("باطل شد");loadAdminLicenses()}
-  catch(e){alert("عملیات ناموفق: "+(e.message||e))}
+  const id=($("licenseRevokeId")?.value||"").trim();if(!id)return alert("آیدی لایسنس را وارد کن");
+  if(!confirm("این لایسنس باطل شود؟ این کار قابل بازگشت نیست."))return;
+  try{
+    const ref=sync.db.collection("licenses").doc(id);
+    const snap=await ref.get();
+    if(!snap.exists)return alert("لایسنسی با این آیدی پیدا نشد");
+    const lic=snap.data();
+    await ref.set({status:"revoked"},{merge:true});
+    if(lic.redeemedBy){
+      const userRef=sync.db.collection("users").doc(lic.redeemedBy);
+      const userSnap=await userRef.get();
+      const curLic=userSnap.exists?(userSnap.data().license||null):null;
+      if(curLic&&curLic.licenseId===id){
+        await userRef.set({license:{status:"revoked",plan:curLic.plan||null,expiresAt:curLic.expiresAt||null,licenseId:id,updatedAt:new Date().toISOString()}},{merge:true});
+      }
+    }
+    alert("باطل شد");
+    if($("licenseRevokeId"))$("licenseRevokeId").value="";
+    if(sync.user&&lic.redeemedBy===sync.user.uid)await refreshCloudLicense();
+    loadAdminLicenses();
+  }catch(e){alert("عملیات ناموفق: "+(e.message||e))}
 }
 async function loadAdminLicenses(){
   const box=$("licenseListBox");if(!box||!isLicenseAdmin())return;
@@ -989,8 +1052,10 @@ function renderLicensePage(){
     else html='<p>⛔ '+st.label+'. برای ادامه استفاده، لایسنس تهیه کن.</p>';
     box.innerHTML=html;
   }
-  const panel=$("licenseAdminPanel");
-  if(panel){if(isLicenseAdmin()){panel.style.display="";loadAdminLicenses()}else panel.style.display="none"}
+  const adminPanelIds=["licenseAdminPanel","licenseCreatePanel","licenseRenewPanel","licenseRevokePanel","licenseListPanel"];
+  const isAdmin=isLicenseAdmin();
+  adminPanelIds.forEach(id=>{const el=$(id);if(el)el.style.display=isAdmin?"":"none"});
+  if(isAdmin)loadAdminLicenses();
 }
 function showLicenseLock(){
   if(!licenseIsBlocked())return;
@@ -1094,6 +1159,14 @@ function showWhatsNewOnce(){
   <p class="hint">این صفحه فقط یک‌بار در اولین اجرای این نسخه نمایش داده می‌شود.</p>
   <div class="whats-new-section">
    <h3>🛠 تغییرات این نسخه (${toFaDigits(APP_VERSION)})</h3>
+   <ul>
+    <li>رفع باگ اصلیِ «لایسنس نگه نمی‌داشت»: بعد از فعال‌سازی لایسنس، با بستن و بازکردن دوباره‌ی برنامه دوباره صفحه‌ی آیدی/رمز لایسنس ظاهر می‌شد و انگار دوره‌ی ۷روزه از اول شروع می‌شد. علتش این بود که وضعیت لایسنس فقط به نشست ورودِ آنی حساب کاربری (Firebase) وابسته بود و آن نشست همیشه بعد از بستن کامل برنامه روی بعضی گوشی‌ها برنمی‌گشت. حالا یک رکورد جداگانه از «لایسنس فعال» روی خود گوشی نگه‌داری می‌شود و تا وقتی سرور صراحتاً باطل‌شدنش را تأیید نکند، برنامه همان را معتبر می‌داند؛ علاوه بر آن، نگه‌داری نشستِ ورود هم صریحاً تنظیم شد.</li>
+    <li>پنل مدیریت لایسنس به بخش‌های کاملاً جدا تقسیم شد: «ساخت لایسنس جدید»، «تمدید لایسنس» و «باطل‌کردن/حذف لایسنس» هرکدام کارت و آیدی ورودیِ مخصوص به خودشان را دارند تا با هم قاطی نشوند.</li>
+    <li>رفع باگ: باطل‌کردن یک لایسنس، دسترسیِ حسابی که قبلاً آن را فعال کرده بود را واقعاً هم قطع می‌کند (قبلاً فقط خودِ کد لایسنس باطل می‌شد ولی حساب مشتری همچنان فعال می‌ماند).</li>
+   </ul>
+  </div>
+  <div class="whats-new-section">
+   <h3>🛠 تغییرات نسخه قبل (۲.۷)</h3>
    <ul>
     <li>سیستم لایسنس اضافه شد: ۷ روز اول رایگان است؛ بعد از آن برای ادامه‌ی استفاده باید از صفحه‌ی «🔑 لایسنس» یک لایسنس (۱/۳/۶ ماهه، ۱ ساله یا دائمی) فعال شود.</li>
     <li>بخش «یادداشت هوشمند» دیگر مخصوص یک سرویس هوش مصنوعی خاص نیست؛ حالا با کلید API خودت (سازگار با فرمت OpenAI، مثل دیپ‌سیک) کار می‌کند.</li>
