@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="2.5";
+const APP_VERSION="2.6";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -912,11 +912,11 @@ function showLicenseCredsModal(id,code,plan,note){
     <div class="form">
       <div>
         <p class="hint" style="margin-bottom:4px">آیدی لایسنس</p>
-        <input readonly value="${esc(id)}" onclick="this.select()" style="font-size:18px;text-align:center;direction:ltr">
+        <input class="amt-input" readonly value="${esc(id)}" onclick="this.select()" style="font-size:18px">
       </div>
       <div>
         <p class="hint" style="margin-bottom:4px">رمز لایسنس</p>
-        <input readonly value="${esc(code)}" onclick="this.select()" style="font-size:18px;text-align:center;direction:ltr">
+        <input class="amt-input" readonly value="${esc(code)}" onclick="this.select()" style="font-size:18px">
       </div>
       <p class="hint">نوع: ${esc(LICENSE_PLAN_LABEL[plan]||plan)}${note?" — "+esc(note):""}</p>
       <button class="primary" onclick="copyLicenseCreds('${esc(id)}','${esc(code)}')">📋 کپی هر دو</button>
@@ -996,7 +996,7 @@ function showLicenseLock(){
   if(!licenseIsBlocked())return;
   if($("licenseLock"))return;
   const d=document.createElement("div");d.id="licenseLock";d.className="lock";
-  d.innerHTML=`<div class="lockbox"><h1>🔑 حساب‌یار</h1><p>دوره استفاده رایگان به پایان رسیده است.</p><p class="hint">برای ادامه، آیدی و رمز لایسنس را وارد کن.</p><input id="licenseLockId" placeholder="آیدی لایسنس" autocomplete="off" style="direction:ltr"><input id="licenseLockCode" placeholder="رمز لایسنس" autocomplete="off" style="direction:ltr"><button class="primary" id="licenseLockBtn">✅ فعال‌سازی</button></div>`;
+  d.innerHTML=`<div class="lockbox"><h1>🔑 حساب‌یار</h1><p>دوره استفاده رایگان به پایان رسیده است.</p><p class="hint">برای ادامه، آیدی و رمز لایسنس را وارد کن.</p><input id="licenseLockId" class="amt-input" placeholder="آیدی لایسنس" autocomplete="off"><input id="licenseLockCode" class="amt-input" placeholder="رمز لایسنس" autocomplete="off"><button class="primary" id="licenseLockBtn">✅ فعال‌سازی</button></div>`;
   document.body.appendChild(d);
   $("licenseLockBtn").onclick=activateLicense;
 }
@@ -1093,7 +1093,14 @@ function showWhatsNewOnce(){
   <h2>🎉 به حساب‌یار خوش آمدی</h2>
   <p class="hint">این صفحه فقط یک‌بار در اولین اجرای این نسخه نمایش داده می‌شود.</p>
   <div class="whats-new-section">
-   <h3>🛠 تغییرات این نسخه (۲.۲)</h3>
+   <h3>🛠 تغییرات این نسخه (${toFaDigits(APP_VERSION)})</h3>
+   <ul>
+    <li>سیستم لایسنس اضافه شد: ۷ روز اول رایگان است؛ بعد از آن برای ادامه‌ی استفاده باید از صفحه‌ی «🔑 لایسنس» یک لایسنس (۱/۳/۶ ماهه، ۱ ساله یا دائمی) فعال شود.</li>
+    <li>بخش «یادداشت هوشمند» دیگر مخصوص یک سرویس هوش مصنوعی خاص نیست؛ حالا با کلید API خودت (سازگار با فرمت OpenAI، مثل دیپ‌سیک) کار می‌کند.</li>
+   </ul>
+  </div>
+  <div class="whats-new-section">
+   <h3>🛠 تغییرات نسخه قبل (۲.۲)</h3>
    <ul>
     <li>تاریخ سررسید در لیست بدهکار/طلبکار حالا مشخص می‌کند برای «پرداخت» است یا «واریز»: برای شخصی که به او بدهکاری «سررسید پرداخت» و برای شخصی که از او طلب داری «سررسید واریز» نوشته می‌شود.</li>
     <li>در لیست چک‌ها هم همین برچسب اضافه شد: چک پرداختی «سررسید پرداخت» و چک دریافتی «سررسید واریز» نشان می‌دهد.</li>
