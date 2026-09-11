@@ -731,3 +731,4 @@ button,.nav,a,input,select,textarea{touch-action:manipulation}
  #invoicePreview,#invoicePreview *{visibility:visible}
  #invoicePreview{position:absolute;inset:0;margin:0;box-shadow:none;border:none}
 }
+.license-row{margin:10px 0}.license-row small{display:block;margin-top:5px}.license-row .settings-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}.license-row .settings-actions button{flex:0 0 auto}#licenseCreatedLink,#licenseShareLink{width:100%;direction:ltr;text-align:left;font-size:12px}#licenseStatusBox .card{line-height:1.9}
