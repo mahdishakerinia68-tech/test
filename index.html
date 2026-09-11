@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#f8faf9" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#050b11" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F6F1E9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B1418" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="حساب‌یار">
@@ -20,9 +20,9 @@
 <header class="top-bar">
   <div class="top-bar-left">
     <button id="menuBtn" class="menu-trigger" aria-label="باز کردن منو" aria-haspopup="true" aria-expanded="false" aria-controls="menuModal">⋯</button>
-    <img class="app-logo" src="logo.png" alt="حساب‌یار" onerror="this.style.display='none'">
+    <img class="app-logo" src="logo.png" alt="حساب‌یار">
     <div class="top-bar-titles">
-      <h1>حساب‌یار <span class="version-pill" id="versionPill">2.2.1</span></h1>
+      <h1>حساب‌یار <span class="version-pill" id="versionPill">2.4</span></h1>
       <div id="syncBadge" class="sync-badge">☁️ آفلاین</div>
     </div>
   </div>
@@ -171,6 +171,51 @@
   <div class="section-head"><h2 data-i18n="page.checks">چک‌ها</h2><button onclick="openCheck()">＋</button></div>
   <p class="hint">هر چک را به یک حساب وصل کن. با زدن «✅ ثبت نشستن»، مبلغ چک دریافتی به همان حساب اضافه یا مبلغ چک پرداختی از آن کسر می‌شود و در تراکنش‌ها هم ثبت می‌گردد.</p>
   <div id="checkList"></div>
+</section>
+
+<section id="license" class="page">
+  <div class="section-head"><h2>🔑 لایسنس</h2></div>
+  <div class="item"><div id="licenseStatusBox"><p class="hint">در حال بررسی وضعیت لایسنس...</p></div></div>
+  <div class="item">
+    <h3>فعال‌سازی / تمدید</h3>
+    <p class="hint">آیدی و رمز لایسنسی که دریافت کرده‌ای را اینجا وارد کن. اگر برای اولین‌بار است، از تو ایمیل و رمز حساب کاربری هم پرسیده می‌شود.</p>
+    <div class="form">
+      <input id="licenseIdInput" placeholder="آیدی لایسنس" autocomplete="off">
+      <input id="licenseCodeInput" placeholder="رمز لایسنس" autocomplete="off">
+      <button class="primary" onclick="activateLicense()">✅ فعال‌سازی</button>
+    </div>
+  </div>
+  <div class="item" id="licenseAdminPanel" style="display:none">
+    <h3>🛠 پنل مدیریت لایسنس (فقط ادمین)</h3>
+    <div class="form">
+      <select id="licenseNewPlan">
+        <option value="m1">۱ ماهه</option>
+        <option value="m3">۳ ماهه</option>
+        <option value="m6">۶ ماهه</option>
+        <option value="y1">۱ ساله</option>
+        <option value="lifetime">دائمی</option>
+      </select>
+      <input id="licenseNewNote" placeholder="یادداشت (مثلاً نام مشتری) — اختیاری">
+      <button class="primary" onclick="createLicense()">➕ ساخت لایسنس جدید</button>
+    </div>
+    <hr>
+    <p class="hint">برای تمدید یا باطل‌کردن یک لایسنس، آیدی آن را وارد کن:</p>
+    <div class="form">
+      <input id="licenseSearchId" placeholder="آیدی لایسنس">
+      <select id="licenseExtendPlan">
+        <option value="m1">افزودن ۱ ماه</option>
+        <option value="m3">افزودن ۳ ماه</option>
+        <option value="m6">افزودن ۶ ماه</option>
+        <option value="y1">افزودن ۱ سال</option>
+        <option value="lifetime">تبدیل به دائمی</option>
+      </select>
+      <button onclick="renewLicenseById()">🔄 تمدید</button>
+      <button class="danger" onclick="revokeLicenseById()">⛔ باطل‌کردن</button>
+    </div>
+    <hr>
+    <button onclick="loadAdminLicenses()">🔄 بروزرسانی فهرست لایسنس‌ها</button>
+    <div id="licenseListBox"></div>
+  </div>
 </section>
 
 <section id="reports" class="page">
@@ -342,12 +387,14 @@
 
     <div class="item accordion-card page-accordion settings-group" id="stgGroup-ai" data-acc-id="stg-ai">
       <button class="accordion-head settings-acc-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)">
-        <div class="settings-group-head"><span>✨</span><div><h3>یادداشت هوشمند (Claude)</h3><p class="hint">برای استفاده از «یادداشت هوشمند» در صفحه یادداشت‌ها، کلید API شخصی خودت از Claude (Anthropic) را اینجا وارد کن. این کلید فقط روی همین گوشی ذخیره می‌شود.</p></div></div>
+        <div class="settings-group-head"><span>✨</span><div><h3>یادداشت هوشمند (هوش مصنوعی)</h3><p class="hint">برای استفاده از «یادداشت هوشمند»، کلید API شخصی خودت را از هر سرویس سازگار با فرمت OpenAI (مثل دیپ‌سیک، اوپن‌ای‌آی و…) اینجا وارد کن. آدرس و نام مدل اختیاری هستند و پیش‌فرض روی دیپ‌سیک تنظیم شده‌اند. همه این اطلاعات فقط روی همین گوشی ذخیره می‌شود.</p></div></div>
         <span class="acc-arrow">⌄</span>
       </button>
       <div class="accordion-body">
         <div id="anthropicKeyStatus" class="hint"></div>
-        <input id="anthropicKeyInput" type="password" placeholder="sk-ant-..." autocomplete="off">
+        <input id="smartNoteUrlInput" type="text" placeholder="آدرس API (اختیاری، پیش‌فرض: دیپ‌سیک)" autocomplete="off">
+        <input id="smartNoteModelInput" type="text" placeholder="نام مدل (اختیاری، پیش‌فرض: deepseek-chat)" autocomplete="off">
+        <input id="anthropicKeyInput" type="password" placeholder="sk-... (کلید API — الزامی)" autocomplete="off">
         <div class="settings-actions">
           <button class="primary" onclick="saveAnthropicKey()">💾 ذخیره کلید</button>
           <button class="danger" onclick="clearAnthropicKey()">🗑 حذف کلید</button>
@@ -356,11 +403,9 @@
     </div>
 
   </div>
-  <p class="hint settings-footer">نسخه <span id="appVersionText">2.2</span> • بکاپ خودکار • اتصال دو گوشی • تقویم شمسی کامل</p>
+  <p class="hint settings-footer">نسخه <span id="appVersionText">2.4</span> • بکاپ خودکار • اتصال دو گوشی • تقویم شمسی کامل</p>
   <p class="hint">تغییرات روی این گوشی ذخیره می‌شود و در صورت اتصال به Firebase با گوشی دوم ادغام می‌گردد.</p>
 </section>
-
-</main>
 
 </div>
 
@@ -399,6 +444,7 @@
         <div class="menu-group-title" data-i18n="menu.other">دیگر</div>
         <div class="menu-grid">
           <button class="nav" data-page="trash">🗑<span>زباله‌دان</span></button>
+          <button class="nav" data-page="license">🔑<span>لایسنس</span></button>
           <button class="nav" data-page="settings">⚙<span data-i18n="nav.settings">تنظیمات</span></button>
         </div>
       </div>
@@ -444,6 +490,12 @@
   </div>
 </div>
 
+<!-- v2.2 fix: these 3 Firebase scripts (app/auth/firestore, ~ hundreds of KB) used to be
+     loaded here unconditionally on EVERY launch, for every user, before app.js even ran —
+     that's what made the app feel heavy/slow to open. app.js already lazy-loads the exact
+     same files itself (see FIREBASE_SDK_URLS / ensureFirebaseLoaded) only when the cloud
+     sync feature actually needs them, and only after the UI is already rendered. So the
+     static tags here were pure dead weight and have been removed. -->
 <script src="capacitor-local-notifications-bridge.js"></script>
 <script src="capacitor-filesystem-bridge.js"></script>
 <script src="capacitor-biometric-bridge.js"></script>
