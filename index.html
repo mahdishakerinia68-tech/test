@@ -22,7 +22,7 @@
     <button id="menuBtn" class="menu-trigger" aria-label="باز کردن منو" aria-haspopup="true" aria-expanded="false" aria-controls="menuModal">⋯</button>
     <img class="app-logo" src="logo.png" alt="حساب‌یار">
     <div class="top-bar-titles">
-      <h1>حساب‌یار <span class="version-pill" id="versionPill">2.7</span></h1>
+      <h1>حساب‌یار <span class="version-pill" id="versionPill">t1</span></h1>
       <div id="syncBadge" class="sync-badge">☁️ آفلاین</div>
     </div>
   </div>
@@ -182,12 +182,18 @@
     <div class="form">
       <input id="licenseIdInput" class="amt-input" placeholder="آیدی لایسنس" autocomplete="off">
       <input id="licenseCodeInput" class="amt-input" placeholder="رمز لایسنس" autocomplete="off">
+      <label class="hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="licenseRememberMe"> همیشه من را به‌خاطر بسپار</label>
       <button class="primary" onclick="activateLicense()">✅ فعال‌سازی</button>
     </div>
   </div>
+  <div class="card" style="margin-bottom:10px">
+    <h3>🙋 لایسنس ندارم</h3>
+    <p class="hint">اگر هنوز آیدی و رمز لایسنس نگرفته‌ای، از همینجا درخواست بده؛ درخواستت برای ادمین ارسال می‌شود و به‌محض تایید، لایسنس خودکار روی همین حساب فعال خواهد شد.</p>
+    <button onclick="requestLicense()">📨 درخواست لایسنس جدید</button>
+  </div>
   <div class="card" id="licenseAdminPanel" style="display:none;margin-bottom:10px">
     <h3>🛠 پنل مدیریت لایسنس (فقط ادمین)</h3>
-    <p class="hint">برای تمدید یا باطل‌کردنِ هر لایسنس، از دکمه‌های ✏️ (تمدید) و 🗑 (باطل‌کردن) کنار همان لایسنس در فهرست پایین استفاده کن.</p>
+    <p class="hint">درخواست‌های در انتظار تایید با 🙋 مشخص شده‌اند (دکمه ✅ برای بررسی و تایید/رد). برای تمدید یا باطل‌کردنِ لایسنس‌های فعال، از دکمه‌های ✏️ (تمدید) و 🗑 (باطل‌کردن) کنار همان لایسنس در فهرست پایین استفاده کن. علامت 👑 یعنی آن لایسنس «ادمین» است.</p>
   </div>
 
   <div class="card" id="licenseCreatePanel" style="display:none;margin-bottom:10px">
@@ -202,13 +208,14 @@
       </select>
       <input id="licenseNewCode" placeholder="رمز دلخواه (خالی بگذار تا خودکار ساخته شود)" autocomplete="off" style="direction:ltr;text-align:center">
       <input id="licenseNewNote" placeholder="یادداشت (مثلاً نام مشتری) — اختیاری">
+      <label class="hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="licenseNewAdmin"> 👑 ادمین باشد (دسترسی کامل + لایسنس دائمی؛ می‌تواند خودش هم ادمین دیگری معرفی کند)</label>
       <button class="primary" onclick="createLicense()">➕ ساخت لایسنس جدید</button>
     </div>
   </div>
 
   <div class="card" id="licenseListPanel" style="display:none;margin-bottom:10px">
-    <h3>📋 فهرست لایسنس‌ها</h3>
-    <button onclick="loadAdminLicenses()">🔄 بروزرسانی فهرست لایسنس‌ها</button>
+    <h3>📋 فهرست لایسنس‌ها و درخواست‌ها</h3>
+    <button onclick="loadAdminLicenses()">🔄 بروزرسانی فهرست</button>
     <div id="licenseListBox"></div>
   </div>
 </section>
@@ -496,7 +503,7 @@
 <script src="capacitor-biometric-bridge.js"></script>
 <script src="app.js"></script>
 <script>if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js?v=3-0",{updateViaCache:"none"}).catch(console.error);
+  navigator.serviceWorker.register("sw.js?v=t1",{updateViaCache:"none"}).catch(console.error);
   /* v3.0: once the new service worker (with the fresh cache) takes
      control, reload once automatically so the update is visible right
      away in this same session instead of only after fully closing and

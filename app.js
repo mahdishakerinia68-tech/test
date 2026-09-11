@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="3.0";
+const APP_VERSION="t1";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -818,7 +818,15 @@ const LICENSE_PLAN_LABEL={m1:"۱ ماهه",m3:"۳ ماهه",m6:"۶ ماهه",y1:
 
 function licenseLocalState(){try{return JSON.parse(localStorage.getItem(LICENSE_STATE_KEY)||"null")}catch{return null}}
 function ensureTrialStarted(){let s=licenseLocalState();if(!s){s={trialStart:new Date().toISOString()};localStorage.setItem(LICENSE_STATE_KEY,JSON.stringify(s))}return s}
-function isLicenseAdmin(){return !!(sync.user&&sync.user.email&&sync.user.email.toLowerCase()===LICENSE_ADMIN_EMAIL)}
+function isLicenseAdmin(){
+  if(sync.user&&sync.user.email&&sync.user.email.toLowerCase()===LICENSE_ADMIN_EMAIL)return true;
+  if(!sync.user)return false;
+  const cloud=licenseCloudCache();
+  if(cloud&&cloud.uid===sync.user.uid&&cloud.isAdmin)return true;
+  const local=licenseActiveState();
+  if(local&&local.uid===sync.user.uid&&local.isAdmin)return true;
+  return false;
+}
 function licenseCloudCache(){try{return JSON.parse(localStorage.getItem(LICENSE_CLOUD_CACHE_KEY)||"null")}catch{return null}}
 function saveLicenseCloudCache(v){localStorage.setItem(LICENSE_CLOUD_CACHE_KEY,JSON.stringify(v||null))}
 /* v2.7 fix: a second, independent record of "this device has an active
@@ -837,6 +845,14 @@ const LICENSE_ACTIVE_KEY="hesabdar-license-active-v1";
 function licenseActiveState(){try{return JSON.parse(localStorage.getItem(LICENSE_ACTIVE_KEY)||"null")}catch{return null}}
 function saveLicenseActiveState(v){localStorage.setItem(LICENSE_ACTIVE_KEY,JSON.stringify(v||null))}
 function clearLicenseActiveState(){localStorage.removeItem(LICENSE_ACTIVE_KEY)}
+/* v-t1: "ادمین از طریق لایسنس". علاوه بر ایمیل ادمین ثابت (LICENSE_ADMIN_EMAIL)،
+   حالا هر لایسنسی که موقع ساخت/تاییدش تیک «ادمین» خورده باشد، برای کسی که آن را
+   فعال کرده هم دسترسی کامل ادمین (و لایسنس دائمی) می‌سازد؛ این پرچم روی خود سند
+   لایسنس (isAdmin) و روی users/{uid}.isAdmin نگه‌داری و کش می‌شود. */
+const LICENSE_REMEMBER_KEY="hesabdar-license-remember-v1";
+function getRememberedLicense(){try{return JSON.parse(localStorage.getItem(LICENSE_REMEMBER_KEY)||"null")}catch{return null}}
+function saveRememberedLicense(id,code){try{localStorage.setItem(LICENSE_REMEMBER_KEY,JSON.stringify({id,code}))}catch(e){}}
+function clearRememberedLicense(){localStorage.removeItem(LICENSE_REMEMBER_KEY)}
 function randToken(len){const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let s="";const arr=crypto.getRandomValues(new Uint32Array(len));for(let i=0;i<len;i++)s+=chars[arr[i]%chars.length];return s}
 function genLicenseId(){return "HSB-"+randToken(4)+"-"+randToken(4)}
 function genLicenseCode(){return randToken(8)}
@@ -880,43 +896,52 @@ async function refreshCloudLicense(){
   try{
     const doc=await sync.db.collection("users").doc(sync.user.uid).get();
     const lic=doc.exists?(doc.data().license||null):null;
-    saveLicenseCloudCache({uid:sync.user.uid,license:lic});
+    const isAdminFlag=!!(doc.exists&&doc.data().isAdmin);
+    saveLicenseCloudCache({uid:sync.user.uid,license:lic,isAdmin:isAdminFlag});
     if(lic&&lic.status==="active"&&lic.plan==="lifetime"){
-      saveLicenseActiveState({uid:sync.user.uid,email:sync.user.email,plan:"lifetime",expiresAt:null,status:"active",licenseId:lic.licenseId||null});
+      saveLicenseActiveState({uid:sync.user.uid,email:sync.user.email,plan:"lifetime",expiresAt:null,status:"active",licenseId:lic.licenseId||null,isAdmin:isAdminFlag});
     }else if(lic&&lic.status==="active"&&lic.expiresAt&&new Date(lic.expiresAt)>new Date()){
-      saveLicenseActiveState({uid:sync.user.uid,email:sync.user.email,plan:lic.plan,expiresAt:lic.expiresAt,status:"active",licenseId:lic.licenseId||null});
+      saveLicenseActiveState({uid:sync.user.uid,email:sync.user.email,plan:lic.plan,expiresAt:lic.expiresAt,status:"active",licenseId:lic.licenseId||null,isAdmin:isAdminFlag});
     }else{
       const local=licenseActiveState();
       if(local&&local.uid===sync.user.uid)clearLicenseActiveState();
     }
   }catch(e){console.warn("license refresh failed",e)}
-  renderLicensePage();licenseGate();
+  renderLicensePage();await licenseGate();
 }
 
-async function activateLicense(){
-  const id=($("licenseLockId")?.value||$("licenseIdInput")?.value||"").trim();
-  const code=($("licenseLockCode")?.value||$("licenseCodeInput")?.value||"").trim();
-  if(!id||!code)return alert("آیدی و رمز لایسنس را وارد کن");
+/* v-t1: opts = {id, code, remember, silent}. با فراخوانی بدون آرگومان (مثل قبل،
+   از دکمه‌ها) مقادیر از خودِ فرم/چک‌باکس‌های صفحه خوانده می‌شود. silent:true برای
+   تلاش خودکار (بی‌صدا، بدون alert) با اطلاعات به‌خاطرسپرده‌شده استفاده می‌شود؛
+   اگر ناموفق بود false برمی‌گرداند بدون هیچ پیام مزاحمی. */
+async function activateLicense(opts){
+  opts=opts||{};
+  const silent=!!opts.silent;
+  const warn=(msg)=>{if(!silent)alert(msg);return false};
+  const id=(opts.id!==undefined?opts.id:($("licenseLockId")?.value||$("licenseIdInput")?.value||"")).trim();
+  const code=(opts.code!==undefined?opts.code:($("licenseLockCode")?.value||$("licenseCodeInput")?.value||"")).trim();
+  if(!id||!code)return warn("آیدی و رمز لایسنس را وارد کن");
   if(!sync.user){
+    if(silent)return false; // برای تلاش خودکار نمی‌توان ایمیل/رمز حساب را پرسید
     const email=prompt("برای فعال‌سازی لایسنس اول باید وارد حساب کاربری شوی.\nایمیل حساب:");
-    if(!email)return;
+    if(!email)return false;
     const pass=prompt("رمز حساب (اگر حساب نداری، همین‌جا یک رمز جدید بساز):");
-    if(!pass)return;
-    if(!await ensureSyncReady())return;
+    if(!pass)return false;
+    if(!await ensureSyncReady())return false;
     try{
       try{await sync.auth.signInWithEmailAndPassword(email,pass)}
       catch(e){if(e.code==="auth/user-not-found"||e.code==="auth/invalid-credential")await sync.auth.createUserWithEmailAndPassword(email,pass);else throw e}
-    }catch(e){return alert("ورود/ساخت حساب ناموفق: "+(e.message||e))}
+    }catch(e){return warn("ورود/ساخت حساب ناموفق: "+(e.message||e))}
   }
-  if(!sync.db)return alert("اتصال به سرویس لایسنس برقرار نشد");
+  if(!sync.db)return warn("اتصال به سرویس لایسنس برقرار نشد");
   try{
     const ref=sync.db.collection("licenses").doc(id);
     const snap=await ref.get();
-    if(!snap.exists)return alert("لایسنسی با این آیدی پیدا نشد");
+    if(!snap.exists)return warn("لایسنسی با این آیدی پیدا نشد");
     const lic=snap.data();
-    if(lic.code!==code)return alert("رمز لایسنس نادرست است");
-    if(lic.status==="revoked")return alert("این لایسنس باطل شده است");
-    if(lic.redeemedBy&&lic.redeemedBy!==sync.user.uid)return alert("این لایسنس قبلاً روی یک حساب دیگر فعال شده است");
+    if(lic.code!==code)return warn("رمز لایسنس نادرست است");
+    if(lic.status==="revoked")return warn("این لایسنس باطل شده است");
+    if(lic.redeemedBy&&lic.redeemedBy!==sync.user.uid)return warn("این لایسنس قبلاً روی یک حساب دیگر فعال شده است");
     if(!(lic.status==="redeemed"&&lic.redeemedBy===sync.user.uid)){
       const days=LICENSE_PLAN_DAYS[lic.plan];
       const userRef=sync.db.collection("users").doc(sync.user.uid);
@@ -927,34 +952,41 @@ async function activateLicense(){
         const base=(curLic&&curLic.status==="active"&&curLic.plan!=="lifetime"&&curLic.expiresAt&&new Date(curLic.expiresAt)>new Date())?new Date(curLic.expiresAt):new Date();
         newExpiresAt=new Date(base.getTime()+days*86400000).toISOString();
       }
-      await userRef.set({license:{status:"active",plan:lic.plan,expiresAt:newExpiresAt,licenseId:id,updatedAt:new Date().toISOString()}},{merge:true});
+      const userSet={license:{status:"active",plan:lic.plan,expiresAt:newExpiresAt,licenseId:id,updatedAt:new Date().toISOString()}};
+      if(lic.isAdmin)userSet.isAdmin=true; // v-t1: لایسنسِ تیک‌خورده به‌عنوان «ادمین»، دسترسی کامل می‌دهد
+      await userRef.set(userSet,{merge:true});
       await ref.set({status:"redeemed",redeemedBy:sync.user.uid,redeemedByEmail:sync.user.email,redeemedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
     }
+    /* v-t1: «همیشه من را به‌خاطر بسپار» */
+    const remember=opts.remember!==undefined?opts.remember:!!($("licenseLockRemember")?.checked||$("licenseRememberMe")?.checked);
+    if(remember)saveRememberedLicense(id,code);else if(opts.remember===false)clearRememberedLicense();
     await refreshCloudLicense();
     $("licenseLock")?.remove();
     if($("licenseIdInput"))$("licenseIdInput").value="";
     if($("licenseCodeInput"))$("licenseCodeInput").value="";
-    alert("لایسنس با موفقیت فعال شد ✅");
-    logEvent("فعال‌سازی لایسنس",id,"system");
-  }catch(e){alert("فعال‌سازی ناموفق: "+(e.message||e))}
+    if(!silent){alert("لایسنس با موفقیت فعال شد ✅");logEvent("فعال‌سازی لایسنس",id,"system")}
+    return true;
+  }catch(e){return warn("فعال‌سازی ناموفق: "+(e.message||e))}
 }
 
 async function createLicense(){
   if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
-  const plan=$("licenseNewPlan")?.value||"m1";
+  const isAdminChecked=!!$("licenseNewAdmin")?.checked;
+  const plan=isAdminChecked?"lifetime":($("licenseNewPlan")?.value||"m1");
   const note=$("licenseNewNote")?.value.trim()||"";
   const customCode=($("licenseNewCode")?.value||"").trim();
   const id=genLicenseId(),code=customCode?customCode.toUpperCase():genLicenseCode();
   try{
-    await sync.db.collection("licenses").doc(id).set({code,plan,note,status:"active",createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdBy:sync.user.email,redeemedBy:null,redeemedByEmail:null});
+    await sync.db.collection("licenses").doc(id).set({code,plan,note,status:"active",isAdmin:isAdminChecked,createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdBy:sync.user.email,redeemedBy:null,redeemedByEmail:null});
     if($("licenseNewNote"))$("licenseNewNote").value="";
     if($("licenseNewCode"))$("licenseNewCode").value="";
+    if($("licenseNewAdmin"))$("licenseNewAdmin").checked=false;
     loadAdminLicenses();
-    showLicenseCredsModal(id,code,plan,note);
+    showLicenseCredsModal(id,code,plan,note,isAdminChecked);
   }catch(e){alert("ساخت لایسنس ناموفق: "+(e.message||e))}
 }
-function showLicenseCredsModal(id,code,plan,note){
-  openModal(`<h2>✅ لایسنس ساخته شد</h2>
+function showLicenseCredsModal(id,code,plan,note,isAdminFlag){
+  openModal(`<h2>✅ لایسنس ساخته شد${isAdminFlag?" 👑":""}</h2>
     <p class="hint">این دو مورد را برای مشتری بفرست:</p>
     <div class="form">
       <div>
@@ -965,7 +997,7 @@ function showLicenseCredsModal(id,code,plan,note){
         <p class="hint" style="margin-bottom:4px">رمز لایسنس</p>
         <input class="amt-input" readonly value="${esc(code)}" onclick="this.select()" style="font-size:18px">
       </div>
-      <p class="hint">نوع: ${esc(LICENSE_PLAN_LABEL[plan]||plan)}${note?" — "+esc(note):""}</p>
+      <p class="hint">نوع: ${esc(LICENSE_PLAN_LABEL[plan]||plan)}${isAdminFlag?" — 👑 ادمین (دسترسی کامل و دائمی، می‌تواند ادمین دیگری هم بسازد)":""}${note?" — "+esc(note):""}</p>
       <button class="primary" onclick="copyLicenseCreds('${esc(id)}','${esc(code)}')">📋 کپی هر دو</button>
       <button onclick="closeModal()">بستن</button>
     </div>`);
@@ -976,10 +1008,13 @@ function copyLicenseCreds(id,code){
   else alert(text);
 }
 /* v2.8: renew/revoke now happen directly from the license's own row in
-   the list (✏️ pencil to open the renew options, 🗑 trash to revoke) —
-   no separate "type the ID" fields needed anymore. */
-function openLicenseRenewModal(id){
+   the list (✏️ پنسیل برای تمدید، 🗑 برای باطل‌کردن).
+   v-t1: مودال تمدید حالا وضعیت فعلیِ «ادمین» را هم می‌خواند و اجازه می‌دهد
+   موقع تمدید، ادمین‌بودن آن لایسنس را روشن/خاموش کنند. */
+async function openLicenseRenewModal(id){
   if(!isLicenseAdmin())return;
+  let curAdmin=false;
+  try{const snap=await sync.db.collection("licenses").doc(id).get();if(snap.exists)curAdmin=!!snap.data().isAdmin}catch(e){}
   openModal(`<h2>🔄 تمدید لایسنس</h2>
     <p class="hint" style="direction:ltr;text-align:center">${esc(id)}</p>
     <div class="form">
@@ -990,6 +1025,7 @@ function openLicenseRenewModal(id){
         <option value="y1">افزودن ۱ سال</option>
         <option value="lifetime">تبدیل به دائمی</option>
       </select>
+      <label class="hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="licenseRenewAdmin"${curAdmin?" checked":""}> 👑 ادمین باشد (دسترسی کامل)</label>
       <button class="primary" onclick="renewLicenseById('${esc(id)}')">✅ تایید تمدید</button>
       <button onclick="closeModal()">انصراف</button>
     </div>`);
@@ -997,24 +1033,28 @@ function openLicenseRenewModal(id){
 async function renewLicenseById(id){
   if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
   const plan=$("licenseExtendPlan")?.value||"m1";
+  const isAdminChecked=!!$("licenseRenewAdmin")?.checked;
   try{
     const ref=sync.db.collection("licenses").doc(id);
     const snap=await ref.get();
     if(!snap.exists)return alert("لایسنسی با این آیدی پیدا نشد");
     const lic=snap.data();
-    await ref.set({status:"active",plan:plan==="lifetime"?"lifetime":lic.plan},{merge:true});
+    await ref.set({status:"active",plan:plan==="lifetime"?"lifetime":lic.plan,isAdmin:isAdminChecked},{merge:true});
     if(lic.redeemedBy){
       const userRef=sync.db.collection("users").doc(lic.redeemedBy);
       const userSnap=await userRef.get();
       const curLic=userSnap.exists?(userSnap.data().license||null):null;
+      let userSet;
       if(plan==="lifetime"){
-        await userRef.set({license:{status:"active",plan:"lifetime",expiresAt:null,licenseId:id,updatedAt:new Date().toISOString()}},{merge:true});
+        userSet={license:{status:"active",plan:"lifetime",expiresAt:null,licenseId:id,updatedAt:new Date().toISOString()}};
       }else{
         const days=LICENSE_PLAN_DAYS[plan];
         const base=(curLic&&curLic.expiresAt&&new Date(curLic.expiresAt)>new Date())?new Date(curLic.expiresAt):new Date();
         const newExpiresAt=new Date(base.getTime()+days*86400000).toISOString();
-        await userRef.set({license:{status:"active",plan:curLic?.plan||lic.plan,expiresAt:newExpiresAt,licenseId:id,updatedAt:new Date().toISOString()}},{merge:true});
+        userSet={license:{status:"active",plan:curLic?.plan||lic.plan,expiresAt:newExpiresAt,licenseId:id,updatedAt:new Date().toISOString()}};
       }
+      userSet.isAdmin=isAdminChecked;
+      await userRef.set(userSet,{merge:true});
     }
     alert("تمدید انجام شد ✅");
     closeModal();
@@ -1031,17 +1071,101 @@ async function revokeLicenseById(id){
     const snap=await ref.get();
     if(!snap.exists)return alert("لایسنسی با این آیدی پیدا نشد");
     const lic=snap.data();
-    await ref.set({status:"revoked"},{merge:true});
+    await ref.set({status:"revoked",isAdmin:false},{merge:true});
     if(lic.redeemedBy){
       const userRef=sync.db.collection("users").doc(lic.redeemedBy);
       const userSnap=await userRef.get();
       const curLic=userSnap.exists?(userSnap.data().license||null):null;
       if(curLic&&curLic.licenseId===id){
-        await userRef.set({license:{status:"revoked",plan:curLic.plan||null,expiresAt:curLic.expiresAt||null,licenseId:id,updatedAt:new Date().toISOString()}},{merge:true});
+        await userRef.set({license:{status:"revoked",plan:curLic.plan||null,expiresAt:curLic.expiresAt||null,licenseId:id,updatedAt:new Date().toISOString()},isAdmin:false},{merge:true});
       }
     }
     alert("باطل شد");
     if(sync.user&&lic.redeemedBy===sync.user.uid)await refreshCloudLicense();
+    loadAdminLicenses();
+  }catch(e){alert("عملیات ناموفق: "+(e.message||e))}
+}
+/* v-t1: درخواستِ لایسنس از داخل خودِ برنامه توسط کاربر عادی. یک سند در همان
+   کالکشن «licenses» با شناسه REQ-{uid} و status:"pending" می‌سازد تا در
+   فهرست ادمین دیده شود؛ با تایید ادمین مستقیماً روی همان حساب فعال می‌شود
+   (نیازی به آیدی/رمز دستی نیست چون از قبل به uid همان کاربر وصل است). */
+async function requestLicense(){
+  if(!sync.user){
+    const email=prompt("برای ثبت درخواست لایسنس اول باید وارد حساب کاربری شوی.\nایمیل حساب:");
+    if(!email)return;
+    const pass=prompt("رمز حساب (اگر حساب نداری، همین‌جا یک رمز جدید بساز):");
+    if(!pass)return;
+    if(!await ensureSyncReady())return;
+    try{
+      try{await sync.auth.signInWithEmailAndPassword(email,pass)}
+      catch(e){if(e.code==="auth/user-not-found"||e.code==="auth/invalid-credential")await sync.auth.createUserWithEmailAndPassword(email,pass);else throw e}
+    }catch(e){return alert("ورود/ساخت حساب ناموفق: "+(e.message||e))}
+  }
+  if(!sync.db)return alert("اتصال به سرویس لایسنس برقرار نشد");
+  try{
+    const reqId="REQ-"+sync.user.uid;
+    const ref=sync.db.collection("licenses").doc(reqId);
+    const snap=await ref.get();
+    if(snap.exists){
+      const d=snap.data();
+      if(d.status==="pending")return alert("درخواست قبلی‌ات هنوز در انتظار بررسی ادمین است.");
+      if(d.status==="active"||d.redeemedBy)return alert("لایسنس تو همین الان فعال است.");
+    }
+    await ref.set({status:"pending",requestedBy:sync.user.uid,requestedByEmail:sync.user.email,requestedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:firebase.firestore.FieldValue.serverTimestamp(),plan:null,code:null,redeemedBy:null,redeemedByEmail:null},{merge:true});
+    alert("درخواست لایسنس ثبت شد ✅\nهر وقت ادمین آن را تایید کند، لایسنس خودکار روی همین حساب فعال می‌شود.");
+    $("licenseLock")?.remove();
+    renderLicensePage();
+  }catch(e){alert("ثبت درخواست ناموفق: "+(e.message||e))}
+}
+function openLicenseApproveModal(id){
+  if(!isLicenseAdmin())return;
+  openModal(`<h2>🙋 تایید درخواست لایسنس</h2>
+    <p class="hint" style="direction:ltr;text-align:center">${esc(id)}</p>
+    <div class="form">
+      <select id="licenseApprovePlan">
+        <option value="m1">۱ ماهه</option>
+        <option value="m3">۳ ماهه</option>
+        <option value="m6">۶ ماهه</option>
+        <option value="y1">۱ ساله</option>
+        <option value="lifetime">دائمی</option>
+      </select>
+      <label class="hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="licenseApproveAdmin"> 👑 این کاربر ادمین باشد (دسترسی کامل و لایسنس دائمی)</label>
+      <button class="primary" onclick="approveLicenseRequest('${esc(id)}')">✅ تایید و فعال‌سازی</button>
+      <button class="danger-icon" onclick="rejectLicenseRequest('${esc(id)}')">❌ رد درخواست</button>
+      <button onclick="closeModal()">انصراف</button>
+    </div>`);
+}
+async function approveLicenseRequest(id){
+  if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
+  const isAdminChecked=!!$("licenseApproveAdmin")?.checked;
+  let plan=$("licenseApprovePlan")?.value||"m1";
+  if(isAdminChecked)plan="lifetime";
+  try{
+    const ref=sync.db.collection("licenses").doc(id);
+    const snap=await ref.get();
+    if(!snap.exists)return alert("درخواستی با این آیدی پیدا نشد");
+    const reqData=snap.data();
+    if(!reqData.requestedBy)return alert("این یک درخواست معتبر نیست");
+    const code=genLicenseCode();
+    const days=LICENSE_PLAN_DAYS[plan];
+    const expiresAt=days!=null?new Date(Date.now()+days*86400000).toISOString():null;
+    await ref.set({status:"active",plan,code,isAdmin:isAdminChecked,approvedAt:firebase.firestore.FieldValue.serverTimestamp(),approvedBy:sync.user.email,redeemedBy:reqData.requestedBy,redeemedByEmail:reqData.requestedByEmail,redeemedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    const userRef=sync.db.collection("users").doc(reqData.requestedBy);
+    const userSet={license:{status:"active",plan,expiresAt,licenseId:id,updatedAt:new Date().toISOString()},isAdmin:isAdminChecked};
+    await userRef.set(userSet,{merge:true});
+    alert("درخواست تایید و لایسنس فعال شد ✅");
+    closeModal();
+    if(sync.user&&reqData.requestedBy===sync.user.uid)await refreshCloudLicense();
+    loadAdminLicenses();
+  }catch(e){alert("تایید ناموفق: "+(e.message||e))}
+}
+async function rejectLicenseRequest(id){
+  if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
+  if(!confirm("این درخواست رد شود؟"))return;
+  try{
+    await sync.db.collection("licenses").doc(id).set({status:"rejected",rejectedAt:firebase.firestore.FieldValue.serverTimestamp(),rejectedBy:sync.user.email},{merge:true});
+    alert("درخواست رد شد");
+    closeModal();
     loadAdminLicenses();
   }catch(e){alert("عملیات ناموفق: "+(e.message||e))}
 }
@@ -1050,11 +1174,18 @@ async function loadAdminLicenses(){
   box.innerHTML="در حال بارگذاری...";
   try{
     const snap=await sync.db.collection("licenses").orderBy("createdAt","desc").limit(200).get();
-    if(snap.empty){box.innerHTML='<p class="hint">هنوز لایسنسی ساخته نشده.</p>';return}
+    if(snap.empty){box.innerHTML='<p class="hint">هنوز لایسنس یا درخواستی ثبت نشده.</p>';return}
     box.innerHTML=snap.docs.map(d=>{
       const l=d.data();
+      const adminBadge=l.isAdmin?" 👑":"";
+      if(l.status==="pending"){
+        return `<div class="item"><div>🙋 <b style="direction:ltr;display:inline-block">${esc(d.id)}</b> — در انتظار تایید${l.requestedByEmail?"<br><small style=\"direction:ltr;display:inline-block\">"+esc(l.requestedByEmail)+"</small>":""}</div><div class="actions"><button title="بررسی" onclick="openLicenseApproveModal('${esc(d.id)}')">✅</button></div></div>`;
+      }
+      if(l.status==="rejected"){
+        return `<div class="item"><div>❌ <b style="direction:ltr;display:inline-block">${esc(d.id)}</b> — درخواست ردشده${l.requestedByEmail?"<br><small style=\"direction:ltr;display:inline-block\">"+esc(l.requestedByEmail)+"</small>":""}</div></div>`;
+      }
       const st=l.status==="revoked"?"⛔ باطل‌شده":(l.redeemedBy?"✅ استفاده‌شده":"🕓 استفاده‌نشده");
-      return `<div class="item"><div><b style="direction:ltr;display:inline-block">${esc(d.id)}</b> — ${esc(LICENSE_PLAN_LABEL[l.plan]||l.plan||"")} — ${st}${l.note?" — "+esc(l.note):""}${l.redeemedByEmail?"<br><small style=\"direction:ltr;display:inline-block\">مشتری: "+esc(l.redeemedByEmail)+"</small>":""}</div><div class="actions"><button title="تمدید" onclick="openLicenseRenewModal('${esc(d.id)}')">✏️</button><button title="باطل‌کردن" class="danger-icon" onclick="revokeLicenseById('${esc(d.id)}')">🗑</button></div></div>`;
+      return `<div class="item"><div><b style="direction:ltr;display:inline-block">${esc(d.id)}</b> — ${esc(LICENSE_PLAN_LABEL[l.plan]||l.plan||"")}${adminBadge} — ${st}${l.note?" — "+esc(l.note):""}${l.redeemedByEmail?"<br><small style=\"direction:ltr;display:inline-block\">مشتری: "+esc(l.redeemedByEmail)+"</small>":""}</div><div class="actions"><button title="تمدید" onclick="openLicenseRenewModal('${esc(d.id)}')">✏️</button><button title="باطل‌کردن" class="danger-icon" onclick="revokeLicenseById('${esc(d.id)}')">🗑</button></div></div>`;
     }).join("");
   }catch(e){box.innerHTML='<p class="hint">خطا در بارگذاری: '+esc(e.message||"")+'</p>'}
 }
@@ -1071,6 +1202,13 @@ function renderLicensePage(){
     else html='<p>⛔ '+st.label+'. برای ادامه استفاده، لایسنس تهیه کن.</p>';
     box.innerHTML=html;
   }
+  /* v-t1: پرکردن خودکار فیلدهای آیدی/رمز از حافظه (اگر «به‌خاطر بسپار» زده بودند) */
+  const remembered=getRememberedLicense();
+  if(remembered){
+    if($("licenseIdInput")&&!$("licenseIdInput").value)$("licenseIdInput").value=remembered.id;
+    if($("licenseCodeInput")&&!$("licenseCodeInput").value)$("licenseCodeInput").value=remembered.code;
+    if($("licenseRememberMe"))$("licenseRememberMe").checked=true;
+  }
   const adminPanelIds=["licenseAdminPanel","licenseCreatePanel","licenseListPanel"];
   const isAdmin=isLicenseAdmin();
   adminPanelIds.forEach(id=>{const el=$(id);if(el)el.style.display=isAdmin?"":"none"});
@@ -1079,12 +1217,32 @@ function renderLicensePage(){
 function showLicenseLock(){
   if(!licenseIsBlocked())return;
   if($("licenseLock"))return;
+  const remembered=getRememberedLicense();
   const d=document.createElement("div");d.id="licenseLock";d.className="lock";
-  d.innerHTML=`<div class="lockbox"><h1>🔑 حساب‌یار</h1><p>دوره استفاده رایگان به پایان رسیده است.</p><p class="hint">برای ادامه، آیدی و رمز لایسنس را وارد کن.</p><input id="licenseLockId" class="amt-input" placeholder="آیدی لایسنس" autocomplete="off"><input id="licenseLockCode" class="amt-input" placeholder="رمز لایسنس" autocomplete="off"><button class="primary" id="licenseLockBtn">✅ فعال‌سازی</button></div>`;
+  d.innerHTML=`<div class="lockbox"><h1>🔑 حساب‌یار</h1><p>دوره استفاده رایگان به پایان رسیده است.</p><p class="hint">برای ادامه، آیدی و رمز لایسنس را وارد کن.</p>
+    <input id="licenseLockId" class="amt-input" placeholder="آیدی لایسنس" autocomplete="off" value="${remembered?esc(remembered.id):""}">
+    <input id="licenseLockCode" class="amt-input" placeholder="رمز لایسنس" autocomplete="off" value="${remembered?esc(remembered.code):""}">
+    <label class="hint" style="display:flex;align-items:center;gap:6px;justify-content:center;margin:8px 0 4px"><input type="checkbox" id="licenseLockRemember"${remembered?" checked":""}> همیشه من را به‌خاطر بسپار</label>
+    <button class="primary" id="licenseLockBtn">✅ فعال‌سازی</button>
+    <button id="licenseLockRequestBtn" style="margin-top:8px">🙋 لایسنس ندارم، درخواست بده</button>
+    </div>`;
   document.body.appendChild(d);
-  $("licenseLockBtn").onclick=activateLicense;
+  $("licenseLockBtn").onclick=()=>activateLicense();
+  $("licenseLockRequestBtn").onclick=requestLicense;
 }
-function licenseGate(){if(licenseIsBlocked())showLicenseLock();else $("licenseLock")?.remove()}
+/* v-t1: قبل از نمایش صفحه‌ی قفل، اگر آیدی/رمز لایسنس قبلاً با «همیشه من را
+   به‌خاطر بسپار» ذخیره شده و کاربر وارد حساب است، بی‌صدا امتحان می‌کند —
+   یعنی دیگر لازم نیست هر بار دستی آیدی و رمز را وارد کند. */
+async function licenseGate(){
+  if(!licenseIsBlocked()){$("licenseLock")?.remove();return}
+  const remembered=getRememberedLicense();
+  if(remembered&&sync.user){
+    const ok=await activateLicense({id:remembered.id,code:remembered.code,remember:true,silent:true});
+    if(ok)return;
+    clearRememberedLicense();
+  }
+  showLicenseLock();
+}
 
 function normalize(s){return String(s||"").replace(/[۰-۹]/g,d=>"۰۱۲۳۴۵۶۷۸۹".indexOf(d)).replace(/[٬،]/g,",").replace(/\s+/g," ").trim()}
 function parseMoney(v){return Number(String(v).replace(/[^\d]/g,""))||0}
