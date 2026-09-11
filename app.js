@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="t5";
+const APP_VERSION="t6";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -1232,6 +1232,10 @@ function renderLicensePage(){
   const adminPanelIds=["licenseAdminPanel","licenseCreatePanel","licenseListPanel"];
   const isAdmin=isLicenseAdmin();
   adminPanelIds.forEach(id=>{const el=$(id);if(el)el.style.display=isAdmin?"":"none"});
+  /* v-t6: کارت «ساخت لایسنس» (که مشتری را به تلگرام ادمین می‌فرستد) فقط
+     برای مشتری‌ها معنی دارد؛ وقتی خودِ ادمین وارد است، به‌جایش همان کارت
+     «ساخت لایسنس دستی» (بالا، در adminPanelIds) نمایش داده می‌شود. */
+  const reqPanel=$("licenseRequestPanel");if(reqPanel)reqPanel.style.display=isAdmin?"none":"";
   /* v-t4: دکمه‌ی تنظیمات اتصال Firebase فقط برای ادمین، فقط همین‌جا (پنل
      مدیریت لایسنس) نشان داده می‌شود. */
   ["licenseAdminFirebaseBtnWrap","licenseListFirebaseBtnWrap"].forEach(id=>{const el=$(id);if(el)el.style.display=isAdmin?"":"none"});
@@ -1364,9 +1368,16 @@ function showWhatsNewOnce(){
    </ul>
   </div>
   <div class="whats-new-section">
-   <h3>🛠 تغییرات این نسخه (t5)</h3>
+   <h3>🛠 تغییرات این نسخه (t6)</h3>
    <ul>
-    <li>«➕ ساخت لایسنس» دیگر هیچ حساب Firebase نمی‌سازد (که خودش منبع باگ‌های قبلی بود)؛ حالا با زدن دکمه مستقیم به آیدی تلگرام <b style="direction:ltr;display:inline-block">@mahdi_shakerinia_1</b> می‌رود تا هماهنگی و ساخت لایسنس دستی و توسط ادمین انجام شود.</li>
+    <li>دیگر هیچ‌جا آیدی تلگرام ادمین به‌صورت متن نمایش داده نمی‌شود؛ فقط یک دکمه «📨 پیام در تلگرام» هست که با زدنش مستقیم چت باز می‌شود.</li>
+    <li>کارت «➕ ساخت لایسنس» (که مشتری را به تلگرام می‌فرستد) فقط برای مشتری‌ها نمایش داده می‌شود؛ وقتی با حساب ادمین وارد شده باشی، این کارت دیده نمی‌شود و به‌جایش همان «ساخت لایسنس دستی» (که مستقیماً در Firebase ثبت می‌کند) در پنل مدیریت لایسنس در دسترس است — دیگر لازم نیست ادمین برای خودش پیام تلگرام بفرستد.</li>
+   </ul>
+  </div>
+  <div class="whats-new-section">
+   <h3>🛠 تغییرات نسخه قبل (t5)</h3>
+   <ul>
+    <li>«➕ ساخت لایسنس» دیگر هیچ حساب Firebase نمی‌سازد (که خودش منبع باگ‌های قبلی بود)؛ حالا با زدن دکمه مستقیم به تلگرام ادمین وصل می‌شود تا هماهنگی و ساخت لایسنس دستی و توسط ادمین انجام شود. این کارت فقط برای مشتری‌ها نشان داده می‌شود؛ وقتی با حساب ادمین وارد شده باشی، به‌جایش همان «ساخت لایسنس دستی» پایین صفحه در دسترس است.</li>
     <li>فعال‌سازی لایسنس (فقط با آیدی و رمزی که ادمین می‌دهد) دیگر هیچ پیام یا فرم اضافه‌ای برای ایمیل/رمز حساب نشان نمی‌دهد؛ اتصال لازم به Firestore حالا پشت‌صحنه و بی‌صدا با یک نشست ناشناس (Anonymous) انجام می‌شود. عنوان «فعال‌سازی / تمدید» هم به «فعال‌سازی» ساده شد.</li>
     <li>«ساخت لایسنس دستی» و «تمدید» حالا یک گزینه‌ی «تاریخ انقضای دلخواه» هم دارند: به‌جای انتخاب از بین ۱/۳/۶ ماهه و ۱ ساله، می‌توان یک تاریخ مشخص انتخاب کرد؛ درست بعد از همان تاریخ، لایسنس منقضی و برنامه غیرفعال می‌شود.</li>
     <li>ادمین همچنان از «پنل مدیریت لایسنس» تمام لایسنس‌های ذخیره‌شده در Firebase را می‌بیند و می‌تواند تاریخ را تغییر دهد، تمدید یا باطل کند.</li>

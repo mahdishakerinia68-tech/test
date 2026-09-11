@@ -22,7 +22,7 @@
     <button id="menuBtn" class="menu-trigger" aria-label="باز کردن منو" aria-haspopup="true" aria-expanded="false" aria-controls="menuModal">⋯</button>
     <img class="app-logo" src="logo.png" alt="حساب‌یار">
     <div class="top-bar-titles">
-      <h1>حساب‌یار <span class="version-pill" id="versionPill">t5</span></h1>
+      <h1>حساب‌یار <span class="version-pill" id="versionPill">t6</span></h1>
       <div id="syncBadge" class="sync-badge">☁️ آفلاین</div>
     </div>
   </div>
@@ -186,9 +186,9 @@
       <button class="primary" onclick="activateLicense()">✅ فعال‌سازی</button>
     </div>
   </div>
-  <div class="card" style="margin-bottom:10px">
+  <div class="card" id="licenseRequestPanel" style="margin-bottom:10px">
     <h3>➕ ساخت لایسنس</h3>
-    <p class="hint">برای ساخت لایسنس، پیام بده به آیدی تلگرام <b style="direction:ltr;display:inline-block">@mahdi_shakerinia_1</b>. بعد از هماهنگی، آیدی و رمز لایسنس برات ساخته و ارسال می‌شود؛ همان‌ها را بالا (فعال‌سازی) وارد کن.</p>
+    <p class="hint">برای ساخت لایسنس، دکمه زیر را بزن تا مستقیم به تلگرام وصل شوی و پیام بدهی. بعد از هماهنگی، آیدی و رمز لایسنس برات ساخته و ارسال می‌شود؛ همان‌ها را بالا (فعال‌سازی) وارد کن.</p>
     <button onclick="requestLicense()">📨 پیام در تلگرام</button>
   </div>
   <div class="card" id="licenseAdminPanel" style="display:none;margin-bottom:10px">
@@ -510,7 +510,7 @@
 <script src="capacitor-biometric-bridge.js"></script>
 <script src="app.js"></script>
 <script>if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js?v=t5",{updateViaCache:"none"}).catch(console.error);
+  navigator.serviceWorker.register("sw.js?v=t6",{updateViaCache:"none"}).catch(console.error);
   /* v3.0: once the new service worker (with the fresh cache) takes
      control, reload once automatically so the update is visible right
      away in this same session instead of only after fully closing and
