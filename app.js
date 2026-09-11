@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="t4";
+const APP_VERSION="t5";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -779,11 +779,11 @@ async function createSyncAccount(){
  if(!cfg.apiKey||!cfg.authDomain||!cfg.projectId||!cfg.appId)return alert("اول اطلاعات Firebase را کامل کن");
  localStorage.setItem(SYNC_KEY,JSON.stringify(cfg));
  try{await initSync();await sync.auth.createUserWithEmailAndPassword(email,pass);alert("حساب ساخته شد. همین ایمیل و رمز را روی گوشی دوم هم استفاده کن.")}catch(e){alert("ساخت حساب ناموفق: "+e.message)}}
-async function ensureSyncReady(){
+async function ensureSyncReady(silent){
  const cfg=syncConfig();
- if(!cfg||!cfg.apiKey||!cfg.authDomain||!cfg.projectId||!cfg.appId){alert("اول یک‌بار «تنظیم اتصال Firebase» را باز کن و اطلاعات Firebase را وارد کن.");return false}
+ if(!cfg||!cfg.apiKey||!cfg.authDomain||!cfg.projectId||!cfg.appId){if(!silent)alert("اول یک‌بار «تنظیم اتصال Firebase» را باز کن و اطلاعات Firebase را وارد کن.");return false}
  await initSync();
- if(!sync.auth){alert("اتصال به سرویس همگام‌سازی برقرار نشد.\nاحتمال زیاد سرورهای گوگل (gstatic.com / firebaseapp.com) روی این اینترنت در دسترس نیستند.\nیک VPN را روشن کن و دوباره امتحان کن."+(sync.lastLoadError?"\n\nجزئیات: "+sync.lastLoadError:""));return false}
+ if(!sync.auth){if(!silent)alert("اتصال به سرویس همگام‌سازی برقرار نشد.\nاحتمال زیاد سرورهای گوگل (gstatic.com / firebaseapp.com) روی این اینترنت در دسترس نیستند.\nیک VPN را روشن کن و دوباره امتحان کن."+(sync.lastLoadError?"\n\nجزئیات: "+sync.lastLoadError:""));return false}
  return true;
 }
 function fillSettingsSyncEmail(){const e=$("settingsSyncEmail");if(e&&sync.user)e.value=sync.user.email||""}
@@ -819,8 +819,8 @@ const LICENSE_ADMIN_EMAIL="mahdishakerinia68@gmail.com";
 const LICENSE_TRIAL_DAYS=7;
 const LICENSE_STATE_KEY="hesabdar-license-state-v1";
 const LICENSE_CLOUD_CACHE_KEY="hesabdar-license-cloud-v1";
-const LICENSE_PLAN_DAYS={m1:30,m3:90,m6:180,y1:365,lifetime:null};
-const LICENSE_PLAN_LABEL={m1:"۱ ماهه",m3:"۳ ماهه",m6:"۶ ماهه",y1:"۱ ساله",lifetime:"دائمی"};
+const LICENSE_PLAN_DAYS={m1:30,m3:90,m6:180,y1:365,lifetime:null,custom:null};
+const LICENSE_PLAN_LABEL={m1:"۱ ماهه",m3:"۳ ماهه",m6:"۶ ماهه",y1:"۱ ساله",lifetime:"دائمی",custom:"سفارشی"};
 
 function licenseLocalState(){try{return JSON.parse(localStorage.getItem(LICENSE_STATE_KEY)||"null")}catch{return null}}
 function ensureTrialStarted(){let s=licenseLocalState();if(!s){s={trialStart:new Date().toISOString()};localStorage.setItem(LICENSE_STATE_KEY,JSON.stringify(s))}return s}
@@ -927,17 +927,17 @@ async function activateLicense(opts){
   const id=(opts.id!==undefined?opts.id:($("licenseLockId")?.value||$("licenseIdInput")?.value||"")).trim();
   const code=(opts.code!==undefined?opts.code:($("licenseLockCode")?.value||$("licenseCodeInput")?.value||"")).trim();
   if(!id||!code)return warn("آیدی و رمز لایسنس را وارد کن");
+  /* v-t5: قبلاً اینجا اگر هنوز وارد حساب نشده بودی، دو تا prompt() جدا
+     (اول ایمیل، بعد رمز) باز می‌شد که یعنی همان آیدی/رمز لایسنسی که بالا
+     زده بودی کافی نبود و یک مرحله‌ی اضافه‌ی گیج‌کننده اضافه می‌شد. حالا
+     چیزی جز همان آیدی/رمز لایسنس پرسیده نمی‌شود: پشت‌صحنه و بی‌صدا با یک
+     حساب ناشناس (Anonymous Auth) وارد می‌شویم تا فقط بشود سند Firestore
+     را خواند/نوشت؛ برای همین باید در Firebase Console → Authentication →
+     Sign-in method، روش «Anonymous» فعال باشد. */
   if(!sync.user){
-    if(silent)return false; // برای تلاش خودکار نمی‌توان ایمیل/رمز حساب را پرسید
-    const email=prompt("برای فعال‌سازی لایسنس اول باید وارد حساب کاربری شوی.\nایمیل حساب:");
-    if(!email)return false;
-    const pass=prompt("رمز حساب (اگر حساب نداری، همین‌جا یک رمز جدید بساز):");
-    if(!pass)return false;
-    if(!await ensureSyncReady())return false;
-    try{
-      try{await sync.auth.signInWithEmailAndPassword(email,pass)}
-      catch(e){if(e.code==="auth/user-not-found"||e.code==="auth/invalid-credential")await sync.auth.createUserWithEmailAndPassword(email,pass);else throw e}
-    }catch(e){return warn("ورود/ساخت حساب ناموفق: "+(e.message||e))}
+    if(!await ensureSyncReady(silent))return false;
+    try{await sync.auth.signInAnonymously()}
+    catch(e){return warn("اتصال ناموفق: "+(e.message||e))}
   }
   if(!sync.db)return warn("اتصال به سرویس لایسنس برقرار نشد");
   try{
@@ -949,19 +949,27 @@ async function activateLicense(opts){
     if(lic.status==="revoked")return warn("این لایسنس باطل شده است");
     if(lic.redeemedBy&&lic.redeemedBy!==sync.user.uid)return warn("این لایسنس قبلاً روی یک حساب دیگر فعال شده است");
     if(!(lic.status==="redeemed"&&lic.redeemedBy===sync.user.uid)){
-      const days=LICENSE_PLAN_DAYS[lic.plan];
       const userRef=sync.db.collection("users").doc(sync.user.uid);
       const userSnap=await userRef.get();
       const curLic=userSnap.exists?(userSnap.data().license||null):null;
+      /* v-t5: پشتیبانی از تاریخ انقضای دلخواه — اگر ادمین موقع ساخت
+         لایسنس یک تاریخ مشخص انتخاب کرده باشد (lic.plan==="custom")،
+         همان تاریخ دقیق به‌عنوان انقضا ثبت می‌شود؛ در غیر این صورت مثل
+         قبل بر اساس تعداد روزهای پلن حساب می‌شود. */
       let newExpiresAt=null;
-      if(days!=null){
-        const base=(curLic&&curLic.status==="active"&&curLic.plan!=="lifetime"&&curLic.expiresAt&&new Date(curLic.expiresAt)>new Date())?new Date(curLic.expiresAt):new Date();
-        newExpiresAt=new Date(base.getTime()+days*86400000).toISOString();
+      if(lic.plan==="custom"){
+        newExpiresAt=lic.customExpiresAt||null;
+      }else{
+        const days=LICENSE_PLAN_DAYS[lic.plan];
+        if(days!=null){
+          const base=(curLic&&curLic.status==="active"&&curLic.plan!=="lifetime"&&curLic.expiresAt&&new Date(curLic.expiresAt)>new Date())?new Date(curLic.expiresAt):new Date();
+          newExpiresAt=new Date(base.getTime()+days*86400000).toISOString();
+        }
       }
       const userSet={license:{status:"active",plan:lic.plan,expiresAt:newExpiresAt,licenseId:id,updatedAt:new Date().toISOString()}};
       if(lic.isAdmin)userSet.isAdmin=true; // v-t1: لایسنسِ تیک‌خورده به‌عنوان «ادمین»، دسترسی کامل می‌دهد
       await userRef.set(userSet,{merge:true});
-      await ref.set({status:"redeemed",redeemedBy:sync.user.uid,redeemedByEmail:sync.user.email,redeemedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+      await ref.set({status:"redeemed",redeemedBy:sync.user.uid,redeemedByEmail:sync.user.email||null,redeemedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
     }
     /* v-t1: «همیشه من را به‌خاطر بسپار» */
     const remember=opts.remember!==undefined?opts.remember:!!($("licenseLockRemember")?.checked||$("licenseRememberMe")?.checked);
@@ -978,20 +986,27 @@ async function activateLicense(opts){
 async function createLicense(){
   if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
   const isAdminChecked=!!$("licenseNewAdmin")?.checked;
-  const plan=isAdminChecked?"lifetime":($("licenseNewPlan")?.value||"m1");
+  const customExpiryVal=($("licenseNewCustomExpiry")?.value||"").trim();
+  /* v-t5: اگر ادمین یک تاریخ انقضای دلخواه انتخاب کرده باشد، پلن روی
+     "custom" ثبت می‌شود و همان تاریخ دقیق (پایان همان روز) به‌عنوان
+     customExpiresAt روی سند لایسنس ذخیره می‌شود؛ activateLicense همین
+     تاریخ را مستقیم به‌عنوان انقضا می‌گذارد، صرف‌نظر از تعداد روز. */
+  const plan=isAdminChecked?"lifetime":(customExpiryVal?"custom":($("licenseNewPlan")?.value||"m1"));
+  const customExpiresAt=(!isAdminChecked&&customExpiryVal)?new Date(customExpiryVal+"T23:59:59").toISOString():null;
   const note=$("licenseNewNote")?.value.trim()||"";
   const customCode=($("licenseNewCode")?.value||"").trim();
   const id=genLicenseId(),code=customCode?customCode.toUpperCase():genLicenseCode();
   try{
-    await sync.db.collection("licenses").doc(id).set({code,plan,note,status:"active",isAdmin:isAdminChecked,createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdBy:sync.user.email,redeemedBy:null,redeemedByEmail:null});
+    await sync.db.collection("licenses").doc(id).set({code,plan,customExpiresAt,note,status:"active",isAdmin:isAdminChecked,createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdBy:sync.user.email,redeemedBy:null,redeemedByEmail:null});
     if($("licenseNewNote"))$("licenseNewNote").value="";
     if($("licenseNewCode"))$("licenseNewCode").value="";
+    if($("licenseNewCustomExpiry"))$("licenseNewCustomExpiry").value="";
     if($("licenseNewAdmin"))$("licenseNewAdmin").checked=false;
     loadAdminLicenses();
-    showLicenseCredsModal(id,code,plan,note,isAdminChecked);
+    showLicenseCredsModal(id,code,plan,note,isAdminChecked,customExpiresAt);
   }catch(e){alert("ساخت لایسنس ناموفق: "+(e.message||e))}
 }
-function showLicenseCredsModal(id,code,plan,note,isAdminFlag){
+function showLicenseCredsModal(id,code,plan,note,isAdminFlag,customExpiresAt){
   openModal(`<h2>✅ لایسنس ساخته شد${isAdminFlag?" 👑":""}</h2>
     <p class="hint">این دو مورد را برای مشتری بفرست:</p>
     <div class="form">
@@ -1003,7 +1018,7 @@ function showLicenseCredsModal(id,code,plan,note,isAdminFlag){
         <p class="hint" style="margin-bottom:4px">رمز لایسنس</p>
         <input class="amt-input" readonly value="${esc(code)}" onclick="this.select()" style="font-size:18px">
       </div>
-      <p class="hint">نوع: ${esc(LICENSE_PLAN_LABEL[plan]||plan)}${isAdminFlag?" — 👑 ادمین (دسترسی کامل و دائمی، می‌تواند ادمین دیگری هم بسازد)":""}${note?" — "+esc(note):""}</p>
+      <p class="hint">نوع: ${esc(LICENSE_PLAN_LABEL[plan]||plan)}${plan==="custom"&&customExpiresAt?" (تا "+esc(new Date(customExpiresAt).toLocaleDateString("fa-IR"))+")":""}${isAdminFlag?" — 👑 ادمین (دسترسی کامل و دائمی، می‌تواند ادمین دیگری هم بسازد)":""}${note?" — "+esc(note):""}</p>
       <button class="primary" onclick="copyLicenseCreds('${esc(id)}','${esc(code)}')">📋 کپی هر دو</button>
       <button onclick="closeModal()">بستن</button>
     </div>`);
@@ -1031,6 +1046,8 @@ async function openLicenseRenewModal(id){
         <option value="y1">افزودن ۱ سال</option>
         <option value="lifetime">تبدیل به دائمی</option>
       </select>
+      <label class="hint" style="margin-bottom:-4px">یا یک تاریخ انقضای دلخواه (اختیاری — اگر پر شود، به‌جای گزینه بالا استفاده می‌شود):</label>
+      <input id="licenseRenewCustomExpiry" type="date" style="direction:ltr">
       <label class="hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="licenseRenewAdmin"${curAdmin?" checked":""}> 👑 ادمین باشد (دسترسی کامل)</label>
       <button class="primary" onclick="renewLicenseById('${esc(id)}')">✅ تایید تمدید</button>
       <button onclick="closeModal()">انصراف</button>
@@ -1039,19 +1056,25 @@ async function openLicenseRenewModal(id){
 async function renewLicenseById(id){
   if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
   const plan=$("licenseExtendPlan")?.value||"m1";
+  const customExpiryVal=($("licenseRenewCustomExpiry")?.value||"").trim();
+  const customExpiresAt=customExpiryVal?new Date(customExpiryVal+"T23:59:59").toISOString():null;
   const isAdminChecked=!!$("licenseRenewAdmin")?.checked;
   try{
     const ref=sync.db.collection("licenses").doc(id);
     const snap=await ref.get();
     if(!snap.exists)return alert("لایسنسی با این آیدی پیدا نشد");
     const lic=snap.data();
-    await ref.set({status:"active",plan:plan==="lifetime"?"lifetime":lic.plan,isAdmin:isAdminChecked},{merge:true});
+    /* v-t5: تاریخ انقضای دلخواه بر گزینه‌ی «افزودن X ماه/سال» اولویت دارد. */
+    const newPlan=customExpiresAt?"custom":(plan==="lifetime"?"lifetime":lic.plan);
+    await ref.set({status:"active",plan:newPlan,customExpiresAt:customExpiresAt||null,isAdmin:isAdminChecked},{merge:true});
     if(lic.redeemedBy){
       const userRef=sync.db.collection("users").doc(lic.redeemedBy);
       const userSnap=await userRef.get();
       const curLic=userSnap.exists?(userSnap.data().license||null):null;
       let userSet;
-      if(plan==="lifetime"){
+      if(customExpiresAt){
+        userSet={license:{status:"active",plan:"custom",expiresAt:customExpiresAt,licenseId:id,updatedAt:new Date().toISOString()}};
+      }else if(plan==="lifetime"){
         userSet={license:{status:"active",plan:"lifetime",expiresAt:null,licenseId:id,updatedAt:new Date().toISOString()}};
       }else{
         const days=LICENSE_PLAN_DAYS[plan];
@@ -1091,59 +1114,13 @@ async function revokeLicenseById(id){
     loadAdminLicenses();
   }catch(e){alert("عملیات ناموفق: "+(e.message||e))}
 }
-/* v-t1: درخواستِ لایسنس از داخل خودِ برنامه توسط کاربر عادی. یک سند در همان
-   کالکشن «licenses» با شناسه REQ-{uid} و status:"pending" می‌سازد تا در
-   فهرست ادمین دیده شود؛ با تایید ادمین مستقیماً روی همان حساب فعال می‌شود
-   (نیازی به آیدی/رمز دستی نیست چون از قبل به uid همان کاربر وصل است). */
-/* v-t4: «ساخت لایسنس» قبلاً با چند prompt() خام مرورگر (زشت و روی بعضی
-   وب‌ویوهای اندروید غیرقابل‌اعتماد) ایمیل/رمز می‌گرفت. حالا دقیقاً همان
-   فرم «☁️ همگام‌سازی دو گوشی» باز می‌شود: کاربر ایمیلش (مثلاً جیمیل) و یک
-   رمز دلخواه می‌زند، با همان حساب وارد می‌شود یا می‌سازد، و همان حساب از
-   همین‌جا هم برای اتصال دو گوشی قابل استفاده است. بلافاصله بعد از ورود،
-   یک سند «درخواست لایسنس» (REQ-{uid}) در کالکشن licenses ساخته می‌شود که
-   در فهرست ادمین (🙋 در انتظار تایید) دیده و تایید/رد می‌شود. */
-async function requestLicense(){
-  if(sync.user)return createLicenseRequestForCurrentUser();
-  openLicenseRequestModal();
-}
-function openLicenseRequestModal(){
-  openModal(`<h2>☁️ ساخت لایسنس</h2>
-    <p class="hint">با ایمیلت (مثلاً جیمیل) و یک رمز دلخواه وارد شو یا حساب بساز. همین حساب هم برای همگام‌سازی دو گوشی استفاده می‌شود. بعد از ورود، یک درخواست لایسنس خودکار برای ادمین ثبت می‌شود.</p>
-    <div class="form">
-      <input id="licenseReqEmail" type="email" placeholder="ایمیل (مثلاً جیمیل)" autocomplete="username">
-      <input id="licenseReqPass" type="password" placeholder="رمز دلخواه" autocomplete="current-password">
-      <button class="primary" onclick="submitLicenseRequest()">✅ ورود / ساخت حساب و ثبت درخواست</button>
-      <button onclick="closeModal()">انصراف</button>
-    </div>`);
-}
-async function submitLicenseRequest(){
-  const email=$("licenseReqEmail")?.value.trim(),pass=$("licenseReqPass")?.value;
-  if(!email||!pass)return alert("ایمیل و رمز را وارد کن");
-  if(!await ensureSyncReady())return;
-  try{
-    try{await sync.auth.signInWithEmailAndPassword(email,pass)}
-    catch(e){if(e.code==="auth/user-not-found"||e.code==="auth/invalid-credential")await sync.auth.createUserWithEmailAndPassword(email,pass);else throw e}
-  }catch(e){return alert("ورود/ساخت حساب ناموفق: "+(e.message||e))}
-  closeModal();
-  await createLicenseRequestForCurrentUser();
-}
-async function createLicenseRequestForCurrentUser(){
-  if(!sync.user)return;
-  if(!sync.db)return alert("اتصال به سرویس لایسنس برقرار نشد");
-  try{
-    const reqId="REQ-"+sync.user.uid;
-    const ref=sync.db.collection("licenses").doc(reqId);
-    const snap=await ref.get();
-    if(snap.exists){
-      const d=snap.data();
-      if(d.status==="pending")return alert("درخواست قبلی‌ات هنوز در انتظار بررسی ادمین است.");
-      if(d.status==="active"||d.redeemedBy)return alert("لایسنس تو همین الان فعال است.");
-    }
-    await ref.set({status:"pending",requestedBy:sync.user.uid,requestedByEmail:sync.user.email,requestedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:firebase.firestore.FieldValue.serverTimestamp(),plan:null,code:null,redeemedBy:null,redeemedByEmail:null},{merge:true});
-    alert("درخواست لایسنس ثبت شد ✅\nهر وقت ادمین از پنل مدیریت لایسنس (دکمه بروزرسانی فهرست) آن را تایید کند و برایش زمان تعیین کند، لایسنس خودکار روی همین حساب فعال می‌شود.");
-    $("licenseLock")?.remove();
-    renderLicensePage();
-  }catch(e){alert("ثبت درخواست ناموفق: "+(e.message||e))}
+/* v-t5: طبق خواسته‌ی جدید، «ساخت لایسنس» دیگر هیچ حساب Firebase
+   (ایمیل/رمز) نمی‌سازد؛ چون این مسیر بارها باعث باگ و شکایت می‌شد. حالا
+   با زدن دکمه مستقیم به آیدی تلگرام ادمین می‌رود؛ هماهنگی و ساخت لایسنس
+   کاملاً دستی و توسط خودِ ادمین از پنل «ساخت لایسنس دستی» انجام می‌شود. */
+const LICENSE_TELEGRAM_ID="mahdi_shakerinia_1";
+function requestLicense(){
+  window.open("https://t.me/"+LICENSE_TELEGRAM_ID,"_blank");
 }
 function openLicenseApproveModal(id){
   if(!isLicenseAdmin())return;
@@ -1227,7 +1204,8 @@ async function loadAdminLicenses(){
         return `<div class="item"><div>❌ <b style="direction:ltr;display:inline-block">${esc(d.id)}</b> — درخواست ردشده${l.requestedByEmail?"<br><small style=\"direction:ltr;display:inline-block\">"+esc(l.requestedByEmail)+"</small>":""}</div></div>`;
       }
       const st=l.status==="revoked"?"⛔ باطل‌شده":(l.redeemedBy?"✅ استفاده‌شده":"🕓 استفاده‌نشده");
-      return `<div class="item"><div><b style="direction:ltr;display:inline-block">${esc(d.id)}</b> — ${esc(LICENSE_PLAN_LABEL[l.plan]||l.plan||"")}${adminBadge} — ${st}${l.note?" — "+esc(l.note):""}${l.redeemedByEmail?"<br><small style=\"direction:ltr;display:inline-block\">مشتری: "+esc(l.redeemedByEmail)+"</small>":""}</div><div class="actions"><button title="تمدید" onclick="openLicenseRenewModal('${esc(d.id)}')">✏️</button><button title="باطل‌کردن" class="danger-icon" onclick="revokeLicenseById('${esc(d.id)}')">🗑</button></div></div>`;
+      const expiryTxt=l.plan==="custom"&&l.customExpiresAt?" (تا "+esc(new Date(l.customExpiresAt).toLocaleDateString("fa-IR"))+")":"";
+      return `<div class="item"><div><b style="direction:ltr;display:inline-block">${esc(d.id)}</b> — ${esc(LICENSE_PLAN_LABEL[l.plan]||l.plan||"")}${expiryTxt}${adminBadge} — ${st}${l.note?" — "+esc(l.note):""}${l.redeemedByEmail?"<br><small style=\"direction:ltr;display:inline-block\">مشتری: "+esc(l.redeemedByEmail)+"</small>":""}</div><div class="actions"><button title="تمدید" onclick="openLicenseRenewModal('${esc(d.id)}')">✏️</button><button title="باطل‌کردن" class="danger-icon" onclick="revokeLicenseById('${esc(d.id)}')">🗑</button></div></div>`;
     }).join("");
   }catch(e){box.innerHTML='<p class="hint">خطا در بارگذاری (احتمالاً محدودیت Firestore Rules): '+esc(e.message||"")+'</p>';console.error("loadAdminLicenses",e)}
 }
@@ -1269,7 +1247,7 @@ function showLicenseLock(){
     <input id="licenseLockCode" class="amt-input" placeholder="رمز لایسنس" autocomplete="off" value="${remembered?esc(remembered.code):""}">
     <label class="hint" style="display:flex;align-items:center;gap:6px;justify-content:center;margin:8px 0 4px"><input type="checkbox" id="licenseLockRemember"${remembered?" checked":""}> همیشه من را به‌خاطر بسپار</label>
     <button class="primary" id="licenseLockBtn">✅ فعال‌سازی</button>
-    <button id="licenseLockRequestBtn" style="margin-top:8px">➕ ساخت لایسنس</button>
+    <button id="licenseLockRequestBtn" style="margin-top:8px">📨 پیام در تلگرام (ساخت لایسنس)</button>
     </div>`;
   document.body.appendChild(d);
   $("licenseLockBtn").onclick=()=>activateLicense();
@@ -1383,6 +1361,15 @@ function showWhatsNewOnce(){
    <h3>🛠 تغییرات این نسخه (${toFaDigits(APP_VERSION)})</h3>
    <ul>
     <li>رفع باگ مهمِ «آپدیت نصب نمی‌شود / ورژن عوض نمی‌شود»: نام کش سرویس‌ورکر به‌صورت ثابت نوشته شده بود و هیچ‌وقت خودکار عوض نمی‌شد، برای همین بعضی گوشی‌ها همیشه نسخه‌ی خیلی قدیمی‌تر برنامه را از حافظه نشان می‌دادند — نصب زیپ جدید هیچ فرقی نمی‌کرد، چون خودِ برنامه هیچ‌وقت فایل‌های جدید را واقعاً بارگذاری نمی‌کرد. حالا نام کش خودکار و همیشه هم‌راستا با شماره نسخه است، و به‌محض آماده‌شدن نسخه‌ی جدید یک‌بار به‌صورت خودکار صفحه تازه‌سازی می‌شود تا لازم نباشد برنامه کامل بسته و باز شود.</li>
+   </ul>
+  </div>
+  <div class="whats-new-section">
+   <h3>🛠 تغییرات این نسخه (t5)</h3>
+   <ul>
+    <li>«➕ ساخت لایسنس» دیگر هیچ حساب Firebase نمی‌سازد (که خودش منبع باگ‌های قبلی بود)؛ حالا با زدن دکمه مستقیم به آیدی تلگرام <b style="direction:ltr;display:inline-block">@mahdi_shakerinia_1</b> می‌رود تا هماهنگی و ساخت لایسنس دستی و توسط ادمین انجام شود.</li>
+    <li>فعال‌سازی لایسنس (فقط با آیدی و رمزی که ادمین می‌دهد) دیگر هیچ پیام یا فرم اضافه‌ای برای ایمیل/رمز حساب نشان نمی‌دهد؛ اتصال لازم به Firestore حالا پشت‌صحنه و بی‌صدا با یک نشست ناشناس (Anonymous) انجام می‌شود. عنوان «فعال‌سازی / تمدید» هم به «فعال‌سازی» ساده شد.</li>
+    <li>«ساخت لایسنس دستی» و «تمدید» حالا یک گزینه‌ی «تاریخ انقضای دلخواه» هم دارند: به‌جای انتخاب از بین ۱/۳/۶ ماهه و ۱ ساله، می‌توان یک تاریخ مشخص انتخاب کرد؛ درست بعد از همان تاریخ، لایسنس منقضی و برنامه غیرفعال می‌شود.</li>
+    <li>ادمین همچنان از «پنل مدیریت لایسنس» تمام لایسنس‌های ذخیره‌شده در Firebase را می‌بیند و می‌تواند تاریخ را تغییر دهد، تمدید یا باطل کند.</li>
    </ul>
   </div>
   <div class="whats-new-section">

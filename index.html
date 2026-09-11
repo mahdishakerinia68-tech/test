@@ -22,7 +22,7 @@
     <button id="menuBtn" class="menu-trigger" aria-label="باز کردن منو" aria-haspopup="true" aria-expanded="false" aria-controls="menuModal">⋯</button>
     <img class="app-logo" src="logo.png" alt="حساب‌یار">
     <div class="top-bar-titles">
-      <h1>حساب‌یار <span class="version-pill" id="versionPill">t4</span></h1>
+      <h1>حساب‌یار <span class="version-pill" id="versionPill">t5</span></h1>
       <div id="syncBadge" class="sync-badge">☁️ آفلاین</div>
     </div>
   </div>
@@ -177,8 +177,8 @@
   <div class="section-head"><h2>🔑 لایسنس</h2></div>
   <div class="card" style="margin-bottom:10px"><div id="licenseStatusBox"><p class="hint">در حال بررسی وضعیت لایسنس...</p></div></div>
   <div class="card" style="margin-bottom:10px">
-    <h3>فعال‌سازی / تمدید</h3>
-    <p class="hint">آیدی و رمز لایسنسی که دریافت کرده‌ای را اینجا وارد کن. اگر برای اولین‌بار است، از تو ایمیل و رمز حساب کاربری هم پرسیده می‌شود.</p>
+    <h3>فعال‌سازی</h3>
+    <p class="hint">آیدی و رمز لایسنسی که از ادمین دریافت کرده‌ای را اینجا وارد کن و «فعال‌سازی» را بزن.</p>
     <div class="form">
       <input id="licenseIdInput" class="amt-input" placeholder="آیدی لایسنس" autocomplete="off">
       <input id="licenseCodeInput" class="amt-input" placeholder="رمز لایسنس" autocomplete="off">
@@ -188,8 +188,8 @@
   </div>
   <div class="card" style="margin-bottom:10px">
     <h3>➕ ساخت لایسنس</h3>
-    <p class="hint">اگر هنوز آیدی و رمز لایسنس نگرفته‌ای، از همینجا برای خودت یک لایسنس بساز: با ایمیلت (مثلاً جیمیل) و یک رمز دلخواه وارد شو یا حساب بساز — همین حساب برای همگام‌سازی دو گوشی هم استفاده می‌شود. درخواست در فایربیس ثبت می‌شود و ادمین از داخل برنامه (پنل مدیریت لایسنس، دکمه بروزرسانی) آن را می‌بیند و برایش مدت‌زمان (۱ ماهه، ۳ ماهه، ۶ ماهه، ۱ ساله یا دائمی) تعیین و فعال می‌کند.</p>
-    <button onclick="requestLicense()">➕ ساخت لایسنس</button>
+    <p class="hint">برای ساخت لایسنس، پیام بده به آیدی تلگرام <b style="direction:ltr;display:inline-block">@mahdi_shakerinia_1</b>. بعد از هماهنگی، آیدی و رمز لایسنس برات ساخته و ارسال می‌شود؛ همان‌ها را بالا (فعال‌سازی) وارد کن.</p>
+    <button onclick="requestLicense()">📨 پیام در تلگرام</button>
   </div>
   <div class="card" id="licenseAdminPanel" style="display:none;margin-bottom:10px">
     <h3>🛠 پنل مدیریت لایسنس (فقط ادمین)</h3>
@@ -210,6 +210,8 @@
         <option value="lifetime">دائمی</option>
       </select>
       <input id="licenseNewCode" placeholder="رمز دلخواه (خالی بگذار تا خودکار ساخته شود)" autocomplete="off" style="direction:ltr;text-align:center">
+      <label class="hint" style="margin-bottom:-4px">یا یک تاریخ انقضای دلخواه (اختیاری — اگر پر شود، به‌جای گزینه بالا استفاده می‌شود و بعد از همان تاریخ برنامه غیرفعال می‌شود):</label>
+      <input id="licenseNewCustomExpiry" type="date" style="direction:ltr">
       <input id="licenseNewNote" placeholder="یادداشت (مثلاً نام مشتری) — اختیاری">
       <label class="hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="licenseNewAdmin"> 👑 ادمین باشد (دسترسی کامل + لایسنس دائمی؛ می‌تواند خودش هم ادمین دیگری معرفی کند)</label>
       <button class="primary" onclick="createLicense()">➕ ساخت لایسنس جدید</button>
@@ -508,7 +510,7 @@
 <script src="capacitor-biometric-bridge.js"></script>
 <script src="app.js"></script>
 <script>if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js?v=t4",{updateViaCache:"none"}).catch(console.error);
+  navigator.serviceWorker.register("sw.js?v=t5",{updateViaCache:"none"}).catch(console.error);
   /* v3.0: once the new service worker (with the fresh cache) takes
      control, reload once automatically so the update is visible right
      away in this same session instead of only after fully closing and
