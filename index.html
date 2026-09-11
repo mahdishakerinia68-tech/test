@@ -495,6 +495,16 @@
 <script src="capacitor-filesystem-bridge.js"></script>
 <script src="capacitor-biometric-bridge.js"></script>
 <script src="app.js"></script>
-<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js?v=2-9",{updateViaCache:"none"}).catch(console.error)}</script>
+<script>if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js?v=3-0",{updateViaCache:"none"}).catch(console.error);
+  /* v3.0: once the new service worker (with the fresh cache) takes
+     control, reload once automatically so the update is visible right
+     away in this same session instead of only after fully closing and
+     reopening the app. The guard flag stops a reload loop. */
+  let swReloaded=false;
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{
+    if(swReloaded)return;swReloaded=true;location.reload();
+  });
+}</script>
 </body>
 </html>
