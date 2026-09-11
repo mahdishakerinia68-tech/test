@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // هر کاربر فقط به سند خودش (users/{uid}) و زیرمجموعه‌های خودش
+    // (records برای همگام‌سازی اطلاعات، devices برای اتصال دو گوشی)
+    // دسترسی خواندن/نوشتن دارد.
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      match /records/{recordId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+      match /devices/{deviceId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    match /licenses/{licenseId} {
+      // ادمین اصلی (ایمیل ثابت) یا هر کاربری که روی سند users/{uid} خودش
+      // isAdmin:true داشته باشد، به همه‌ی اسناد این کالکشن دسترسی کامل
+      // دارد — این همان دسترسی است که «ساخت لایسنس»، «فهرست لایسنس‌ها و
+      // درخواست‌ها»، تمدید و باطل‌کردن به آن نیاز دارند.
+      allow read, write: if request.auth != null && (
+        request.auth.token.email == "mahdishakerinia68@gmail.com" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)
+      );
+
+      // کاربر معمولی فقط اجازه دارد سند «درخواست لایسنسِ» خودش را با شناسه
+      // REQ-<uid-خودش> و وضعیت pending بسازد (دکمه «ساخت لایسنس»/تلگرام
+      // در نسخه‌ی فعلی این مسیر را استفاده نمی‌کند، ولی برای سازگاری با
+      // نسخه‌های قبلی/درخواست‌های دستی نگه داشته شده).
+      allow create: if request.auth != null &&
+        licenseId == "REQ-" + request.auth.uid &&
+        request.resource.data.status == "pending" &&
+        request.resource.data.requestedBy == request.auth.uid;
+
+      // فعال‌سازی لایسنس (activateLicense) نیاز دارد بتواند سند لایسنسِ
+      // مورد نظر را با آیدی+رمز بخواند، حتی وقتی هنوز ادمین نیست
+      // (کاربر ناشناس/anonymous). چون آیدی سند تصادفی و غیرقابل‌حدس است
+      // (HSB-xxxx-xxxx)، این دسترسیِ خواندنِ عمومیِ per-document امن است؛
+      // فقط برای liste کردن کل کالکشن، ادمین لازم است (بالا).
+      allow get: if request.auth != null;
+
+      // بعد از فعال‌سازی، کاربر باید بتواند وضعیت لایسنسِ خودش را
+      // به‌روزرسانی کند (redeemedBy/status).
+      allow update: if request.auth != null &&
+        (resource.data.redeemedBy == null || resource.data.redeemedBy == request.auth.uid) &&
+        request.resource.data.redeemedBy == request.auth.uid;
+    }
+  }
+}

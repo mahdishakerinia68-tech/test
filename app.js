@@ -686,6 +686,25 @@ function startDevicePresence(){if(sync.presenceTimer)clearInterval(sync.presence
 const FIREBASE_SDK_URLS=["https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js","https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js","https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"];
 const FIREBASE_LOAD_TIMEOUT_MS=9000;
 function withTimeout(promise,ms,msg){return Promise.race([promise,new Promise((_,rej)=>setTimeout(()=>rej(new Error(msg)),ms))])}
+/* v-t7: خواندن/نوشتن روی Firestore گاهی به‌جای خطای فوری، برای همیشه
+   "در حال بارگذاری" می‌ماند (وصل نمی‌شود ولی هم رد و هم قبول نمی‌شود) —
+   مخصوصاً روی اینترنت‌هایی که سرورهای گوگل فیلتر/محدود شده باشند. برای
+   همین هر عملیات Firestore با یک سقف زمانی (FIRESTORE_OP_TIMEOUT_MS)
+   اجرا می‌شود تا کاربر همیشه یک نتیجه یا پیام خطای روشن ببیند، نه یک
+   چرخِ بی‌پایان. friendlyFirestoreError هم پیام‌های فنی Firebase را به
+   یک توضیح قابل‌فهم و کاربردی (اینترنت/فیلترشکن، دسترسی Rules، و...)
+   تبدیل می‌کند. */
+const FIRESTORE_OP_TIMEOUT_MS=15000;
+function fsGet(ref){return withTimeout(ref.get(),FIRESTORE_OP_TIMEOUT_MS,"پاسخی از سرور Firebase دریافت نشد (زمان تمام شد)")}
+function fsSet(ref,data,opts){return withTimeout(opts?ref.set(data,opts):ref.set(data),FIRESTORE_OP_TIMEOUT_MS,"پاسخی از سرور Firebase دریافت نشد (زمان تمام شد)")}
+function friendlyFirestoreError(e){
+  const code=(e&&e.code)||"";
+  const msg=String((e&&e.message)||e||"");
+  if(code==="permission-denied"||/permission.denied/i.test(msg))return "دسترسی رد شد — تنظیمات Firestore Security Rules را بررسی کن.";
+  if(code==="unavailable"||/offline|client is offline/i.test(msg))return "اتصال به سرور Firebase برقرار نشد.\nاحتمال زیاد سرورهای گوگل روی این اینترنت فیلتر/محدود شده‌اند — یک VPN را روشن کن و دوباره امتحان کن.";
+  if(/زمان تمام شد/.test(msg))return msg+"\nاحتمالاً اینترنت ضعیف است یا سرورهای گوگل فیلتر شده‌اند؛ VPN را روشن کن و دوباره امتحان کن.";
+  return msg||"خطای نامشخص";
+}
 function loadScriptOnce(src){return new Promise((resolve,reject)=>{if([...document.scripts].some(s=>s.src===src)){resolve();return}const s=document.createElement("script");s.src=src;s.onload=()=>resolve();s.onerror=()=>reject(new Error("script load failed: "+src));document.head.appendChild(s)})}
 let firebaseLoadPromise=null;
 async function ensureFirebaseLoaded(){
@@ -709,7 +728,12 @@ async function initSync(){
        an already-activated license look "logged out" and forced the
        ID/code screen again. */
     try{await sync.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)}catch(e){console.warn("auth persistence",e)}
-    try{sync.db.settings({ignoreUndefinedProperties:true})}catch(e){}
+    /* v-t7: experimentalAutoDetectLongPolling — روی خیلی از اینترنت‌های
+       محدود/فیلتر یا پشت VPN، اتصال استریمی پیش‌فرض Firestore (WebChannel)
+       هیچ‌وقت برقرار نمی‌شود و کلاینت برای همیشه "آفلاین" می‌ماند، در حالی
+       که خودِ اینترنت وصل است. سوییچ‌کردن خودکار به long-polling این مشکل
+       را در اکثر این حالت‌ها حل می‌کند. */
+    try{sync.db.settings({ignoreUndefinedProperties:true,experimentalAutoDetectLongPolling:true})}catch(e){}
     if(sync.authListener)return;
     sync.authListener=true;
     sync.auth.onAuthStateChanged(async user=>{
@@ -900,7 +924,7 @@ async function refreshCloudLicense(){
     renderLicensePage();licenseGate();return
   }
   try{
-    const doc=await sync.db.collection("users").doc(sync.user.uid).get();
+    const doc=await fsGet(sync.db.collection("users").doc(sync.user.uid));
     const lic=doc.exists?(doc.data().license||null):null;
     const isAdminFlag=!!(doc.exists&&doc.data().isAdmin);
     saveLicenseCloudCache({uid:sync.user.uid,license:lic,isAdmin:isAdminFlag});
@@ -942,7 +966,7 @@ async function activateLicense(opts){
   if(!sync.db)return warn("اتصال به سرویس لایسنس برقرار نشد");
   try{
     const ref=sync.db.collection("licenses").doc(id);
-    const snap=await ref.get();
+    const snap=await fsGet(ref);
     if(!snap.exists)return warn("لایسنسی با این آیدی پیدا نشد");
     const lic=snap.data();
     if(lic.code!==code)return warn("رمز لایسنس نادرست است");
@@ -950,7 +974,7 @@ async function activateLicense(opts){
     if(lic.redeemedBy&&lic.redeemedBy!==sync.user.uid)return warn("این لایسنس قبلاً روی یک حساب دیگر فعال شده است");
     if(!(lic.status==="redeemed"&&lic.redeemedBy===sync.user.uid)){
       const userRef=sync.db.collection("users").doc(sync.user.uid);
-      const userSnap=await userRef.get();
+      const userSnap=await fsGet(userRef);
       const curLic=userSnap.exists?(userSnap.data().license||null):null;
       /* v-t5: پشتیبانی از تاریخ انقضای دلخواه — اگر ادمین موقع ساخت
          لایسنس یک تاریخ مشخص انتخاب کرده باشد (lic.plan==="custom")،
@@ -968,8 +992,8 @@ async function activateLicense(opts){
       }
       const userSet={license:{status:"active",plan:lic.plan,expiresAt:newExpiresAt,licenseId:id,updatedAt:new Date().toISOString()}};
       if(lic.isAdmin)userSet.isAdmin=true; // v-t1: لایسنسِ تیک‌خورده به‌عنوان «ادمین»، دسترسی کامل می‌دهد
-      await userRef.set(userSet,{merge:true});
-      await ref.set({status:"redeemed",redeemedBy:sync.user.uid,redeemedByEmail:sync.user.email||null,redeemedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+      await fsSet(userRef,userSet,{merge:true});
+      await fsSet(ref,{status:"redeemed",redeemedBy:sync.user.uid,redeemedByEmail:sync.user.email||null,redeemedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
     }
     /* v-t1: «همیشه من را به‌خاطر بسپار» */
     const remember=opts.remember!==undefined?opts.remember:!!($("licenseLockRemember")?.checked||$("licenseRememberMe")?.checked);
@@ -980,7 +1004,7 @@ async function activateLicense(opts){
     if($("licenseCodeInput"))$("licenseCodeInput").value="";
     if(!silent){alert("لایسنس با موفقیت فعال شد ✅");logEvent("فعال‌سازی لایسنس",id,"system")}
     return true;
-  }catch(e){return warn("فعال‌سازی ناموفق: "+(e.message||e))}
+  }catch(e){return warn("فعال‌سازی ناموفق: "+friendlyFirestoreError(e))}
 }
 
 async function createLicense(){
@@ -997,14 +1021,14 @@ async function createLicense(){
   const customCode=($("licenseNewCode")?.value||"").trim();
   const id=genLicenseId(),code=customCode?customCode.toUpperCase():genLicenseCode();
   try{
-    await sync.db.collection("licenses").doc(id).set({code,plan,customExpiresAt,note,status:"active",isAdmin:isAdminChecked,createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdBy:sync.user.email,redeemedBy:null,redeemedByEmail:null});
+    await fsSet(sync.db.collection("licenses").doc(id),{code,plan,customExpiresAt,note,status:"active",isAdmin:isAdminChecked,createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdBy:sync.user.email,redeemedBy:null,redeemedByEmail:null});
     if($("licenseNewNote"))$("licenseNewNote").value="";
     if($("licenseNewCode"))$("licenseNewCode").value="";
     if($("licenseNewCustomExpiry"))$("licenseNewCustomExpiry").value="";
     if($("licenseNewAdmin"))$("licenseNewAdmin").checked=false;
     loadAdminLicenses();
     showLicenseCredsModal(id,code,plan,note,isAdminChecked,customExpiresAt);
-  }catch(e){alert("ساخت لایسنس ناموفق: "+(e.message||e))}
+  }catch(e){alert("ساخت لایسنس ناموفق: "+friendlyFirestoreError(e))}
 }
 function showLicenseCredsModal(id,code,plan,note,isAdminFlag,customExpiresAt){
   openModal(`<h2>✅ لایسنس ساخته شد${isAdminFlag?" 👑":""}</h2>
@@ -1035,7 +1059,7 @@ function copyLicenseCreds(id,code){
 async function openLicenseRenewModal(id){
   if(!isLicenseAdmin())return;
   let curAdmin=false;
-  try{const snap=await sync.db.collection("licenses").doc(id).get();if(snap.exists)curAdmin=!!snap.data().isAdmin}catch(e){}
+  try{const snap=await fsGet(sync.db.collection("licenses").doc(id));if(snap.exists)curAdmin=!!snap.data().isAdmin}catch(e){}
   openModal(`<h2>🔄 تمدید لایسنس</h2>
     <p class="hint" style="direction:ltr;text-align:center">${esc(id)}</p>
     <div class="form">
@@ -1061,15 +1085,15 @@ async function renewLicenseById(id){
   const isAdminChecked=!!$("licenseRenewAdmin")?.checked;
   try{
     const ref=sync.db.collection("licenses").doc(id);
-    const snap=await ref.get();
+    const snap=await fsGet(ref);
     if(!snap.exists)return alert("لایسنسی با این آیدی پیدا نشد");
     const lic=snap.data();
     /* v-t5: تاریخ انقضای دلخواه بر گزینه‌ی «افزودن X ماه/سال» اولویت دارد. */
     const newPlan=customExpiresAt?"custom":(plan==="lifetime"?"lifetime":lic.plan);
-    await ref.set({status:"active",plan:newPlan,customExpiresAt:customExpiresAt||null,isAdmin:isAdminChecked},{merge:true});
+    await fsSet(ref,{status:"active",plan:newPlan,customExpiresAt:customExpiresAt||null,isAdmin:isAdminChecked},{merge:true});
     if(lic.redeemedBy){
       const userRef=sync.db.collection("users").doc(lic.redeemedBy);
-      const userSnap=await userRef.get();
+      const userSnap=await fsGet(userRef);
       const curLic=userSnap.exists?(userSnap.data().license||null):null;
       let userSet;
       if(customExpiresAt){
@@ -1083,13 +1107,13 @@ async function renewLicenseById(id){
         userSet={license:{status:"active",plan:curLic?.plan||lic.plan,expiresAt:newExpiresAt,licenseId:id,updatedAt:new Date().toISOString()}};
       }
       userSet.isAdmin=isAdminChecked;
-      await userRef.set(userSet,{merge:true});
+      await fsSet(userRef,userSet,{merge:true});
     }
     alert("تمدید انجام شد ✅");
     closeModal();
     if(sync.user&&lic.redeemedBy===sync.user.uid)await refreshCloudLicense();
     loadAdminLicenses();
-  }catch(e){alert("تمدید ناموفق: "+(e.message||e))}
+  }catch(e){alert("تمدید ناموفق: "+friendlyFirestoreError(e))}
 }
 async function revokeLicenseById(id){
   if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
@@ -1097,22 +1121,22 @@ async function revokeLicenseById(id){
   if(!confirm("این لایسنس باطل شود؟ این کار قابل بازگشت نیست."))return;
   try{
     const ref=sync.db.collection("licenses").doc(id);
-    const snap=await ref.get();
+    const snap=await fsGet(ref);
     if(!snap.exists)return alert("لایسنسی با این آیدی پیدا نشد");
     const lic=snap.data();
-    await ref.set({status:"revoked",isAdmin:false},{merge:true});
+    await fsSet(ref,{status:"revoked",isAdmin:false},{merge:true});
     if(lic.redeemedBy){
       const userRef=sync.db.collection("users").doc(lic.redeemedBy);
-      const userSnap=await userRef.get();
+      const userSnap=await fsGet(userRef);
       const curLic=userSnap.exists?(userSnap.data().license||null):null;
       if(curLic&&curLic.licenseId===id){
-        await userRef.set({license:{status:"revoked",plan:curLic.plan||null,expiresAt:curLic.expiresAt||null,licenseId:id,updatedAt:new Date().toISOString()},isAdmin:false},{merge:true});
+        await fsSet(userRef,{license:{status:"revoked",plan:curLic.plan||null,expiresAt:curLic.expiresAt||null,licenseId:id,updatedAt:new Date().toISOString()},isAdmin:false},{merge:true});
       }
     }
     alert("باطل شد");
     if(sync.user&&lic.redeemedBy===sync.user.uid)await refreshCloudLicense();
     loadAdminLicenses();
-  }catch(e){alert("عملیات ناموفق: "+(e.message||e))}
+  }catch(e){alert("عملیات ناموفق: "+friendlyFirestoreError(e))}
 }
 /* v-t5: طبق خواسته‌ی جدید، «ساخت لایسنس» دیگر هیچ حساب Firebase
    (ایمیل/رمز) نمی‌سازد؛ چون این مسیر بارها باعث باگ و شکایت می‌شد. حالا
@@ -1147,32 +1171,32 @@ async function approveLicenseRequest(id){
   if(isAdminChecked)plan="lifetime";
   try{
     const ref=sync.db.collection("licenses").doc(id);
-    const snap=await ref.get();
+    const snap=await fsGet(ref);
     if(!snap.exists)return alert("درخواستی با این آیدی پیدا نشد");
     const reqData=snap.data();
     if(!reqData.requestedBy)return alert("این یک درخواست معتبر نیست");
     const code=genLicenseCode();
     const days=LICENSE_PLAN_DAYS[plan];
     const expiresAt=days!=null?new Date(Date.now()+days*86400000).toISOString():null;
-    await ref.set({status:"active",plan,code,isAdmin:isAdminChecked,approvedAt:firebase.firestore.FieldValue.serverTimestamp(),approvedBy:sync.user.email,redeemedBy:reqData.requestedBy,redeemedByEmail:reqData.requestedByEmail,redeemedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    await fsSet(ref,{status:"active",plan,code,isAdmin:isAdminChecked,approvedAt:firebase.firestore.FieldValue.serverTimestamp(),approvedBy:sync.user.email,redeemedBy:reqData.requestedBy,redeemedByEmail:reqData.requestedByEmail,redeemedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
     const userRef=sync.db.collection("users").doc(reqData.requestedBy);
     const userSet={license:{status:"active",plan,expiresAt,licenseId:id,updatedAt:new Date().toISOString()},isAdmin:isAdminChecked};
-    await userRef.set(userSet,{merge:true});
+    await fsSet(userRef,userSet,{merge:true});
     alert("درخواست تایید و لایسنس فعال شد ✅");
     closeModal();
     if(sync.user&&reqData.requestedBy===sync.user.uid)await refreshCloudLicense();
     loadAdminLicenses();
-  }catch(e){alert("تایید ناموفق: "+(e.message||e))}
+  }catch(e){alert("تایید ناموفق: "+friendlyFirestoreError(e))}
 }
 async function rejectLicenseRequest(id){
   if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
   if(!confirm("این درخواست رد شود؟"))return;
   try{
-    await sync.db.collection("licenses").doc(id).set({status:"rejected",rejectedAt:firebase.firestore.FieldValue.serverTimestamp(),rejectedBy:sync.user.email},{merge:true});
+    await fsSet(sync.db.collection("licenses").doc(id),{status:"rejected",rejectedAt:firebase.firestore.FieldValue.serverTimestamp(),rejectedBy:sync.user.email},{merge:true});
     alert("درخواست رد شد");
     closeModal();
     loadAdminLicenses();
-  }catch(e){alert("عملیات ناموفق: "+(e.message||e))}
+  }catch(e){alert("عملیات ناموفق: "+friendlyFirestoreError(e))}
 }
 /* v-t3: قبلاً با orderBy("createdAt","desc") می‌خواندیم؛ اگر یک سند هر
    دلیلی این فیلد را نداشته باشد یا قوانین امنیتی Firestore بر اساس
@@ -1189,9 +1213,14 @@ function licenseSortTime(l){
 }
 async function loadAdminLicenses(){
   const box=$("licenseListBox");if(!box||!isLicenseAdmin())return;
-  box.innerHTML="در حال بارگذاری...";
+  /* v-t7: قبلاً وقتی sync.db هنوز آماده نبود یا کوئری هیچ‌وقت جواب
+     نمی‌داد (نه خطا، نه نتیجه)، همین متن "در حال بارگذاری..." برای
+     همیشه روی صفحه می‌ماند. حالا هم یک سقف زمانی (fsGet) و هم یک دکمه‌ی
+     «تلاش دوباره» داریم تا کاربر هیچ‌وقت گیر نکند. */
+  box.innerHTML='<p class="hint">در حال بارگذاری...</p>';
+  if(!sync.db){box.innerHTML='<p class="hint">اتصال به Firebase برقرار نشد.</p><button onclick="loadAdminLicenses()">🔄 تلاش دوباره</button>';return}
   try{
-    const snap=await sync.db.collection("licenses").limit(300).get();
+    const snap=await fsGet(sync.db.collection("licenses").limit(300));
     if(snap.empty){box.innerHTML='<p class="hint">هنوز لایسنس یا درخواستی ثبت نشده.</p>';return}
     const docs=snap.docs.slice().sort((a,b)=>licenseSortTime(b.data())-licenseSortTime(a.data()));
     box.innerHTML=docs.map(d=>{
@@ -1207,7 +1236,7 @@ async function loadAdminLicenses(){
       const expiryTxt=l.plan==="custom"&&l.customExpiresAt?" (تا "+esc(new Date(l.customExpiresAt).toLocaleDateString("fa-IR"))+")":"";
       return `<div class="item"><div><b style="direction:ltr;display:inline-block">${esc(d.id)}</b> — ${esc(LICENSE_PLAN_LABEL[l.plan]||l.plan||"")}${expiryTxt}${adminBadge} — ${st}${l.note?" — "+esc(l.note):""}${l.redeemedByEmail?"<br><small style=\"direction:ltr;display:inline-block\">مشتری: "+esc(l.redeemedByEmail)+"</small>":""}</div><div class="actions"><button title="تمدید" onclick="openLicenseRenewModal('${esc(d.id)}')">✏️</button><button title="باطل‌کردن" class="danger-icon" onclick="revokeLicenseById('${esc(d.id)}')">🗑</button></div></div>`;
     }).join("");
-  }catch(e){box.innerHTML='<p class="hint">خطا در بارگذاری (احتمالاً محدودیت Firestore Rules): '+esc(e.message||"")+'</p>';console.error("loadAdminLicenses",e)}
+  }catch(e){box.innerHTML='<p class="hint">خطا در بارگذاری فهرست: '+esc(friendlyFirestoreError(e))+'</p><button onclick="loadAdminLicenses()">🔄 تلاش دوباره</button>';console.error("loadAdminLicenses",e)}
 }
 
 function renderLicensePage(){
