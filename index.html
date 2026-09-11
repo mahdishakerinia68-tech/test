@@ -187,7 +187,7 @@
   </div>
   <div class="card" id="licenseAdminPanel" style="display:none;margin-bottom:10px">
     <h3>🛠 پنل مدیریت لایسنس (فقط ادمین)</h3>
-    <p class="hint">این بخش‌ها کاملاً جدا از هم هستند: ساخت لایسنس جدید، تمدید یک لایسنس موجود، و باطل‌کردن/حذف یک لایسنس — هرکدام آیدیِ ورودیِ خودشان را دارند تا با هم قاطی نشوند.</p>
+    <p class="hint">برای تمدید یا باطل‌کردنِ هر لایسنس، از دکمه‌های ✏️ (تمدید) و 🗑 (باطل‌کردن) کنار همان لایسنس در فهرست پایین استفاده کن.</p>
   </div>
 
   <div class="card" id="licenseCreatePanel" style="display:none;margin-bottom:10px">
@@ -200,33 +200,9 @@
         <option value="y1">۱ ساله</option>
         <option value="lifetime">دائمی</option>
       </select>
+      <input id="licenseNewCode" placeholder="رمز دلخواه (خالی بگذار تا خودکار ساخته شود)" autocomplete="off" style="direction:ltr;text-align:center">
       <input id="licenseNewNote" placeholder="یادداشت (مثلاً نام مشتری) — اختیاری">
       <button class="primary" onclick="createLicense()">➕ ساخت لایسنس جدید</button>
-    </div>
-  </div>
-
-  <div class="card" id="licenseRenewPanel" style="display:none;margin-bottom:10px">
-    <h3>🔄 تمدید لایسنس</h3>
-    <p class="hint">آیدیِ لایسنسی که می‌خواهی تمدید شود را وارد کن:</p>
-    <div class="form">
-      <input id="licenseRenewId" class="amt-input" placeholder="آیدی لایسنس برای تمدید">
-      <select id="licenseExtendPlan">
-        <option value="m1">افزودن ۱ ماه</option>
-        <option value="m3">افزودن ۳ ماه</option>
-        <option value="m6">افزودن ۶ ماه</option>
-        <option value="y1">افزودن ۱ سال</option>
-        <option value="lifetime">تبدیل به دائمی</option>
-      </select>
-      <button class="primary" onclick="renewLicenseById()">🔄 تمدید</button>
-    </div>
-  </div>
-
-  <div class="card" id="licenseRevokePanel" style="display:none;margin-bottom:10px">
-    <h3>⛔ باطل‌کردن / حذف لایسنس</h3>
-    <p class="hint">آیدیِ لایسنسی که می‌خواهی باطل شود را وارد کن. این کار قابل بازگشت نیست.</p>
-    <div class="form">
-      <input id="licenseRevokeId" class="amt-input" placeholder="آیدی لایسنس برای باطل‌کردن">
-      <button class="danger" onclick="revokeLicenseById()">⛔ باطل‌کردن این لایسنس</button>
     </div>
   </div>
 
@@ -519,6 +495,6 @@
 <script src="capacitor-filesystem-bridge.js"></script>
 <script src="capacitor-biometric-bridge.js"></script>
 <script src="app.js"></script>
-<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js?v=2-8",{updateViaCache:"none"}).catch(console.error)}</script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js?v=2-9",{updateViaCache:"none"}).catch(console.error)}</script>
 </body>
 </html>

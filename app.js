@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="2.8";
+const APP_VERSION="2.9";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -943,10 +943,12 @@ async function createLicense(){
   if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
   const plan=$("licenseNewPlan")?.value||"m1";
   const note=$("licenseNewNote")?.value.trim()||"";
-  const id=genLicenseId(),code=genLicenseCode();
+  const customCode=($("licenseNewCode")?.value||"").trim();
+  const id=genLicenseId(),code=customCode?customCode.toUpperCase():genLicenseCode();
   try{
     await sync.db.collection("licenses").doc(id).set({code,plan,note,status:"active",createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdBy:sync.user.email,redeemedBy:null,redeemedByEmail:null});
     if($("licenseNewNote"))$("licenseNewNote").value="";
+    if($("licenseNewCode"))$("licenseNewCode").value="";
     loadAdminLicenses();
     showLicenseCredsModal(id,code,plan,note);
   }catch(e){alert("ساخت لایسنس ناموفق: "+(e.message||e))}
@@ -973,9 +975,27 @@ function copyLicenseCreds(id,code){
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(()=>alert("کپی شد ✅")).catch(()=>alert(text));
   else alert(text);
 }
-async function renewLicenseById(){
+/* v2.8: renew/revoke now happen directly from the license's own row in
+   the list (✏️ pencil to open the renew options, 🗑 trash to revoke) —
+   no separate "type the ID" fields needed anymore. */
+function openLicenseRenewModal(id){
+  if(!isLicenseAdmin())return;
+  openModal(`<h2>🔄 تمدید لایسنس</h2>
+    <p class="hint" style="direction:ltr;text-align:center">${esc(id)}</p>
+    <div class="form">
+      <select id="licenseExtendPlan">
+        <option value="m1">افزودن ۱ ماه</option>
+        <option value="m3">افزودن ۳ ماه</option>
+        <option value="m6">افزودن ۶ ماه</option>
+        <option value="y1">افزودن ۱ سال</option>
+        <option value="lifetime">تبدیل به دائمی</option>
+      </select>
+      <button class="primary" onclick="renewLicenseById('${esc(id)}')">✅ تایید تمدید</button>
+      <button onclick="closeModal()">انصراف</button>
+    </div>`);
+}
+async function renewLicenseById(id){
   if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
-  const id=($("licenseRenewId")?.value||"").trim();if(!id)return alert("آیدی لایسنس را وارد کن");
   const plan=$("licenseExtendPlan")?.value||"m1";
   try{
     const ref=sync.db.collection("licenses").doc(id);
@@ -997,14 +1017,14 @@ async function renewLicenseById(){
       }
     }
     alert("تمدید انجام شد ✅");
-    if($("licenseRenewId"))$("licenseRenewId").value="";
+    closeModal();
     if(sync.user&&lic.redeemedBy===sync.user.uid)await refreshCloudLicense();
     loadAdminLicenses();
   }catch(e){alert("تمدید ناموفق: "+(e.message||e))}
 }
-async function revokeLicenseById(){
+async function revokeLicenseById(id){
   if(!isLicenseAdmin())return alert("فقط ادمین دسترسی دارد");
-  const id=($("licenseRevokeId")?.value||"").trim();if(!id)return alert("آیدی لایسنس را وارد کن");
+  if(!id)return alert("آیدی لایسنس مشخص نیست");
   if(!confirm("این لایسنس باطل شود؟ این کار قابل بازگشت نیست."))return;
   try{
     const ref=sync.db.collection("licenses").doc(id);
@@ -1021,7 +1041,6 @@ async function revokeLicenseById(){
       }
     }
     alert("باطل شد");
-    if($("licenseRevokeId"))$("licenseRevokeId").value="";
     if(sync.user&&lic.redeemedBy===sync.user.uid)await refreshCloudLicense();
     loadAdminLicenses();
   }catch(e){alert("عملیات ناموفق: "+(e.message||e))}
@@ -1035,7 +1054,7 @@ async function loadAdminLicenses(){
     box.innerHTML=snap.docs.map(d=>{
       const l=d.data();
       const st=l.status==="revoked"?"⛔ باطل‌شده":(l.redeemedBy?"✅ استفاده‌شده":"🕓 استفاده‌نشده");
-      return `<div class="card"><b style="direction:ltr;display:inline-block">${esc(d.id)}</b> — ${esc(LICENSE_PLAN_LABEL[l.plan]||l.plan||"")} — ${st}${l.note?" — "+esc(l.note):""}${l.redeemedByEmail?"<br><small style=\"direction:ltr;display:inline-block\">مشتری: "+esc(l.redeemedByEmail)+"</small>":""}</div>`;
+      return `<div class="item"><div><b style="direction:ltr;display:inline-block">${esc(d.id)}</b> — ${esc(LICENSE_PLAN_LABEL[l.plan]||l.plan||"")} — ${st}${l.note?" — "+esc(l.note):""}${l.redeemedByEmail?"<br><small style=\"direction:ltr;display:inline-block\">مشتری: "+esc(l.redeemedByEmail)+"</small>":""}</div><div class="actions"><button title="تمدید" onclick="openLicenseRenewModal('${esc(d.id)}')">✏️</button><button title="باطل‌کردن" class="danger-icon" onclick="revokeLicenseById('${esc(d.id)}')">🗑</button></div></div>`;
     }).join("");
   }catch(e){box.innerHTML='<p class="hint">خطا در بارگذاری: '+esc(e.message||"")+'</p>'}
 }
@@ -1052,7 +1071,7 @@ function renderLicensePage(){
     else html='<p>⛔ '+st.label+'. برای ادامه استفاده، لایسنس تهیه کن.</p>';
     box.innerHTML=html;
   }
-  const adminPanelIds=["licenseAdminPanel","licenseCreatePanel","licenseRenewPanel","licenseRevokePanel","licenseListPanel"];
+  const adminPanelIds=["licenseAdminPanel","licenseCreatePanel","licenseListPanel"];
   const isAdmin=isLicenseAdmin();
   adminPanelIds.forEach(id=>{const el=$(id);if(el)el.style.display=isAdmin?"":"none"});
   if(isAdmin)loadAdminLicenses();
@@ -1160,8 +1179,15 @@ function showWhatsNewOnce(){
   <div class="whats-new-section">
    <h3>🛠 تغییرات این نسخه (${toFaDigits(APP_VERSION)})</h3>
    <ul>
+    <li>در پنل مدیریت لایسنس، تمدید و باطل‌کردن حالا مستقیم روی خودِ لایسنس در فهرست انجام می‌شود: کنار هر لایسنس یک دکمه ✏️ برای تمدید (باز شدن گزینه‌های تمدید) و یک دکمه 🗑 برای باطل‌کردن است — دیگر نیازی به تایپ دستی آیدی نیست.</li>
+    <li>هنگام ساخت لایسنس جدید، حالا می‌توان یک «رمز دلخواه» هم تعیین کرد؛ اگر خالی گذاشته شود مثل قبل به‌صورت خودکار ساخته می‌شود (آیدی همیشه خودکار است).</li>
+   </ul>
+  </div>
+  <div class="whats-new-section">
+   <h3>🛠 تغییرات نسخه قبل (۲.۸)</h3>
+   <ul>
     <li>رفع باگ اصلیِ «لایسنس نگه نمی‌داشت»: بعد از فعال‌سازی لایسنس، با بستن و بازکردن دوباره‌ی برنامه دوباره صفحه‌ی آیدی/رمز لایسنس ظاهر می‌شد و انگار دوره‌ی ۷روزه از اول شروع می‌شد. علتش این بود که وضعیت لایسنس فقط به نشست ورودِ آنی حساب کاربری (Firebase) وابسته بود و آن نشست همیشه بعد از بستن کامل برنامه روی بعضی گوشی‌ها برنمی‌گشت. حالا یک رکورد جداگانه از «لایسنس فعال» روی خود گوشی نگه‌داری می‌شود و تا وقتی سرور صراحتاً باطل‌شدنش را تأیید نکند، برنامه همان را معتبر می‌داند؛ علاوه بر آن، نگه‌داری نشستِ ورود هم صریحاً تنظیم شد.</li>
-    <li>پنل مدیریت لایسنس به بخش‌های کاملاً جدا تقسیم شد: «ساخت لایسنس جدید»، «تمدید لایسنس» و «باطل‌کردن/حذف لایسنس» هرکدام کارت و آیدی ورودیِ مخصوص به خودشان را دارند تا با هم قاطی نشوند.</li>
+    <li>پنل مدیریت لایسنس به بخش‌های کاملاً جدا تقسیم شد: «ساخت لایسنس جدید» و «فهرست/تمدید/باطل‌کردن» هرکدام کارت مخصوص به خودشان را دارند.</li>
     <li>رفع باگ: باطل‌کردن یک لایسنس، دسترسیِ حسابی که قبلاً آن را فعال کرده بود را واقعاً هم قطع می‌کند (قبلاً فقط خودِ کد لایسنس باطل می‌شد ولی حساب مشتری همچنان فعال می‌ماند).</li>
    </ul>
   </div>
