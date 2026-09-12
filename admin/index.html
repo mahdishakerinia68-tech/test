@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>دفتر لایسنس — حسابدار</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap">
+<style>
+  :root{
+    --bg:#0E1B20; --panel:#16232B; --panel2:#1C2B33; --line:#26363D;
+    --ink:#EAF2F0; --ink2:#8FA3A5; --ink3:#5C6D6F;
+    --gold:#C9A227; --sage:#6FA98C; --rust:#A6453E; --slate:#5E7480;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink)}
+  body{
+    font-family:"Vazirmatn",-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,sans-serif;
+    min-height:100vh; -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--gold);color:#1a1406}
+
+  /* ---------- login screen ---------- */
+  #loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .login-card{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:32px 28px}
+  .login-mark{font-family:var(--mono);font-size:12px;color:var(--gold);letter-spacing:.02em;margin:0 0 6px}
+  .login-title{font-size:22px;font-weight:700;margin:0 0 4px}
+  .login-sub{font-size:13px;color:var(--ink2);margin:0 0 24px;line-height:1.7}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12px;color:var(--ink2);margin-bottom:6px}
+  .field input,.field select{
+    width:100%;background:var(--bg);border:1px solid var(--line);color:var(--ink);
+    border-radius:3px;padding:11px 12px;font-size:14px;font-family:inherit;
+  }
+  .field input:focus,.field select:focus{outline:none;border-color:var(--gold)}
+  .field input[dir="ltr"]{text-align:left;font-family:var(--mono)}
+  button{cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent}
+  button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+  .btn{
+    background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+    border-radius:3px;padding:11px 16px;font-size:13.5px;font-weight:600;
+  }
+  .btn:hover{border-color:var(--slate)}
+  .btn-gold{background:var(--gold);color:#241c05;border-color:var(--gold)}
+  .btn-gold:hover{background:#dbb333}
+  .btn-rust{background:transparent;color:var(--rust);border-color:var(--rust)}
+  .btn-rust:hover{background:rgba(166,69,62,.12)}
+  .btn-block{width:100%}
+  .btn-sm{padding:6px 10px;font-size:12px}
+  #loginError{color:var(--rust);font-size:13px;margin-top:12px;min-height:1em}
+
+  /* ---------- app shell ---------- */
+  #app{display:none;max-width:980px;margin:0 auto;padding:20px 20px 80px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 0 20px;border-bottom:1px solid var(--line);margin-bottom:22px}
+  .topbar-title{display:flex;align-items:baseline;gap:10px}
+  .topbar-title h1{font-size:17px;font-weight:700;margin:0}
+  .topbar-title span{font-family:var(--mono);font-size:11px;color:var(--gold)}
+  .topbar-user{display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--ink2)}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:18px;margin-bottom:20px}
+  .panel h2{font-size:14px;font-weight:700;margin:0 0 14px;display:flex;align-items:center;justify-content:space-between}
+  .panel h2 small{font-weight:400;color:var(--ink2);font-size:12px}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  .grid .field{margin-bottom:0}
+  .form-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+
+  .toolbar{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .toolbar input{flex:1;min-width:180px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:3px;padding:9px 12px;font-size:13.5px;font-family:inherit}
+  .toolbar input:focus{outline:none;border-color:var(--gold)}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{
+    text-align:right;font-weight:600;color:var(--ink2);font-size:11.5px;
+    padding:0 10px 10px;border-bottom:1px solid var(--gold);
+  }
+  thead th.num,tbody td.num{text-align:left}
+  tbody td{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr:hover td{background:var(--panel2)}
+  .uid-cell{font-family:var(--mono);font-size:12px;color:var(--ink2);direction:ltr;text-align:right;cursor:pointer}
+  .uid-cell:hover{color:var(--ink)}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+  .badge.active{background:rgba(111,169,140,.18);color:var(--sage)}
+  .badge.trial{background:rgba(201,162,39,.18);color:var(--gold)}
+  .badge.expired,.badge.revoked{background:rgba(166,69,62,.18);color:var(--rust)}
+  .row-actions{display:flex;gap:6px;justify-content:flex-end}
+  .empty-state{padding:40px 10px;text-align:center;color:var(--ink2);font-size:13.5px;line-height:1.8}
+  .note-cell{color:var(--ink2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hint{font-size:12px;color:var(--ink2);line-height:1.7;margin:0 0 14px}
+  .hint code{font-family:var(--mono);background:var(--bg);padding:1px 5px;border-radius:3px}
+  #toast{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    padding:11px 20px;border-radius:4px;font-size:13px;opacity:0;transition:opacity .2s, transform .2s;pointer-events:none;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  @media (max-width:640px){
+    thead{display:none}
+    table,tbody,tr,td{display:block;width:100%}
+    tbody tr{border:1px solid var(--line);border-radius:4px;margin-bottom:10px;padding:6px 4px}
+    tbody td{border-bottom:none;display:flex;justify-content:space-between;gap:10px}
+    tbody td::before{content:attr(data-label);color:var(--ink2);font-size:11.5px}
+    .note-cell{max-width:none;white-space:normal;text-align:left}
+  }
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-card">
+    <p class="login-mark">حسابدار / دفتر لایسنس</p>
+    <h1 class="login-title">ورود ادمین</h1>
+    <p class="login-sub">با همان ایمیل و رمزی که در Firebase Authentication به‌عنوان ادمین ثبت کرده‌ای وارد شو.</p>
+    <div class="field">
+      <label for="loginEmail">ایمیل</label>
+      <input id="loginEmail" type="email" dir="ltr" autocomplete="username" placeholder="admin@example.com">
+    </div>
+    <div class="field">
+      <label for="loginPass">رمز عبور</label>
+      <input id="loginPass" type="password" autocomplete="current-password" placeholder="••••••••">
+    </div>
+    <button class="btn btn-gold btn-block" onclick="doLogin()">ورود</button>
+    <p id="loginError"></p>
+  </div>
+</div>
+
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-title">
+      <h1>دفتر لایسنس</h1>
+      <span id="projectIdLabel"></span>
+    </div>
+    <div class="topbar-user">
+      <span id="userEmailLabel"></span>
+      <button class="btn btn-sm" onclick="doLogout()">خروج</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>صدور یا ویرایش لایسنس <small>یک سند در licenses/{uid}</small></h2>
+    <p class="hint">
+      کد اتصال (UID) را از خریدار بگیر — او آن را از داخل اپ، مسیر <code>تنظیمات ← همگام‌سازی دو گوشی</code> کپی و برایت ارسال می‌کند.
+      اگر همان UID از قبل در جدول باشد، این فرم سند موجود را به‌روزرسانی می‌کند نه اینکه یکی جدید بسازد.
+    </p>
+    <div class="grid">
+      <div class="field" style="grid-column:1/-1">
+        <label for="fUid">کد اتصال کاربر (UID)</label>
+        <input id="fUid" type="text" dir="ltr" placeholder="مثلاً 8pQzT3...">
+      </div>
+      <div class="field">
+        <label for="fStatus">وضعیت</label>
+        <select id="fStatus">
+          <option value="trial">آزمایشی</option>
+          <option value="active" selected>فعال</option>
+          <option value="expired">منقضی‌شده</option>
+          <option value="revoked">لغو شده</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="fPlan">پلن</label>
+        <input id="fPlan" type="text" placeholder="مثلاً یک‌ساله">
+      </div>
+      <div class="field">
+        <label for="fExpires">تاریخ انقضا</label>
+        <input id="fExpires" type="date">
+      </div>
+      <div class="field">
+        <label for="fMaxDevices">حداکثر دستگاه</label>
+        <input id="fMaxDevices" type="number" min="1" value="1">
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <label for="fNote">یادداشت (نام/شماره خریدار، مرجع پرداخت...)</label>
+        <input id="fNote" type="text" placeholder="اختیاری">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-gold" onclick="saveLicense()">ذخیره لایسنس</button>
+      <button class="btn" onclick="clearForm()">فرم خالی جدید</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>لایسنس‌ها <small id="licenseCountLabel"></small></h2>
+    <div class="toolbar">
+      <input id="searchBox" type="text" placeholder="جستجو در UID یا یادداشت..." oninput="renderTable()">
+      <button class="btn btn-sm" onclick="refreshLicenses()">🔄 بروزرسانی</button>
+    </div>
+    <div id="tableWrap"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* -----------------------------------------------------------------
+ * همان تنظیمات Firebase که در app.js اپ اصلی است — چون این پنل به
+ * همان پروژه‌ی Firebase وصل می‌شود (همان Authentication و همان
+ * Firestore). اگر روزی پروژه Firebase را عوض کردی، اینجا را هم
+ * به‌روزرسانی کن.
+ * ----------------------------------------------------------------- */
+const FIREBASE_CONFIG={
+  apiKey:"AIzaSyAj80ZFjd8nqVwgIIdPTbUbDXoCPwFSxh4",
+  authDomain:"hesabdari-fd3a3.firebaseapp.com",
+  projectId:"hesabdari-fd3a3",
+  storageBucket:"hesabdari-fd3a3.firebasestorage.app",
+  messagingSenderId:"1048332879407",
+  appId:"1:1048332879407:web:d1168138d754d28c8d68da"
+};
+
+const app=firebase.initializeApp(FIREBASE_CONFIG);
+const auth=firebase.auth();
+const db=firebase.firestore();
+
+let licenses=[]; // cached from last fetch: [{id, ...data}]
+let editingId=null;
+
+function $(id){return document.getElementById(id)}
+function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast._h);toast._h=setTimeout(()=>t.classList.remove("show"),2600)}
+
+/* ---------------- auth ---------------- */
+auth.onAuthStateChanged(user=>{
+  if(user){
+    $("loginScreen").style.display="none";
+    $("app").style.display="block";
+    $("userEmailLabel").textContent=user.email||user.uid;
+    $("projectIdLabel").textContent=FIREBASE_CONFIG.projectId;
+    refreshLicenses();
+  }else{
+    $("app").style.display="none";
+    $("loginScreen").style.display="flex";
+  }
+});
+
+async function doLogin(){
+  const email=$("loginEmail").value.trim(), pass=$("loginPass").value;
+  $("loginError").textContent="";
+  if(!email||!pass){$("loginError").textContent="ایمیل و رمز را وارد کن";return}
+  try{
+    await auth.signInWithEmailAndPassword(email,pass);
+  }catch(e){
+    $("loginError").textContent="ورود ناموفق: "+(e.code||e.message);
+  }
+}
+function doLogout(){auth.signOut()}
+
+/* ---------------- data ---------------- */
+async function refreshLicenses(){
+  $("tableWrap").innerHTML='<p class="empty-state">در حال بارگذاری...</p>';
+  try{
+    const snap=await db.collection("licenses").get();
+    licenses=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderTable();
+  }catch(e){
+    licenses=[];
+    $("tableWrap").innerHTML='<p class="empty-state">خطا در خواندن لایسنس‌ها: '+(e.code||e.message)+
+      '<br>اگر «permission-denied» می‌بینی، یعنی UID همین حساب هنوز در firestore.rules به‌عنوان ادمین ثبت نشده.</p>';
+  }
+}
+
+function fmtDate(ts){
+  if(!ts)return "دائمی";
+  try{
+    const d = typeof ts.toDate==="function" ? ts.toDate() : new Date(ts);
+    return d.toLocaleDateString("fa-IR");
+  }catch(e){return "—"}
+}
+function statusLabel(s){return ({active:"فعال",trial:"آزمایشی",expired:"منقضی‌شده",revoked:"لغو شده"})[s]||s||"—"}
+
+function renderTable(){
+  const q=($("searchBox").value||"").trim().toLowerCase();
+  const list=licenses.filter(l=>!q || l.id.toLowerCase().includes(q) || (l.note||"").toLowerCase().includes(q) || (l.plan||"").toLowerCase().includes(q));
+  $("licenseCountLabel").textContent=licenses.length ? `(${list.length} از ${licenses.length})` : "";
+
+  if(!licenses.length){
+    $("tableWrap").innerHTML='<p class="empty-state">هنوز هیچ لایسنسی صادر نشده.<br>کد اتصال (UID) خریدار را از او بگیر و در فرم بالا وارد کن.</p>';
+    return;
+  }
+  if(!list.length){
+    $("tableWrap").innerHTML='<p class="empty-state">چیزی با این جستجو پیدا نشد.</p>';
+    return;
+  }
+
+  const rows=list.map(l=>`
+    <tr>
+      <td data-label="UID"><span class="uid-cell" title="${l.id}" onclick="copyText('${l.id}')">${l.id.slice(0,14)}…</span></td>
+      <td data-label="وضعیت"><span class="badge ${l.status||''}">${statusLabel(l.status)}</span></td>
+      <td data-label="پلن">${l.plan||"—"}</td>
+      <td data-label="انقضا" class="num">${fmtDate(l.expiresAt)}</td>
+      <td data-label="یادداشت" class="note-cell" title="${(l.note||'').replace(/"/g,'&quot;')}">${l.note||"—"}</td>
+      <td data-label="عملیات">
+        <div class="row-actions">
+          <button class="btn btn-sm" onclick="loadIntoForm('${l.id}')">ویرایش</button>
+          <button class="btn btn-sm btn-rust" onclick="revokeLicense('${l.id}')">لغو</button>
+        </div>
+      </td>
+    </tr>`).join("");
+
+  $("tableWrap").innerHTML=`
+    <table>
+      <thead><tr>
+        <th>UID</th><th>وضعیت</th><th>پلن</th><th class="num">انقضا</th><th>یادداشت</th><th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function copyText(t){
+  navigator.clipboard?.writeText(t).then(()=>toast("کپی شد")).catch(()=>{});
+}
+
+function loadIntoForm(id){
+  const l=licenses.find(x=>x.id===id);
+  if(!l)return;
+  editingId=id;
+  $("fUid").value=id;
+  $("fUid").disabled=true;
+  $("fStatus").value=l.status||"active";
+  $("fPlan").value=l.plan||"";
+  $("fMaxDevices").value=l.maxDevices||1;
+  $("fNote").value=l.note||"";
+  $("fExpires").value="";
+  if(l.expiresAt){
+    try{
+      const d = typeof l.expiresAt.toDate==="function" ? l.expiresAt.toDate() : new Date(l.expiresAt);
+      $("fExpires").value=d.toISOString().slice(0,10);
+    }catch(e){}
+  }
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function clearForm(){
+  editingId=null;
+  $("fUid").value="";$("fUid").disabled=false;
+  $("fStatus").value="active";$("fPlan").value="";$("fMaxDevices").value=1;
+  $("fNote").value="";$("fExpires").value="";
+}
+
+async function saveLicense(){
+  const uid=$("fUid").value.trim();
+  if(!uid)return toast("کد اتصال (UID) را وارد کن");
+  const status=$("fStatus").value;
+  const plan=$("fPlan").value.trim();
+  const maxDevices=Number($("fMaxDevices").value)||1;
+  const note=$("fNote").value.trim();
+  const expiresStr=$("fExpires").value;
+  const expiresAt = expiresStr ? firebase.firestore.Timestamp.fromDate(new Date(expiresStr+"T23:59:59")) : null;
+
+  const payload={
+    status, plan, maxDevices, note, expiresAt,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+  const isNew=!licenses.some(l=>l.id===uid);
+  if(isNew) payload.createdAt=firebase.firestore.FieldValue.serverTimestamp();
+
+  try{
+    await db.collection("licenses").doc(uid).set(payload,{merge:true});
+    toast(isNew?"لایسنس صادر شد":"لایسنس به‌روزرسانی شد");
+    clearForm();
+    refreshLicenses();
+  }catch(e){
+    toast("ذخیره ناموفق: "+(e.code||e.message));
+  }
+}
+
+async function revokeLicense(id){
+  if(!confirm("این لایسنس لغو شود؟ کاربر بلافاصله دسترسی سینک ابری‌اش را از دست می‌دهد."))return;
+  try{
+    await db.collection("licenses").doc(id).set({status:"revoked",updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    toast("لایسنس لغو شد");
+    refreshLicenses();
+  }catch(e){
+    toast("لغو ناموفق: "+(e.code||e.message));
+  }
+}
+</script>
+</body>
+</html>
