@@ -22,7 +22,7 @@
     <button id="menuBtn" class="menu-trigger" aria-label="باز کردن منو" aria-haspopup="true" aria-expanded="false" aria-controls="menuModal">⋯</button>
     <img class="app-logo" src="logo.png" alt="حساب‌یار">
     <div class="top-bar-titles">
-      <h1>حساب‌یار <span class="version-pill" id="versionPill">2.5</span></h1>
+      <h1>حساب‌یار <span class="version-pill" id="versionPill">2.3</span></h1>
       <div id="syncBadge" class="sync-badge">☁️ آفلاین</div>
     </div>
   </div>
@@ -286,6 +286,19 @@
         <span class="acc-arrow">⌄</span>
       </button>
       <div class="accordion-body">
+        <div id="licenseBox" class="license-box" style="display:none">
+          <div class="license-box-row">
+            <span id="licenseBadge" class="license-badge">—</span>
+            <span id="licenseDetail" class="hint"></span>
+          </div>
+          <div class="license-box-row">
+            <span class="hint">کد اتصال شما (برای خرید/تمدید لایسنس این کد را برای پشتیبانی بفرستید):</span>
+          </div>
+          <div class="license-box-row">
+            <code id="licenseUid" class="license-uid" onclick="copyLicenseUid()">—</code>
+            <button type="button" class="license-copy-btn" onclick="copyLicenseUid()">📋 کپی</button>
+          </div>
+        </div>
         <input id="settingsSyncEmail" type="email" placeholder="ایمیل حساب مشترک" autocomplete="username">
         <input id="settingsSyncPass" type="password" placeholder="رمز حساب مشترک" autocomplete="current-password">
         <div class="settings-actions">
@@ -295,7 +308,6 @@
           <button onclick="openSyncSettings()">⚙️ تنظیم اتصال Firebase</button>
         </div>
         <div id="syncStatus" class="hint"></div>
-        <p class="hint">«ارسال اطلاعات این گوشی» یک فایل پشتیبان کامل از این گوشی در فایربیس ذخیره می‌کند. «دریافت اطلاعات از ابر» همان فایل را از فایربیس می‌گیرد و به‌طور کامل جایگزین اطلاعات این گوشی می‌کند (نه ترکیب).</p>
         <div class="settings-actions">
           <button onclick="pushToCloud()">☁️ ارسال اطلاعات این گوشی</button>
           <button onclick="pullFromCloud()">⬇️ دریافت اطلاعات از ابر</button>
@@ -341,12 +353,6 @@
       </div>
     </div>
 
-    <div class="item accordion-card page-accordion settings-group admin-license-group" id="stgGroup-license" data-acc-id="stg-license">
-      <button class="accordion-head" type="button" onclick="toggleAccordion(this)">
-        <div class="settings-group-head"><span>🔐</span><div><h3>لایسنس و اشتراک</h3><p class="hint">ساخت لینک، انتخاب مدت، تمدید، ویرایش و ابطال لایسنس — فقط ادمین.</p></div></div><span class="accordion-chevron">⌄</span>
-      </button>
-      <div class="accordion-body license-settings-body"></div>
-    </div>
     <div class="item accordion-card page-accordion settings-group" id="stgGroup-ai" data-acc-id="stg-ai">
       <button class="accordion-head settings-acc-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)">
         <div class="settings-group-head"><span>✨</span><div><h3>یادداشت هوشمند (هوش مصنوعی)</h3><p class="hint">برای استفاده از «یادداشت هوشمند»، کلید API شخصی خودت را از هر سرویس سازگار با فرمت OpenAI (مثل دیپ‌سیک، اوپن‌ای‌آی و…) اینجا وارد کن. آدرس و نام مدل اختیاری هستند و پیش‌فرض روی دیپ‌سیک تنظیم شده‌اند. همه این اطلاعات فقط روی همین گوشی ذخیره می‌شود.</p></div></div>
@@ -365,7 +371,7 @@
     </div>
 
   </div>
-  <p class="hint settings-footer">نسخه <span id="appVersionText">2.5</span> • بکاپ خودکار • اتصال دو گوشی • تقویم شمسی کامل</p>
+  <p class="hint settings-footer">نسخه <span id="appVersionText">2.3</span> • بکاپ خودکار • اتصال دو گوشی • تقویم شمسی کامل</p>
   <p class="hint">تغییرات روی این گوشی ذخیره می‌شود و در صورت اتصال به Firebase با گوشی دوم ادغام می‌گردد.</p>
 </section>
 
@@ -461,6 +467,6 @@
 <script src="capacitor-filesystem-bridge.js"></script>
 <script src="capacitor-biometric-bridge.js"></script>
 <script src="app.js"></script>
-<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js?v=2-8",{updateViaCache:"none"}).catch(console.error)}</script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js?v=2-4",{updateViaCache:"none"}).catch(console.error)}</script>
 </body>
 </html>

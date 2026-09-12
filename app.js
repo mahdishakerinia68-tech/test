@@ -1,155 +1,11 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="2.8";
+const APP_VERSION="2.5";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
 const APP_MODE_KEY="hesabdar-app-mode-v1";
-/* ===== License manager v2.9 — Telegram bot backed =====
- * License records live on your own small backend (see the bot-server
- * folder) instead of Firebase. The backend is driven by a Telegram bot:
- * the admin (Telegram id 86926405, @hesabyar2026_bot) creates, extends
- * and revokes license codes with bot commands, and this app calls the
- * backend's REST API to validate a code. LocalStorage is only a
- * cache/offline snapshot and is never authoritative when the license
- * server is reachable.
- */
-const LICENSE_KEY="hesabdar-license-v2";
-const LICENSE_SERVER_KEY="hesabdar-license-server-v1";
-const DEFAULT_LICENSE_API_BASE="https://hesabdar-license-bot-production.up.railway.app"; // ← آدرس سرور ربات تلگرام خودت (پوشه bot-server) را اینجا جایگزین کن
-const LICENSE_ADMIN_TOKEN_KEY="hesabdar-license-admin-token-v1";
-const LICENSE_PLANS={"1m":{label:"۱ ماهه",months:1},"2m":{label:"۲ ماهه",months:2},"3m":{label:"۳ ماهه",months:3},"6m":{label:"۶ ماهه",months:6},"1y":{label:"۱ ساله",months:12},"life":{label:"دائمی",months:null}};
-function licenseApiBase(){return (localStorage.getItem(LICENSE_SERVER_KEY)||DEFAULT_LICENSE_API_BASE).replace(/\/$/,"")}
-function setLicenseApiBase(u){if(u)localStorage.setItem(LICENSE_SERVER_KEY,u.trim().replace(/\/$/,""));else localStorage.removeItem(LICENSE_SERVER_KEY)}
-function licenseNow(){return new Date()}
-function licenseActive(l){return !!(l&&l.status!=="revoked"&&(!l.expiresAt||new Date(l.expiresAt)>licenseNow()))}
-function currentLicense(){try{return JSON.parse(localStorage.getItem(LICENSE_KEY)||"null")}catch{return null}}
-function setCurrentLicense(l){if(l)localStorage.setItem(LICENSE_KEY,JSON.stringify(l));else localStorage.removeItem(LICENSE_KEY)}
-function addMonths(d,m){const x=new Date(d);const day=x.getDate();x.setMonth(x.getMonth()+m);if(x.getDate()!==day)x.setDate(0);return x}
-function licensePlanExpiry(plan,from){const cfg=LICENSE_PLANS[plan];return cfg?.months?addMonths(from,cfg.months).toISOString():null}
-function makeLicenseLink(l){return location.href.split(/[?#]/)[0]+"?license="+encodeURIComponent(l.id)}
-async function fetchCloudLicense(id){
-  if(!id)return null;
-  const url=`${licenseApiBase()}/api/license/${encodeURIComponent(id)}`;
-  const r=await fetch(url,{cache:"no-store"});
-  if(r.status===404)return null;
-  if(!r.ok)throw new Error("License server read failed: HTTP "+r.status);
-  return await r.json();
-}
-async function refreshCurrentLicense(){
-  const l=currentLicense();if(!l?.id)return false;
-  try{
-    const remote=await fetchCloudLicense(l.id);
-    if(remote){setCurrentLicense({...remote,activatedAt:l.activatedAt||remote.activatedAt});return licenseActive(remote)}
-  }catch(e){console.warn("license refresh",e)}
-  return licenseActive(l);
-}
-async function activateLicenseFromUrl(){
-  const id=new URLSearchParams(location.search).get("license");if(!id)return false;
-  try{
-    const remote=await fetchCloudLicense(id);
-    if(!remote||!LICENSE_PLANS[remote.plan]){alert("این لینک لایسنس روی سرور پیدا نشد یا نامعتبر است.");return false}
-    if(!licenseActive(remote)){setCurrentLicense(remote);alert(remote.status==="revoked"?"این لایسنس باطل شده است.":"مدت این لایسنس تمام شده است.");return false}
-    setCurrentLicense({...remote,status:"active",activatedAt:new Date().toISOString()});
-    try{history.replaceState({},document.title,location.pathname+location.hash)}catch{}
-    return true;
-  }catch(e){console.warn(e);alert("اتصال به سرور لایسنس (ربات تلگرام) برای فعال‌سازی انجام نشد. اینترنت را بررسی کن.");return false}
-}
-function licenseGate(){return licenseActive(currentLicense())}
-function licenseDate(v){return v?new Date(v).toLocaleDateString("fa-IR")+" • "+new Date(v).toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"}):"بدون تاریخ انقضا"}
-function openLicenseGate(){const l=currentLicense();const expired=l&&l.status!=="revoked"&&!licenseActive(l);openModal(`<h2>🔐 لایسنس حساب‌یار</h2><p class="hint">${l?.status==="revoked"?"این لایسنس باطل شده است.":expired?"مدت استفاده از این لایسنس تمام شده است.":"برای استفاده از برنامه یک لینک یا کد لایسنس فعال وارد کن."}</p><div class="form"><input id="licenseLinkInput" placeholder="مثلا LIC-AE16C2B777 یا لینک لایسنس" autocomplete="off"><div class="settings-actions"><button class="primary" onclick="activateLicenseInput()">✅ فعال‌سازی / تمدید</button></div></div>`)}
-async function activateLicenseInput(){
-  const v=$("licenseLinkInput")?.value.trim();if(!v)return alert("لینک یا کد لایسنس را وارد کن.");let id=v;
-  try{id=new URL(v,location.href).searchParams.get("license")||v}catch{}
-  if(!/^LIC-[A-F0-9]{10}$/i.test(id))return alert("کد لایسنس نامعتبر است.");
-  let remote,fetchErr;
-  try{remote=await fetchCloudLicense(id)}catch(e){fetchErr=e}
-  if(fetchErr)return alert("اتصال به سرور لایسنس (ربات تلگرام) برقرار نشد.\nاینترنت را بررسی کن یا بعداً دوباره امتحان کن.\n\nجزئیات فنی: "+(fetchErr.message||fetchErr));
-  if(!remote||!LICENSE_PLANS[remote.plan])return alert("این کد لایسنس پیدا نشد (نامعتبر است یا هنوز توسط ادمین ساخته نشده).");
-  if(!licenseActive(remote))return alert(remote.status==="revoked"?"این لایسنس باطل شده است.":"این لایسنس منقضی شده است.");
-  setCurrentLicense({...remote,status:"active",activatedAt:new Date().toISOString()});closeModal();renderLicenseStatus();alert("لایسنس با موفقیت فعال شد.");
-}
-function licenseAdminToken(){return localStorage.getItem(LICENSE_ADMIN_TOKEN_KEY)||""}
-function setLicenseAdminToken(t){if(t)localStorage.setItem(LICENSE_ADMIN_TOKEN_KEY,t);else localStorage.removeItem(LICENSE_ADMIN_TOKEN_KEY)}
-function isLicenseAdmin(){return !!licenseAdminToken()}
-async function licenseAdminFetch(path,opts={}){
-  const r=await fetch(`${licenseApiBase()}${path}`,{...opts,headers:{...(opts.headers||{}),"Content-Type":"application/json","x-admin-password":licenseAdminToken()}});
-  if(r.status===401){setLicenseAdminToken("");throw new Error("رمز ادمین نامعتبر است یا منقضی شده؛ دوباره وارد شو.")}
-  if(!r.ok){let t="";try{t=(await r.json()).error}catch{}throw new Error(t||("HTTP "+r.status))}
-  try{return await r.json()}catch{return null}
-}
-async function loginLicenseAdmin(){
-  const pass=prompt("رمز مدیریت لایسنس (رمز پنل ادمین سرور ربات تلگرام) را وارد کن:");
-  if(pass===null)return false;
-  if(!pass)return alert("رمز را وارد کن."),false;
-  setLicenseAdminToken(pass);
-  try{
-    await licenseAdminFetch("/api/admin/licenses");
-    removeLicenseHardGate();renderLicenseSettingsAccess();alert("ورود ادمین با موفقیت انجام شد.");return true;
-  }catch(e){setLicenseAdminToken("");alert("ورود ادمین ناموفق بود: "+e.message);return false}
-}
-function logoutLicenseAdmin(){setLicenseAdminToken("");renderLicenseSettingsAccess()}
-async function createLicense(){
-  if(!isLicenseAdmin())return alert("برای ساخت لایسنس باید با حساب ادمین وارد شوید."),false;
-  const plan=$("licensePlan")?.value||"1m";
-  try{
-    const l=await licenseAdminFetch("/api/admin/licenses",{method:"POST",body:JSON.stringify({plan})});
-    const link=makeLicenseLink(l);$("licenseCreatedLink").value=link;$("licenseCreatedCode").textContent=l.id;renderLicenseAdmin();logEvent("ساخت لایسنس",`${l.id} • ${LICENSE_PLANS[plan].label}`,"settings");alert("لایسنس ساخته شد و در ربات تلگرام هم اعلان شد.");
-  }catch(e){alert("ساخت لایسنس ناموفق بود: "+e.message)}
-}
-function copyLicenseLink(){const v=$("licenseCreatedLink")?.value;if(!v)return;navigator.clipboard?.writeText(v).then(()=>alert("لینک کپی شد.")).catch(()=>{const e=$("licenseCreatedLink");e.select();document.execCommand("copy");alert("لینک کپی شد.")})}
-async function loadLicenseAdminStore(){
-  if(!isLicenseAdmin())return [];
-  try{return (await licenseAdminFetch("/api/admin/licenses"))||[]}catch(e){console.warn("license list",e);return []}
-}
-async function editLicense(id){
-  if(!isLicenseAdmin())return alert("فقط ادمین می‌تواند لایسنس را مدیریت کند."),false;
-  const a=await loadLicenseAdminStore(),l=a.find(x=>x.id===id);if(!l)return;const p=prompt("پلن جدید: 1m / 2m / 3m / 6m / 1y / life",l.plan);if(!p||!LICENSE_PLANS[p])return alert("پلن نامعتبر است.");
-  try{const updated=await licenseAdminFetch(`/api/admin/licenses/${id}`,{method:"PUT",body:JSON.stringify({plan:p})});if(currentLicense()?.id===id)setCurrentLicense({...currentLicense(),...updated});renderLicenseAdmin();alert("لایسنس ویرایش شد.")}catch(e){alert("ویرایش ناموفق بود: "+e.message)}
-}
-async function extendLicense(id){
-  if(!isLicenseAdmin())return alert("فقط ادمین می‌تواند لایسنس را مدیریت کند."),false;
-  try{
-    const l=await licenseAdminFetch(`/api/admin/licenses/${id}/extend`,{method:"POST"});
-    if(currentLicense()?.id===id)setCurrentLicense({...currentLicense(),...l});
-    renderLicenseAdmin();alert(`لایسنس ${LICENSE_PLANS[l.plan]?.label||l.plan} تمدید شد تا ${licenseDate(l.expiresAt)}.`)
-  }catch(e){alert("تمدید ناموفق بود: "+e.message)}
-}
-async function revokeLicense(id){
-  if(!isLicenseAdmin())return alert("فقط ادمین می‌تواند لایسنس را مدیریت کند."),false;
-  if(!confirm(`لایسنس ${id} باطل شود؟`))return;
-  try{await licenseAdminFetch(`/api/admin/licenses/${id}/revoke`,{method:"POST"});const a=await loadLicenseAdminStore();if(currentLicense()?.id===id)setCurrentLicense({...currentLicense(),status:"revoked"});renderLicenseAdmin();alert("لایسنس باطل شد.")}catch(e){alert("ابطال ناموفق بود: "+e.message)}
-}
-function renderLicenseStatus(){const b=$("licenseStatusBox");if(!b)return;const l=currentLicense();b.innerHTML=l&&licenseActive(l)?`<div class="card"><b>🟢 لایسنس فعال</b><br>پلن: ${LICENSE_PLANS[l.plan]?.label||"نامشخص"}<br>انقضا: ${licenseDate(l.expiresAt)}<br><small>شناسه: ${esc(l.id||"")} • 🤖 ربات تلگرام</small></div>`:`<div class="card"><b>🔴 لایسنس فعال نیست</b><br><small>برای ادامه استفاده، لینک یا کد لایسنس را وارد یا تمدید کن.</small></div>`}
-async function renderLicenseAdmin(){const box=$("licenseAdminList");if(!box)return;const a=await loadLicenseAdminStore();box.innerHTML=a.length?a.map(l=>`<div class="card license-row"><b>${esc(l.id)}</b><div>${LICENSE_PLANS[l.plan]?.label||l.plan} • ${l.status==="revoked"?"⛔ باطل شده":licenseActive(l)?"🟢 فعال":"🔴 منقضی"}</div><small>انقضا: ${licenseDate(l.expiresAt)}</small><div class="settings-actions"><button onclick="editLicense('${l.id}')">✏️ ویرایش</button><button onclick="extendLicense('${l.id}')">🔄 تمدید</button><button onclick="revokeLicense('${l.id}')" class="danger">⛔ باطل کردن</button><button onclick="promptShowLicenseLink('${l.id}')">🔗 لینک</button></div></div>`).join(""):"<p class='hint'>هنوز لایسنسی ساخته نشده است. از ربات تلگرام (دستور /new) یا دکمه بالا بساز.</p>"}
-async function promptShowLicenseLink(id){const a=await loadLicenseAdminStore(),l=a.find(x=>x.id===id);if(!l)return;const link=makeLicenseLink(l);openModal(`<h2>🔗 لینک لایسنس</h2><textarea id="licenseShareLink" rows="5" readonly>${esc(link)}</textarea><p class="hint">کد لایسنس: <b>${esc(l.id)}</b></p><div class="settings-actions"><button class="primary" onclick="copyTextById('licenseShareLink')">📋 کپی لینک</button></div>`)}
-function copyTextById(id){const e=$(id);if(!e)return;e.select();navigator.clipboard?.writeText(e.value).then(()=>alert("کپی شد.")).catch(()=>{document.execCommand("copy");alert("کپی شد.")})}
-function openLicenseSettings(){
-  if(!isLicenseAdmin()){
-    openModal(`<h2>🔐 مدیریت لایسنس</h2><p class="hint">فقط مدیر سیستم (ادمین ربات تلگرام) می‌تواند لینک لایسنس بسازد، ویرایش کند، تمدید یا باطل کند.</p>
-      <div class="form"><input id="licenseAdminPass" type="password" placeholder="رمز پنل ادمین لایسنس" autocomplete="current-password">
-      <button class="primary" onclick="loginLicenseAdmin().then(ok=>{if(ok)openLicenseSettings()})">ورود ادمین</button></div>`);
-    return;
-  }
-  openModal(`<h2>🔐 لایسنس و اشتراک</h2><div id="licenseStatusBox"></div><p class="hint">مدیریت لایسنس از طریق ربات تلگرام <b>@hesabyar2026_bot</b> یا همین پنل انجام می‌شود؛ تغییر یا ابطال لایسنس روی دستگاه مشتری اعمال می‌شود.</p>
-  <h3>ساخت لینک جدید</h3><select id="licensePlan"><option value="1m">۱ ماهه</option><option value="2m">۲ ماهه</option><option value="3m">۳ ماهه</option><option value="6m">۶ ماهه</option><option value="1y">۱ ساله</option><option value="life">دائمی</option></select>
-  <div class="settings-actions"><button class="primary" onclick="createLicense()">🔗 ساخت لینک</button></div>
-  <input id="licenseCreatedLink" readonly placeholder="لینک ساخته‌شده"><div id="licenseCreatedCode" class="hint"></div>
-  <div class="settings-actions"><button onclick="copyLicenseLink()">📋 کپی لینک</button></div><h3>مدیریت لایسنس‌ها</h3><div id="licenseAdminList"></div>
-  <h3>⚙️ آدرس سرور لایسنس</h3><div class="form"><input id="licenseServerUrl" placeholder="https://..." value="${esc(licenseApiBase())}"><div class="settings-actions"><button onclick="setLicenseApiBase($('licenseServerUrl').value);alert('آدرس سرور ذخیره شد.')">💾 ذخیره آدرس</button></div></div>
-  <div class="settings-actions"><button onclick="logoutLicenseAdmin();openLicenseSettings()">🚪 خروج از حساب ادمین</button></div>`);
-  renderLicenseStatus();renderLicenseAdmin();
-}
-function showLicenseHardGate(){if(licenseGate()||isLicenseAdmin()){removeLicenseHardGate();return}let el=document.getElementById("licenseHardGate");if(!el){el=document.createElement("div");el.id="licenseHardGate";el.innerHTML=`<div class="license-hard-card"><div class="license-hard-icon">🔐</div><h2>فعال‌سازی حساب‌یار</h2><p>برای استفاده از برنامه باید یک لایسنس فعال داشته باشید.</p><input id="hardLicenseLink" placeholder="مثلا LIC-AE16C2B777 یا لینک لایسنس" autocomplete="off"><button class="primary" id="hardLicenseBtn">فعال‌سازی لایسنس</button><button id="hardAdminBtn">ورود مدیر سیستم</button><small>پس از پایان یا ابطال لایسنس، دسترسی برنامه مسدود می‌شود.</small></div>`;document.body.appendChild(el);$("hardLicenseBtn").onclick=async()=>{const v=$("hardLicenseLink")?.value.trim();if(!v)return alert("لینک یا کد لایسنس را وارد کن.");let id=v;try{id=new URL(v,location.href).searchParams.get("license")||v}catch{}if(!/^LIC-[A-F0-9]{10}$/i.test(id))return alert("کد لایسنس نامعتبر است.");const remote=await fetchCloudLicense(id).catch(()=>null);if(!remote||!LICENSE_PLANS[remote.plan])return alert("این لایسنس پیدا نشد.");if(!licenseActive(remote))return alert(remote.status==="revoked"?"این لایسنس باطل شده است.":"مدت لایسنس تمام شده است.");setCurrentLicense({...remote,status:"active",activatedAt:new Date().toISOString()});try{history.replaceState({},document.title,location.pathname+location.hash)}catch{}alert("لایسنس با موفقیت فعال شد.");location.reload()};$("hardAdminBtn").onclick=loginLicenseAdmin}el.style.display="flex";document.documentElement.classList.add("license-locked")}
-function removeLicenseHardGate(){const el=document.getElementById("licenseHardGate");if(el)el.style.display="none";document.documentElement.classList.remove("license-locked")}
-async function enforceLicenseAccess(){if(isLicenseAdmin()){removeLicenseHardGate();renderLicenseSettingsAccess();return true}if(await activateLicenseFromUrl()){removeLicenseHardGate();return true}if(currentLicense()?.id&&await refreshCurrentLicense()){removeLicenseHardGate();return true}showLicenseHardGate();return false}
-function guardLicense(){if(licenseGate())return true;openLicenseGate();return false}
-async function startLicenseWatcher(){
-  const check=async()=>{if(isLicenseAdmin()){removeLicenseHardGate();renderLicenseSettingsAccess();return}if(!currentLicense()?.id){showLicenseHardGate();return}const active=await refreshCurrentLicense();renderLicenseStatus();if(!active){showLicenseHardGate()}};
-  await check();if(window.__licenseWatchTimer)clearInterval(window.__licenseWatchTimer);window.__licenseWatchTimer=setInterval(check,60000);window.addEventListener("focus",check);window.addEventListener("online",check);
-}
-
 function appMode(){return localStorage.getItem(APP_MODE_KEY)||"business"}
 /* --- رمز ادمین قفل حالت فروشگاه (v2.5) ---
  * جدا از رمز ورود به برنامه (PIN/الگو) نگه‌داری می‌شود و در localStorage
@@ -265,7 +121,7 @@ const DEFAULT_SYNC_CONFIG={
   appId:"1:1048332879407:web:d1168138d754d28c8d68da",
   measurementId:"G-562NVEJKZT"
 };
-let sync={app:null,auth:null,db:null,user:null,unsubscribe:null,ready:false,saving:false,queued:false,hydrating:false,authListener:false,dirty:new Map()};
+let sync={app:null,auth:null,db:null,user:null,unsubscribe:null,licenseUnsub:null,ready:false,saving:false,queued:false,hydrating:false,authListener:false,dirty:new Map()};
 function syncConfig(){try{return JSON.parse(localStorage.getItem(SYNC_KEY)||"null")||DEFAULT_SYNC_CONFIG}catch{return DEFAULT_SYNC_CONFIG}}
 function autoBackupEnabled(){return localStorage.getItem(AUTO_BACKUP_ENABLED_KEY)!=="false"}
 function setAutoBackupEnabled(v){localStorage.setItem(AUTO_BACKUP_ENABLED_KEY,v?"true":"false"); if(v) createAutoBackup("فعال‌سازی پشتیبان خودکار"); logEvent(v?"پشتیبان خودکار فعال شد":"پشتیبان خودکار غیرفعال شد",v?"از این پس هر ۶ ساعت یک فایل پشتیبان واقعی داخل گوشی ساخته می‌شود":"پشتیبان‌گیری خودکار خاموش شد","settings",false); renderSettingsFeatures()}
@@ -710,7 +566,7 @@ function save(){
 function saveWithAttachments(records){
  if(persistLocal()){maybeAutoBackup("ذخیره زمان‌بندی‌شده");render();syncSave();return true}
  let stripped=false;
- (Array.isArray(records)?records:[records]).forEach(r=>{if(r&&(r.image||r.receipt)){delete r.image;delete r.receipt;stripped=true}});
+ (Array.isArray(records)?records:[records]).forEach(r=>{if(r&&(r.image||r.receipt||(r.images&&r.images.length))){delete r.image;delete r.receipt;delete r.images;stripped=true}});
  if(stripped&&persistLocal()){maybeAutoBackup("ذخیره زمان‌بندی‌شده");render();syncSave();alert("⚠️ حجم عکس پیوست بیش از فضای خالی دستگاه بود؛ اطلاعات بدون عکس ذخیره شد.");return true}
  alert(STORAGE_FULL_MSG);return false
 }
@@ -815,7 +671,7 @@ async function hydrateSync(){
   if(!sync.user||!sync.db)return;
   sync.hydrating=true;
   try{const remote=await pullRest();mergeCloud(remote);localStorage.setItem(KEY,JSON.stringify(data));await reconcileInitial(remote);render();setSyncStatus("☁️ آنلاین • همگام‌سازی لحظه‌ای")}
-  catch(e){console.error(e);setSyncStatus("⚠️ دریافت اولیه ناموفق: "+(e.code||e.message))}
+  catch(e){console.error(e);setSyncStatus(friendlySyncError(e))}
   finally{sync.hydrating=false}
 }
 async function syncTick(){
@@ -827,7 +683,7 @@ function deviceId(){let id=localStorage.getItem(DEVICE_ID_KEY);if(!id){id=uid();
 async function updateDevicePresence(){if(!sync.user||!sync.db)return false; try{await cloudDoc().collection("devices").doc(deviceId()).set({deviceId:deviceId(),lastSeen:new Date().toISOString(),userAgent:navigator.userAgent.slice(0,120)}, {merge:true}); return true}catch(e){console.warn("presence",e);return false}}
 async function verifyTwoPhoneConnection(manual=false){if(!sync.user||!sync.db){if(manual)setSyncStatus("⚠️ ابتدا با حساب همگام‌سازی وارد شوید");return false} try{await updateDevicePresence(); const snap=await cloudDoc().collection("devices").get(); const now=Date.now(); const others=snap.docs.map(d=>d.data()).filter(x=>x.deviceId!==deviceId()&&x.lastSeen&&(now-new Date(x.lastSeen).getTime())<=DEVICE_PRESENCE_MS); setSyncStatus(others.length?`📱 ${fa(others.length)} گوشی دیگر متصل است • همگام‌سازی فعال`:"📱 گوشی دوم در ۴۵ ثانیه اخیر دیده نشد • در حال بررسی مجدد"); if(others.length)logEvent("بررسی اتصال دو گوشی",`گوشی دیگر فعال است (${others.length})`,"sync",false); return !!others.length}catch(e){setSyncStatus("⚠️ بررسی اتصال دو گوشی ناموفق بود: "+(e.code||e.message));return false}}
 function startDevicePresence(){if(sync.presenceTimer)clearInterval(sync.presenceTimer); updateDevicePresence(); sync.presenceTimer=setInterval(()=>{if(sync.user)verifyTwoPhoneConnection(false)},DEVICE_PRESENCE_INTERVAL)}
-const FIREBASE_SDK_URLS=["https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js","https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js","https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js","https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"];
+const FIREBASE_SDK_URLS=["https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js","https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js","https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"];
 const FIREBASE_LOAD_TIMEOUT_MS=9000;
 function withTimeout(promise,ms,msg){return Promise.race([promise,new Promise((_,rej)=>setTimeout(()=>rej(new Error(msg)),ms))])}
 function loadScriptOnce(src){return new Promise((resolve,reject)=>{if([...document.scripts].some(s=>s.src===src)){resolve();return}const s=document.createElement("script");s.src=src;s.onload=()=>resolve();s.onerror=()=>reject(new Error("script load failed: "+src));document.head.appendChild(s)})}
@@ -846,56 +702,91 @@ async function initSync(){
   if(!window.firebase){const ok=await ensureFirebaseLoaded().catch(()=>false);if(!ok)return}
   try{
     if(!sync.app)sync.app=firebase.apps.length?firebase.app():firebase.initializeApp(cfg);
-    sync.auth=firebase.auth();sync.db=firebase.firestore();try{await sync.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)}catch(e){console.warn("auth persistence",e)}
+    sync.auth=firebase.auth();sync.db=firebase.firestore();
     try{sync.db.settings({ignoreUndefinedProperties:true})}catch(e){}
-    try{sync.storage=firebase.storage()}catch(e){console.warn("firebase storage init failed",e)}
     if(sync.authListener)return;
     sync.authListener=true;
-    let resolveInitialAuth;
-    const initialAuth=new Promise(resolve=>{resolveInitialAuth=resolve});
     sync.auth.onAuthStateChanged(async user=>{
-      sync.user=user;resolveInitialAuth(user);fillSettingsSyncEmail();
+      sync.user=user;fillSettingsSyncEmail();
       if(sync.timer)clearInterval(sync.timer);if(sync.unsubscribe){sync.unsubscribe();sync.unsubscribe=null}
-      if(!user){sync.ready=false;if(sync.presenceTimer)clearInterval(sync.presenceTimer);setSyncStatus("☁️ برای همگام‌سازی وارد شوید");return}
+      if(sync.licenseUnsub){sync.licenseUnsub();sync.licenseUnsub=null}
+      if(!user){sync.ready=false;if(sync.presenceTimer)clearInterval(sync.presenceTimer);setSyncStatus("☁️ برای همگام‌سازی وارد شوید");hideLicenseBox();return}
+      watchLicense(user.uid);
       sync.ready=true;await hydrateSync();await rescheduleAllNativeReminders();startDevicePresence();await verifyTwoPhoneConnection(false);
       sync.unsubscribe=recordsCollection().onSnapshot(snap=>{
         if(sync.hydrating)return;
         const remote=snap.docs.map(d=>d.data());
         if(mergeCloud(remote)){localStorage.setItem(KEY,JSON.stringify(data));render();syncSave();syncAllNotesToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error)}
         setSyncStatus("☁️ آنلاین • همگام‌سازی لحظه‌ای")
-      },e=>setSyncStatus("⚠️ همگام‌سازی: "+(e.code||e.message)));
+      },e=>setSyncStatus(friendlySyncError(e)));
       sync.timer=setInterval(syncTick,SYNC_INTERVAL);
     });
-    await initialAuth;
   }catch(e){console.error(e);setSyncStatus("⚠️ تنظیمات Firebase نامعتبر است")}
+}
+/* --- License status (v2.6): read-only badge in Settings > Sync. Real
+ * enforcement happens in Firestore Security Rules (a user whose license
+ * isn't active/trial simply gets a permission-denied on read/write of
+ * their own cloud data) — this UI only turns that into a clear Persian
+ * message and shows the UID the buyer needs to send to support so an
+ * admin can activate/extend their license from the admin panel. */
+function friendlySyncError(e){
+  if(e&&e.code==="permission-denied")return "⚠️ لایسنس شما فعال نیست یا منقضی شده — کد اتصال را از تنظیمات برای پشتیبانی بفرست";
+  return "⚠️ همگام‌سازی: "+(e&&(e.code||e.message)||"")
+}
+function licenseStatusLabel(s){return ({active:"فعال",trial:"آزمایشی",expired:"منقضی‌شده",revoked:"لغو شده"})[s]||"نامشخص"}
+function hideLicenseBox(){const b=$("licenseBox");if(b)b.style.display="none"}
+function renderLicenseBox(lic){
+  const box=$("licenseBox"),badge=$("licenseBadge"),detail=$("licenseDetail"),uidEl=$("licenseUid");
+  if(!box)return;
+  box.style.display="flex";
+  if(uidEl)uidEl.textContent=sync.user?sync.user.uid:"—";
+  if(!badge||!detail)return;
+  if(!lic){badge.textContent="بدون لایسنس";badge.className="license-badge";detail.textContent="برای فعال‌سازی، کد بالا را برای پشتیبانی ارسال کن.";return}
+  const st=lic.status||"expired";
+  badge.textContent=licenseStatusLabel(st);
+  badge.className="license-badge "+st;
+  let exp="";
+  try{if(lic.expiresAt&&typeof lic.expiresAt.toDate==="function")exp=" • تا "+lic.expiresAt.toDate().toLocaleDateString("fa-IR");
+  else if(lic.expiresAt===null)exp=" • دائمی";}catch(e){}
+  detail.textContent=(lic.plan?("پلن: "+lic.plan):"")+exp;
+}
+function watchLicense(uid){
+  if(sync.licenseUnsub){sync.licenseUnsub();sync.licenseUnsub=null}
+  if(!uid||!sync.db)return;
+  sync.licenseUnsub=sync.db.collection("licenses").doc(uid).onSnapshot(
+    snap=>renderLicenseBox(snap.exists?snap.data():null),
+    ()=>renderLicenseBox(null)
+  );
+}
+function copyLicenseUid(){
+  if(!sync.user)return alert("اول با حساب همگام‌سازی وارد شو");
+  const uid=sync.user.uid;
+  const done=()=>setSyncStatus("📋 کد اتصال کپی شد");
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(uid).then(done).catch(()=>fallbackCopyLicenseUid(uid))}
+  else fallbackCopyLicenseUid(uid);
+}
+function fallbackCopyLicenseUid(t){
+  try{const ta=document.createElement("textarea");ta.value=t;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);setSyncStatus("📋 کد اتصال کپی شد")}
+  catch(e){alert("کد اتصال: "+t)}
 }
 async function syncSave(){
   if(!sync.ready||!sync.user||sync.hydrating)return;
   sync.queued=true;if(sync.saving)return;sync.saving=true;
-  while(sync.queued){sync.queued=false;try{await pushRest();setSyncStatus("☁️ ذخیره ابری انجام شد — "+dataSummary(data)); logEvent("همگام‌سازی ابری","ذخیره تغییرات در ابر","sync",false)}catch(e){console.error(e);setSyncStatus("⚠️ ذخیره ابری انجام نشد: "+(e.code||"")+" "+e.message)}}
+  while(sync.queued){sync.queued=false;try{await pushRest();setSyncStatus("☁️ ذخیره ابری انجام شد — "+dataSummary(data)); logEvent("همگام‌سازی ابری","ذخیره تغییرات در ابر","sync",false)}catch(e){console.error(e);setSyncStatus(friendlySyncError(e))}}
   sync.saving=false;
 }
 async function pushToCloud(){
   if(!sync.user){if(!await ensureSyncReady())return;if(!sync.user)return alert("اول با حساب همگام‌سازی وارد شو");}
-  try{
-    await pushRest();
-    await pushBackupFile();
-    setSyncStatus("☁️ اطلاعات این گوشی به ابر منتقل شد — "+dataSummary(data));
-    logEvent("ارسال اطلاعات به ابر","یک فایل پشتیبان کامل در فایربیس ذخیره شد • "+dataSummary(data),"sync",false);
-    alert("ارسال با موفقیت انجام شد\nیک فایل پشتیبان کامل از این گوشی در فایربیس ذخیره شد.\n"+dataSummary(data));
-  }catch(e){alert("ارسال ناموفق: "+(e.code||'')+"\n"+e.message)}
+  try{await pushRest();setSyncStatus("☁️ اطلاعات این گوشی به ابر منتقل شد — "+dataSummary(data));alert("ارسال با موفقیت انجام شد\n"+dataSummary(data));}
+  catch(e){alert(e&&e.code==="permission-denied"?"لایسنس شما فعال نیست یا منقضی شده — کد اتصال را از تنظیمات برای پشتیبانی بفرست":"ارسال ناموفق: "+(e.code||'')+"\n"+e.message)}
 }
 async function pullFromCloud(){
   if(!sync.user){if(!await ensureSyncReady())return;if(!sync.user)return alert("اول با حساب همگام‌سازی وارد شو");}
   try{
-    const parsed=await fetchBackupFile();
-    if(!parsed)return alert("هنوز هیچ فایل پشتیبانی در فایربیس برای این حساب ارسال نشده است.\nاول از گوشی دیگر «ارسال اطلاعات این گوشی» را بزن.");
-    if(!confirm("اطلاعات این گوشی با فایل پشتیبانی که از گوشی دیگر به فایربیس ارسال شده جایگزین می‌شود و قابل بازگشت نیست. ادامه می‌دهی؟"))return;
-    await applyRestoredPayload(parsed);
-    setSyncStatus("☁️ فایل پشتیبان از ابر دریافت و جایگزین شد — "+dataSummary(data));
-    logEvent("دریافت اطلاعات از ابر","فایل پشتیبان فایربیس دریافت شد و روی این گوشی جایگزین شد","sync");
-    alert("دریافت با موفقیت انجام شد\nاطلاعات این گوشی با فایل پشتیبان فایربیس جایگزین شد.\n"+dataSummary(data));
-  }catch(e){alert("دریافت ناموفق: "+(e.code||'')+"\n"+e.message)}
+    const remote=await pullRest();
+    if(!remote||!remote.length)return alert("هنوز اطلاعاتی در ابر وجود ندارد");
+    mergeCloud(remote);localStorage.setItem(KEY,JSON.stringify(data));render();setSyncStatus("☁️ اطلاعات از ابر دریافت شد — "+dataSummary(data));alert("اطلاعات ابری دریافت شد\n"+dataSummary(data));
+  }catch(e){alert(e&&e.code==="permission-denied"?"لایسنس شما فعال نیست یا منقضی شده — کد اتصال را از تنظیمات برای پشتیبانی بفرست":"دریافت ناموفق: "+(e.code||'')+"\n"+e.message)}
 }
 function openSyncSettings(){
  const c=syncConfig()||{};
@@ -1040,7 +931,20 @@ function showWhatsNewOnce(){
   <h2>🎉 به حساب‌یار خوش آمدی</h2>
   <p class="hint">این صفحه فقط یک‌بار در اولین اجرای این نسخه نمایش داده می‌شود.</p>
   <div class="whats-new-section">
-   <h3>🛠 تغییرات این نسخه (۲.۲)</h3>
+   <h3>🛠 تغییرات این نسخه (۲.۵)</h3>
+   <ul>
+    <li>📎 پیوست تراکنش حالا چند-عکسی شد: برای هر تراکنش (مثلاً هزینه‌ی تعمیرگاه) می‌توانی تا ۵ عکس با هم ذخیره کنی — مثلاً هم عکس فاکتور و هم عکس فیش واریزی را کنار هم نگه داری. از پنجره‌ی ثبت/ویرایش تراکنش عکس‌ها را یکی‌یکی یا چندتایی اضافه کن، هرکدام را جدا با ضربدر حذف کن، و در لیست تراکنش‌ها روی عکس بزن تا همه‌ی عکس‌های آن تراکنش را با هم ببینی.</li>
+   </ul>
+  </div>
+  <div class="whats-new-section">
+   <h3>🛠 تغییرات نسخه قبل (۲.۴)</h3>
+   <ul>
+    <li>حالا از داخل فرم ویرایش یادداشت و یادآوری (همون پنجره‌ای که با زدن روی یادداشت/یادآوری در جدول هفتگی باز می‌شود) یک دکمه «🗑 حذف» هم اضافه شد؛ یعنی دیگر لازم نیست برای حذف حتماً به لیست اصلی برگردی — همان‌جا هم می‌توانی حذف کنی و هم تغییرات را ذخیره کنی.</li>
+    <li>آیتم‌های زیرمجموعه‌ی یادداشت، داخل همین فرم ویرایش، حالا کنار هر آیتم یک تیک (چک‌باکس) هم دارند؛ با تیک زدن یک آیتم و ذخیره‌ی فرم، همان آیتم در لیست یادداشت‌ها و در جدول هفتگی هم به‌صورت انجام‌شده (خط‌خورده) نشان داده می‌شود.</li>
+   </ul>
+  </div>
+  <div class="whats-new-section">
+   <h3>🛠 تغییرات نسخه قبل (۲.۲)</h3>
    <ul>
     <li>تاریخ سررسید در لیست بدهکار/طلبکار حالا مشخص می‌کند برای «پرداخت» است یا «واریز»: برای شخصی که به او بدهکاری «سررسید پرداخت» و برای شخصی که از او طلب داری «سررسید واریز» نوشته می‌شود.</li>
     <li>در لیست چک‌ها هم همین برچسب اضافه شد: چک پرداختی «سررسید پرداخت» و چک دریافتی «سررسید واریز» نشان می‌دهد.</li>
@@ -1411,6 +1315,9 @@ function deleteAccount(id){const a=data.accounts.find(x=>x.id===id);if(!a)return
    parent of whatever is already selected auto-expands so editing a tx with a
    subcategory set doesn't look like nothing is picked. */
 let catExpand={expense:null,income:null};
+/* v3.12: چند-عکسی‌شدن پیوست تراکنش (حداکثر ۵ عکس) — وضعیت موقت فرم تراکنش باز */
+let txImagesTemp=[];
+const TX_IMAGES_MAX=5;
 function categoryButtons(type,selected=""){
   const arr=type==="expense"?data.expenseCats:data.incomeCats;
   if(catExpand[type]==null&&selected){
@@ -1429,7 +1336,7 @@ function categoryButtons(type,selected=""){
   }).join("")}</div><button type="button" class="cat-manage-link" onclick="openCategory()">⚙ مدیریت کامل دسته‌ها و زیرمجموعه‌ها</button>`;
 }
 function toggleCategoryExpand(type,id){catExpand[type]=catExpand[type]===id?null:id;refreshCategoryButtonsInTxForm(type)}
-function openTx(id=null){if(!data.accounts.length)return alert("اول از بخش حساب‌ها یک حساب اضافه کنید");const t=id&&data.transactions.find(x=>x.id===id);if(t?.type==="transfer")return openTransfer(id);const typ=t?.type||"expense";catExpand={expense:null,income:null};openModal(`<h2>${t?"ویرایش تراکنش":"ثبت تراکنش"}</h2><div class="form"><div class="type-switch"><button type="button" id="expBtn" class="${typ==="expense"?"chosen":""}" onclick="txType('expense')">💸 هزینه</button><button type="button" id="incBtn" class="${typ==="income"?"chosen":""}" onclick="txType('income')">💰 دریافت</button></div><input id="txKind" type="hidden" value="${typ}"><input id="title" placeholder="عنوان" value="${esc(t?.title||"")}"><input id="amount" type="text" inputmode="numeric" class="amt-input" placeholder="مبلغ" value="${fmtAmtValue(t?.amount)}"><div id="expensePanel" style="display:${typ==="expense"?"block":"none"}"><div class="cat-head-row"><b id="catLabel">${t?.category?"دسته: "+esc(t.category):"دسته را انتخاب کنید"}</b><div class="cat-toolbar"><button type="button" title="افزودن دسته" onclick="quickAddCategory('expense')">＋</button><button type="button" title="ویرایش دسته انتخاب‌شده" onclick="quickEditCategory('expense')">✏️</button><button type="button" title="حذف دسته انتخاب‌شده" class="danger-icon" onclick="quickDeleteCategory('expense')">🗑</button></div></div><div id="expenseCatButtons">${categoryButtons("expense",typ==="expense"?t?.category:"")}</div><input id="cat" type="hidden" value="${esc(typ==="expense"?t?.category||"":"")}"></div><div id="incomePanel" style="display:${typ==="income"?"block":"none"}"><div class="cat-head-row"><b id="incatLabel">${t?.category?"دسته: "+esc(t.category):"دسته را انتخاب کنید"}</b><div class="cat-toolbar"><button type="button" title="افزودن دسته" onclick="quickAddCategory('income')">＋</button><button type="button" title="ویرایش دسته انتخاب‌شده" onclick="quickEditCategory('income')">✏️</button><button type="button" title="حذف دسته انتخاب‌شده" class="danger-icon" onclick="quickDeleteCategory('income')">🗑</button></div></div><div id="incomeCatButtons">${categoryButtons("income",typ==="income"?t?.category:"")}</div><input id="incat" type="hidden" value="${esc(typ==="income"?t?.category||"":"")}"></div>${accountSelect("acc",t?.accountID||"")}<label class="hint" style="display:block;margin-top:8px">🔁 تکرار خودکار</label><select id="txRecur"><option value="none" ${!t?.recurring||t?.recurring==="none"?"selected":""}>بدون تکرار</option><option value="weekly" ${t?.recurring==="weekly"?"selected":""}>هفتگی</option><option value="monthly" ${t?.recurring==="monthly"?"selected":""}>ماهانه</option></select><label class="file-label">📎 تصویر پیوست (اختیاری)<input id="txImage" type="file" accept="image/*" onchange="previewTxImage(this)"></label>${t?.image?`<div class="attachment-preview"><img src="${t.image}" alt="پیوست"></div>`:""}<div id="txImagePreview"></div><button class="primary" onclick="saveTx('${t?.id||""}')">${t?"ذخیره تغییرات":"ثبت تراکنش"}</button></div>`)}
+function openTx(id=null){if(!data.accounts.length)return alert("اول از بخش حساب‌ها یک حساب اضافه کنید");const t=id&&data.transactions.find(x=>x.id===id);if(t?.type==="transfer")return openTransfer(id);const typ=t?.type||"expense";catExpand={expense:null,income:null};txImagesTemp=(t?.images&&t.images.length?t.images.slice(0,TX_IMAGES_MAX):(t?.image?[t.image]:[]));openModal(`<h2>${t?"ویرایش تراکنش":"ثبت تراکنش"}</h2><div class="form"><div class="type-switch"><button type="button" id="expBtn" class="${typ==="expense"?"chosen":""}" onclick="txType('expense')">💸 هزینه</button><button type="button" id="incBtn" class="${typ==="income"?"chosen":""}" onclick="txType('income')">💰 دریافت</button></div><input id="txKind" type="hidden" value="${typ}"><input id="title" placeholder="عنوان" value="${esc(t?.title||"")}"><input id="amount" type="text" inputmode="numeric" class="amt-input" placeholder="مبلغ" value="${fmtAmtValue(t?.amount)}"><div id="expensePanel" style="display:${typ==="expense"?"block":"none"}"><div class="cat-head-row"><b id="catLabel">${t?.category?"دسته: "+esc(t.category):"دسته را انتخاب کنید"}</b><div class="cat-toolbar"><button type="button" title="افزودن دسته" onclick="quickAddCategory('expense')">＋</button><button type="button" title="ویرایش دسته انتخاب‌شده" onclick="quickEditCategory('expense')">✏️</button><button type="button" title="حذف دسته انتخاب‌شده" class="danger-icon" onclick="quickDeleteCategory('expense')">🗑</button></div></div><div id="expenseCatButtons">${categoryButtons("expense",typ==="expense"?t?.category:"")}</div><input id="cat" type="hidden" value="${esc(typ==="expense"?t?.category||"":"")}"></div><div id="incomePanel" style="display:${typ==="income"?"block":"none"}"><div class="cat-head-row"><b id="incatLabel">${t?.category?"دسته: "+esc(t.category):"دسته را انتخاب کنید"}</b><div class="cat-toolbar"><button type="button" title="افزودن دسته" onclick="quickAddCategory('income')">＋</button><button type="button" title="ویرایش دسته انتخاب‌شده" onclick="quickEditCategory('income')">✏️</button><button type="button" title="حذف دسته انتخاب‌شده" class="danger-icon" onclick="quickDeleteCategory('income')">🗑</button></div></div><div id="incomeCatButtons">${categoryButtons("income",typ==="income"?t?.category:"")}</div><input id="incat" type="hidden" value="${esc(typ==="income"?t?.category||"":"")}"></div>${accountSelect("acc",t?.accountID||"")}<label class="hint" style="display:block;margin-top:8px">🔁 تکرار خودکار</label><select id="txRecur"><option value="none" ${!t?.recurring||t?.recurring==="none"?"selected":""}>بدون تکرار</option><option value="weekly" ${t?.recurring==="weekly"?"selected":""}>هفتگی</option><option value="monthly" ${t?.recurring==="monthly"?"selected":""}>ماهانه</option></select><label class="file-label">📎 تصویر پیوست (حداکثر ${fa(TX_IMAGES_MAX)} عکس)<input id="txImage" type="file" accept="image/*" multiple onchange="handleTxImageSelect(this)"></label><div id="txImagePreview">${txImagesPreviewHTML()}</div><button class="primary" onclick="saveTx('${t?.id||""}')">${t?"ذخیره تغییرات":"ثبت تراکنش"}</button></div>`)}
 function txType(t){$("txKind").value=t;$("expBtn").classList.toggle("chosen",t==="expense");$("incBtn").classList.toggle("chosen",t==="income");$("expensePanel").style.display=t==="expense"?"block":"none";$("incomePanel").style.display=t==="income"?"block":"none"}
 function pickCategory(type,id){const c=(type==="expense"?data.expenseCats:data.incomeCats).find(x=>x.id===id);if(!c)return;setCategoryValue(type,c.name)}
 function pickSubCategory(type,catId,childId){const c=(type==="expense"?data.expenseCats:data.incomeCats).find(x=>x.id===catId);const ch=c?.children?.find(x=>x.id===childId);if(!c||!ch)return;setCategoryValue(type,c.name+" - "+ch.name)}
@@ -1507,18 +1414,17 @@ async function saveTx(id){
  const amount=parseMoney($("amount").value),type=$("txKind").value,category=type==="expense"?$("cat").value:$("incat").value;
  if(!amount)return alert("مبلغ را وارد کنید");if(!category)return alert("دسته را انتخاب کنید");
  const recur=$("txRecur")?.value||"none";
- let image=null; const file=$("txImage")?.files?.[0];
- if(file){try{image=await compressImage(file,1000,.6)}catch(e){console.warn(e)}}
+ const images=txImagesTemp.slice(0,TX_IMAGES_MAX);
  let t;
  if(id){
   t=data.transactions.find(x=>x.id===id); if(!t)return;
   Object.assign(t,{title:$("title").value.trim()||category,amount,type,category,accountID:$("acc").value});
-  if(image)t.image=image;
+  delete t.image;if(images.length)t.images=images;else delete t.images;
   applyRecurSetting(t,recur);
   touch(t);markDirty("transactions",t.id,false,t,t.updatedAt);
  }else{
   t=touch({id:uid(),title:$("title").value.trim()||category,amount,type,category,accountID:$("acc").value,date:new Date().toISOString(),source:"manual"});
-  if(image)t.image=image;
+  if(images.length)t.images=images;
   applyRecurSetting(t,recur);
   data.transactions.unshift(t);markDirty("transactions",t.id,false,t,t.updatedAt);
  }
@@ -1562,10 +1468,28 @@ function compressImage(file,max=1200,quality=.72){
   };r.readAsDataURL(file)
  })
 }
-function previewTxImage(input){
- const f=input?.files?.[0],box=$("txImagePreview");if(!box||!f)return;
- const r=new FileReader();r.onload=()=>box.innerHTML=`<div class="attachment-preview"><img src="${r.result}" alt="پیش‌نمایش"></div>`;r.readAsDataURL(f)
+/* v3.12: انتخاب چند عکس برای پیوست تراکنش (حداکثر TX_IMAGES_MAX عکس)؛
+   عکس‌های قبلی (در ویرایش) و عکس‌های تازه انتخاب‌شده همه در txImagesTemp
+   نگه‌داری می‌شوند تا با یک دکمه ضربدر هرکدام جدا حذف شوند. */
+async function handleTxImageSelect(input){
+ const files=Array.from(input?.files||[]);input.value="";if(!files.length)return;
+ const remain=TX_IMAGES_MAX-txImagesTemp.length;
+ if(remain<=0){alert(`حداکثر ${fa(TX_IMAGES_MAX)} عکس می‌توانید پیوست کنید`);return}
+ const toAdd=files.slice(0,remain);
+ if(files.length>toAdd.length)alert(`فقط ${fa(toAdd.length)} عکس اضافه شد (سقف ${fa(TX_IMAGES_MAX)} عکس)`);
+ for(const f of toAdd){
+  try{txImagesTemp.push(await compressImage(f,1000,.6))}catch(e){console.warn(e)}
+ }
+ renderTxImagesPreview();
 }
+function removeTxImage(idx){txImagesTemp.splice(idx,1);renderTxImagesPreview()}
+function txImagesPreviewHTML(){
+ if(!txImagesTemp.length)return "";
+ const items=txImagesTemp.map((src,i)=>`<div class="tx-img-item"><img src="${src}" alt="پیوست ${fa(i+1)}"><button type="button" class="tx-img-remove" title="حذف این عکس" onclick="removeTxImage(${i})">✕</button></div>`).join("");
+ const counter=`<div class="tx-images-count">${fa(txImagesTemp.length)} از ${fa(TX_IMAGES_MAX)} عکس</div>`;
+ return `<div class="tx-images-grid">${items}</div>${counter}`;
+}
+function renderTxImagesPreview(){const box=$("txImagePreview");if(box)box.innerHTML=txImagesPreviewHTML()}
 function openBankMessage(){
   if(!data.accounts.length)return alert("ابتدا یک حساب اضافه کنید");
   openModal(`<h2>🏦 تشخیص پیامک بانکی</h2><div class="form">
@@ -2026,27 +1950,27 @@ function renderCalModal(){
 
 function noteFormInner(n){
  const items=(n?.items||[]);
- return `<input id="ntitle" placeholder="عنوان یادداشت، مثلاً خرید" value="${esc(n?.title||"")}">${pickerBox("ndatePicker","ntimePicker",n?.date||new Date().toISOString())}<select id="nrepeat"><option value="none" ${!n?.repeat||n?.repeat==="none"?"selected":""}>بدون تکرار</option><option value="daily" ${n?.repeat==="daily"?"selected":""}>روزانه</option><option value="weekly" ${n?.repeat==="weekly"?"selected":""}>هفتگی</option><option value="monthly" ${n?.repeat==="monthly"?"selected":""}>ماهانه</option></select><textarea id="ntext" placeholder="توضیحات اصلی (اختیاری)">${esc(n?.text||"")}</textarea><div><b>آیتم‌های زیرمجموعه</b><div id="noteItemsEditor" class="note-items-editor">${items.map((it,i)=>noteItemEditor(it,i)).join("")}</div><button type="button" class="add-item-btn" onclick="addNoteItemEditor()">＋ افزودن آیتم</button></div><button class="primary" onclick="saveNote('${n?.id||""}')">${n?"ذخیره تغییرات":"ساخت یادداشت"}</button>`;
+ return `<input id="ntitle" placeholder="عنوان یادداشت، مثلاً خرید" value="${esc(n?.title||"")}">${pickerBox("ndatePicker","ntimePicker",n?.date||new Date().toISOString())}<select id="nrepeat"><option value="none" ${!n?.repeat||n?.repeat==="none"?"selected":""}>بدون تکرار</option><option value="daily" ${n?.repeat==="daily"?"selected":""}>روزانه</option><option value="weekly" ${n?.repeat==="weekly"?"selected":""}>هفتگی</option><option value="monthly" ${n?.repeat==="monthly"?"selected":""}>ماهانه</option></select><textarea id="ntext" placeholder="توضیحات اصلی (اختیاری)">${esc(n?.text||"")}</textarea><div><b>آیتم‌های زیرمجموعه</b><div id="noteItemsEditor" class="note-items-editor">${items.map((it,i)=>noteItemEditor(it,i)).join("")}</div><button type="button" class="add-item-btn" onclick="addNoteItemEditor()">＋ افزودن آیتم</button></div><button class="primary" onclick="saveNote('${n?.id||""}')">${n?"ذخیره تغییرات":"ساخت یادداشت"}</button>${n?`<button type="button" class="danger" onclick="deleteNote('${n.id}')">🗑 حذف یادداشت</button>`:""}`;
 }
 function openNote(id=null){
  const n=id&&data.notes.find(x=>x.id===id);
  openModal(`<h2>${n?"ویرایش یادداشت":"یادداشت جدید"}</h2><div class="form">${noteFormInner(n)}</div>`);
 }
-function noteItemEditor(it={},i){return `<div class="note-edit-row"><div class="reorder-btns"><button type="button" title="انتقال به بالا" onclick="moveNoteItemEditorRow(this,-1)">▲</button><button type="button" title="انتقال به پایین" onclick="moveNoteItemEditorRow(this,1)">▼</button></div><input class="note-item-input" data-note-item="${i}" data-note-item-id="${esc(it.id||"")}" placeholder="مثلاً خرید نان" value="${esc(it.text||"")}"><button type="button" class="mini-danger" onclick="this.parentElement.remove()">🗑</button></div>`}
+function noteItemEditor(it={},i){return `<div class="note-edit-row"><div class="reorder-btns"><button type="button" title="انتقال به بالا" onclick="moveNoteItemEditorRow(this,-1)">▲</button><button type="button" title="انتقال به پایین" onclick="moveNoteItemEditorRow(this,1)">▼</button></div><input type="checkbox" class="note-item-done" title="انجام شد" ${it.done?"checked":""}><input class="note-item-input" data-note-item="${i}" data-note-item-id="${esc(it.id||"")}" placeholder="مثلاً خرید نان" value="${esc(it.text||"")}"><button type="button" class="mini-danger" onclick="this.parentElement.remove()">🗑</button></div>`}
 function moveNoteItemEditorRow(btn,dir){const row=btn.closest(".note-edit-row");if(!row)return;const sib=dir<0?row.previousElementSibling:row.nextElementSibling;if(!sib)return;if(dir<0)row.parentElement.insertBefore(row,sib);else row.parentElement.insertBefore(sib,row)}
 function addNoteItemEditor(){const box=$("noteItemsEditor");if(!box)return;const i=box.querySelectorAll(".note-item-input").length;box.insertAdjacentHTML("beforeend",noteItemEditor({},i))}
 async function saveNote(id){
  const title=$("ntitle").value.trim(); if(!title)return alert("عنوان یادداشت را وارد کنید");
  const inputs=[...document.querySelectorAll(".note-item-input")];
  const old=id?data.notes.find(x=>x.id===id):null; const oldItems=old?.items||[];
- const items=inputs.map((el,i)=>{const oldItem=el.dataset.noteItemId?oldItems.find(x=>x.id===el.dataset.noteItemId):oldItems[i];return {id:oldItem?.id||uid(),text:el.value.trim(),done:!!oldItem?.done}}).filter(x=>x.text);
+ const items=inputs.map((el,i)=>{const oldItem=el.dataset.noteItemId?oldItems.find(x=>x.id===el.dataset.noteItemId):oldItems[i];const cb=el.parentElement?.querySelector(".note-item-done");const done=cb?cb.checked:!!oldItem?.done;return {id:oldItem?.id||uid(),text:el.value.trim(),done}}).filter(x=>x.text);
  const o={title,date:pickerToISO("ndatePicker","ntimePicker"),repeat:$("nrepeat").value,text:$("ntext").value.trim(),items};
  if(id){if(!old)return alert("یادداشت پیدا نشد");Object.assign(old,o);touch(old);markDirty("notes",old.id,false,old,old.updatedAt);save();await upsertReminderForNote(old)}
  else{const minOrder=data.notes.length?Math.min(...data.notes.map(n=>n.order??0)):0;const nn=touch({id:uid(),order:minOrder-1,...o});data.notes.unshift(nn);markDirty("notes",nn.id,false,nn,nn.updatedAt);save();await upsertReminderForNote(nn)}
  logEvent(id?"ویرایش یادداشت":"ایجاد یادداشت",title,id?"edit":"create");closeModal();
 }
 async function toggleNoteItem(noteId,itemId){const n=data.notes.find(x=>x.id===noteId);const it=n?.items?.find(x=>x.id===itemId);if(!it)return;it.done=!it.done;touch(n);markDirty("notes",n.id,false,n,n.updatedAt);localStorage.setItem(KEY,JSON.stringify(data));syncSave();await upsertReminderForNote(n,false);logEvent(it.done?"تکمیل آیتم یادداشت":"بازگردانی آیتم یادداشت",`${n.title} • ${it.text}`,"edit");const row=document.querySelector(`[data-note-row="${CSS.escape(itemId)}"]`);if(row){const span=row.querySelector("span");if(span)span.classList.toggle("done",it.done);const cb=row.querySelector("input[type=checkbox]");if(cb)cb.checked=it.done}const card=document.querySelector(`[data-note-card="${CSS.escape(noteId)}"]`);if(card){const total=(n.items||[]).length,done=(n.items||[]).filter(x=>x.done).length;const count=card.querySelector(".note-count");if(count)count.textContent=total?`${fa(done)} / ${fa(total)}`:""}}
-async function deleteNote(id){if(confirm("این یادداشت و همه آیتم‌های آن حذف شود؟")){const n=data.notes.find(x=>x.id===id);await removeReminderForNote(id);removeRecord("notes",id);logEvent("حذف یادداشت",n?.title||id,"delete")}}
+async function deleteNote(id){if(confirm("این یادداشت و همه آیتم‌های آن حذف شود؟")){const n=data.notes.find(x=>x.id===id);await removeReminderForNote(id);removeRecord("notes",id);logEvent("حذف یادداشت",n?.title||id,"delete");closeModal()}}
 async function deleteNoteItem(noteId,itemId){const n=data.notes.find(x=>x.id===noteId);if(!n)return;if(confirm("این آیتم حذف شود؟")){n.items=(n.items||[]).filter(x=>x.id!==itemId);touch(n);markDirty("notes",n.id,false,n,n.updatedAt);localStorage.setItem(KEY,JSON.stringify(data));syncSave();await upsertReminderForNote(n,false);logEvent("حذف آیتم یادداشت",n.title,"delete");const row=document.querySelector(`[data-note-row="${CSS.escape(itemId)}"]`);if(row)row.remove();const card=document.querySelector(`[data-note-card="${CSS.escape(noteId)}"]`);if(card){const total=(n.items||[]).length,done=(n.items||[]).filter(x=>x.done).length;const count=card.querySelector(".note-count");if(count)count.textContent=total?`${fa(done)} / ${fa(total)}⌄`:"⌄";const list=card.querySelector(".note-checklist");if(list&&!total)list.innerHTML='<div class="meta">هنوز آیتمی اضافه نشده</div>';}}}
 function noteRepeatLabel(r){return r==="daily"?"روزانه":r==="weekly"?"هفتگی":r==="monthly"?"ماهانه":"بدون تکرار"}
 function noteItemHTML(n,it,i,total){
@@ -2176,7 +2100,7 @@ function toggleAccordion(btn,event){
 
 
 function reminderFormInner(r){
- return `<input id="rt" placeholder="عنوان" value="${esc(r?.title||"")}"><input id="ra" type="text" inputmode="numeric" class="amt-input" placeholder="مبلغ" value="${fmtAmtValue(r?.amount)}">${pickerBox("rdPicker","rtPicker",r?.date||new Date().toISOString())}<select id="rr"><option value="once" ${r?.repeat==="once"?"selected":""}>یک‌بار</option><option value="monthly" ${r?.repeat==="monthly"?"selected":""}>ماهانه</option><option value="weekly" ${r?.repeat==="weekly"?"selected":""}>هفتگی</option></select><select id="rb"><option value="expense" ${r?.type==="expense"?"selected":""}>پرداخت</option><option value="income" ${r?.type==="income"?"selected":""}>دریافت</option></select><button class="primary" onclick="saveReminder('${r?.id||""}')">${r?"ذخیره تغییرات":"ذخیره"}</button>`;
+ return `<input id="rt" placeholder="عنوان" value="${esc(r?.title||"")}"><input id="ra" type="text" inputmode="numeric" class="amt-input" placeholder="مبلغ" value="${fmtAmtValue(r?.amount)}">${pickerBox("rdPicker","rtPicker",r?.date||new Date().toISOString())}<select id="rr"><option value="once" ${r?.repeat==="once"?"selected":""}>یک‌بار</option><option value="monthly" ${r?.repeat==="monthly"?"selected":""}>ماهانه</option><option value="weekly" ${r?.repeat==="weekly"?"selected":""}>هفتگی</option></select><select id="rb"><option value="expense" ${r?.type==="expense"?"selected":""}>پرداخت</option><option value="income" ${r?.type==="income"?"selected":""}>دریافت</option></select><button class="primary" onclick="saveReminder('${r?.id||""}')">${r?"ذخیره تغییرات":"ذخیره"}</button>${r?`<button type="button" class="danger" onclick="deleteReminder('${r.id}')">🗑 حذف یادآوری</button>`:""}`;
 }
 function openReminder(id=null){const r=id&&data.reminders.find(x=>x.id===id);openModal(`<h2>${r?"ویرایش یادآوری":"یادآوری"}</h2><div class="form">${reminderFormInner(r)}</div>`)}
 /* --- مرکز ثبت سریع یادداشت/یادآوری از صفحه خانه: دقیقاً مثل تب‌های «صدور فاکتور»،
@@ -2207,7 +2131,7 @@ function moveReminder(id,dir){
  save();
 }
 async function saveReminder(id){if(!$("rt").value||!$("rdPicker").value)return alert("عنوان و تاریخ لازم است");const o={title:$("rt").value.trim(),amount:parseMoney($("ra").value),date:pickerToISO("rdPicker","rtPicker"),repeat:$("rr").value,type:$("rb").value};if(id){const r=data.reminders.find(x=>x.id===id);Object.assign(r,o);touch(r);markDirty("reminders",r.id,false,r,r.updatedAt);save();await cancelNativeReminder(r.id);await scheduleNativeReminder(r);if((r.type||"")==="note" && (r.repeat||"once")==="once") await addToAndroidClock(r)}else{const maxOrder=data.reminders.length?Math.max(...data.reminders.map(x=>x.order??0)):-1;const nr=touch({id:uid(),order:maxOrder+1,...o});data.reminders.push(nr);markDirty("reminders",nr.id,false,nr,nr.updatedAt);save();await scheduleNativeReminder(nr);if((nr.type||"")==="note" && (nr.repeat||"once")==="once") await addToAndroidClock(nr)}logEvent(id?"ویرایش یادآوری":"ایجاد یادآوری",o.title,id?"edit":"create");closeModal()}
-async function deleteReminder(id){if(confirm("این یادآوری حذف شود؟")){const r=data.reminders.find(x=>x.id===id);await cancelNativeReminder(id);removeRecord("reminders",id);logEvent("حذف یادآوری",r?.title||id,"delete")}}
+async function deleteReminder(id){if(confirm("این یادآوری حذف شود؟")){const r=data.reminders.find(x=>x.id===id);await cancelNativeReminder(id);removeRecord("reminders",id);logEvent("حذف یادآوری",r?.title||id,"delete");closeModal()}}
 
 /* v3.10: چک‌ها حالا به یک حساب وصل می‌شوند. تا وقتی چک «نشسته» (وصول/نقد)
    علامت نخورده، هیچ اثری روی موجودی حساب یا لیست تراکنش‌ها ندارد — چون تا
@@ -2502,8 +2426,9 @@ function transferItemHTML(t){
  }
  return `<div class="item"><div><b>↔ ${esc(t.title)}</b><div class="meta">از ${esc(data.accounts.find(a=>a.id===t.from)?.name||"")} ← ${destLabel}</div><div class="meta">${jalaliDateTimeInput(t.date)}</div></div><div><strong>${money(t.amount)}</strong>${actionButtons("openTransfer","deleteTx",t.id)}</div></div>`;
 }
-function txHTML(t){if(t.type==="transfer")return transferItemHTML(t);let a=data.accounts.find(x=>x.id===t.accountID),sign=t.type==="income"?"+":"−";const recurBadge=t.recurring&&t.recurring!=="none"?` • 🔁 ${t.recurring==="monthly"?"ماهانه":"هفتگی"}`:t.source==="recurring"?" • 🔁 خودکار":"";return `<div class="item"><div><b>${esc(t.title)}</b><div class="meta">${esc(t.category||"")} • ${a?esc(a.name):""} • ${t.source==="bank"?"بانکی":t.source==="recurring"?"تکرارشونده":"دستی"}${recurBadge}</div><div class="meta">${jalaliDateTimeInput(t.date)}</div>${t.image?`<img class="tx-thumb" src="${t.image}" alt="پیوست" onclick="viewImage('${t.id}')">`:""}</div><div><strong class="${t.type}">${sign}${money(t.amount)}</strong>${actionButtons("openTx","deleteTx",t.id)}</div></div>`}
-function viewImage(id){const t=data.transactions.find(x=>x.id===id);if(!t?.image)return;openModal(`<h2>📎 تصویر پیوست</h2><div class="attachment-large"><img src="${t.image}" alt="پیوست"></div>`)}
+function txImagesOf(t){return (t?.images&&t.images.length)?t.images:(t?.image?[t.image]:[])}
+function txHTML(t){if(t.type==="transfer")return transferItemHTML(t);let a=data.accounts.find(x=>x.id===t.accountID),sign=t.type==="income"?"+":"−";const recurBadge=t.recurring&&t.recurring!=="none"?` • 🔁 ${t.recurring==="monthly"?"ماهانه":"هفتگی"}`:t.source==="recurring"?" • 🔁 خودکار":"";const imgs=txImagesOf(t);const thumb=imgs.length?`<div class="tx-thumb-wrap" onclick="viewImage('${t.id}')"><img class="tx-thumb" src="${imgs[0]}" alt="پیوست">${imgs.length>1?`<span class="tx-thumb-count">${fa(imgs.length)}</span>`:""}</div>`:"";return `<div class="item"><div><b>${esc(t.title)}</b><div class="meta">${esc(t.category||"")} • ${a?esc(a.name):""} • ${t.source==="bank"?"بانکی":t.source==="recurring"?"تکرارشونده":"دستی"}${recurBadge}</div><div class="meta">${jalaliDateTimeInput(t.date)}</div>${thumb}</div><div><strong class="${t.type}">${sign}${money(t.amount)}</strong>${actionButtons("openTx","deleteTx",t.id)}</div></div>`}
+function viewImage(id){const t=data.transactions.find(x=>x.id===id);const imgs=txImagesOf(t);if(!imgs.length)return;openModal(`<h2>📎 تصویر${imgs.length>1?"‌های":""} پیوست (${fa(imgs.length)})</h2><div class="attachment-large tx-gallery">${imgs.map(src=>`<img src="${src}" alt="پیوست">`).join("")}</div>`)}
 function empty(s){return `<div class="card" style="text-align:center">${s}</div>`}
 
 function invoiceDateLabel(v){return jalaliLabel(v)}
@@ -3038,18 +2963,6 @@ function confirmFramer(){
  closeFramer();
 }
 
-/* ===== Admin license settings access ===== */
-function renderLicenseSettingsAccess(){
- const box=$("stgGroup-license");
- if(!box)return;
- const admin=isLicenseAdmin();
- box.style.display="";
- const body=box.querySelector(".license-settings-body");
- if(body) body.innerHTML=admin
-   ? `<p class="hint">مدیریت کامل لایسنس‌ها فقط برای حساب ادمین فعال است.</p><button class="primary" type="button" onclick="openLicenseSettings()">🔐 ورود به مدیریت لایسنس</button>`
-   : `<p class="hint">این بخش فقط برای مدیر سیستم است.</p><button type="button" onclick="openLicenseSettings()">🔐 ورود مدیر</button>`;
-}
-
 /* ===== Dashboard customization ===== */
 const DASH_WIDGETS=[
  {id:"hero",label:"موجودی کل"},
@@ -3065,7 +2978,6 @@ const DASH_WIDGETS=[
  {id:"stgManualBackup",label:"🔧 پشتیبان‌گیری دستی",settingsIcon:"💾",settingsHint:"خروجی یا بازیابی فایل اطلاعات.",settingsTarget:"stgGroup-manualBackup"},
  {id:"stgSync",label:"🔧 همگام‌سازی دو گوشی",settingsIcon:"☁️",settingsHint:"وضعیت اتصال و ارسال/دریافت ابری.",settingsTarget:"stgGroup-sync"},
  {id:"stgSecurity",label:"🔧 امنیت ورود",settingsIcon:"🔐",settingsHint:"رمز ورود برنامه را تنظیم یا حذف کن.",settingsTarget:"stgGroup-security"},
- {id:"stgLicense",label:"🔧 لایسنس و اشتراک",settingsIcon:"🔐",settingsHint:"ساخت و مدیریت لینک‌های مدت‌دار برنامه.",settingsTarget:"stgGroup-license"},
 ];
 function dashboardConfig(){
  data.dashboardConfig??={};
@@ -3244,51 +3156,6 @@ function renderProductProfit(){
  box.innerHTML=`<div class="report-sub-title">🥇 پرسودترین کالاها</div>${top.map(rowHTML).join("")}<div class="report-sub-title">🥶 کم‌سودترین کالاها</div>${bottom.map(rowHTML).join("")}`;
 }
 function backupPayload(){return {format:"hesabdar-backup",version:2,appVersion:APP_VERSION,createdAt:new Date().toISOString(),data:JSON.parse(JSON.stringify(data))}}
-/* ---- Two-device sync via a single backup file in Firebase Storage ----
- * "ارسال اطلاعات" takes a full backup snapshot (same format as the manual
- * export file) and uploads it to Firebase Storage under this account's uid.
- * "دریافت اطلاعات" downloads that exact file and completely REPLACES the
- * local data with it (not a per-record merge) — mirroring what picking the
- * file in "بازیابی از فایل" would do, just transported through Firebase
- * instead of manually sharing the file between the two phones. ---- */
-function backupStorageRef(){if(!sync.storage||!sync.user)throw new Error("ذخیره‌سازی ابری آماده نیست");return sync.storage.ref(`users/${sync.user.uid}/hesabdar-backup.json`)}
-async function pushBackupFile(){
- const json=JSON.stringify(backupPayload());
- await backupStorageRef().putString(json,"raw",{contentType:"application/json"});
- await cloudDoc().set({backupAt:new Date().toISOString(),backupSummary:dataSummary(data),appVersion:APP_VERSION},{merge:true});
-}
-async function fetchBackupFile(){
- let url;
- try{url=await backupStorageRef().getDownloadURL()}
- catch(e){if(e&&e.code==="storage/object-not-found")return null;throw e}
- const res=await fetch(url);
- if(!res.ok)throw new Error("دانلود فایل بکاپ ناموفق بود");
- const text=stripBom(await res.text());
- return JSON.parse(text);
-}
-/* Shared by importData() (restoring from a picked file) and pullFromCloud()
- * (restoring from the Firebase backup file) — both fully replace local data. */
-async function applyRestoredPayload(parsed){
- const restored=parsed?.format==="hesabdar-backup"&&parsed.data&&typeof parsed.data==="object"?parsed.data:parsed;
- if(!restored||typeof restored!=="object"||Array.isArray(restored))throw new Error("invalid-backup");
- const previousLock={pin:data.pin,pinHash:data.pinHash,pinSalt:data.pinSalt,patternHash:data.patternHash,patternSalt:data.patternSalt,lockMethod:data.lockMethod,biometricEnabled:data.biometricEnabled,webauthnCredId:data.webauthnCredId};
- const wasHydrating=sync.hydrating;sync.hydrating=true;
- try{
-  data=JSON.parse(JSON.stringify(restored));normalizeData();Object.assign(data,previousLock);data.audit??=[];data.notes??=[];
-  localStorage.setItem(KEY,JSON.stringify(data));render();
-  if(sync.unsubscribe){sync.unsubscribe();sync.unsubscribe=null}
-  sync.dirty.clear();
-  if(sync.user&&sync.db)await replaceCloudAfterRestore();
-  const checkBefore=JSON.parse(localStorage.getItem(KEY)||"null");
-  for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats"]){if(!Array.isArray(checkBefore?.[k]))throw new Error("storage-verification-failed:"+k)}
-  const check=JSON.parse(localStorage.getItem(KEY)||"null");
-  if(!check||!Array.isArray(check.accounts)||!Array.isArray(check.transactions))throw new Error("storage-verification-failed");
-  data=check;normalizeData();render();localStorage.setItem(KEY,JSON.stringify(data));
- }finally{
-  sync.hydrating=wasHydrating;
-  if(sync.user&&sync.db&&!sync.unsubscribe){sync.unsubscribe=recordsCollection().onSnapshot(snap=>{if(sync.hydrating)return;const remote=snap.docs.map(d=>d.data());if(mergeCloud(remote)){localStorage.setItem(KEY,JSON.stringify(data));render();syncSave()}setSyncStatus("☁️ آنلاین • همگام‌سازی لحظه‌ای")},err=>setSyncStatus("⚠️ همگام‌سازی: "+(err.code||err.message)))}
- }
-}
 /* Bug fix: this used to only do the browser <a download> trick, which
  * relies on the WebView actually handing the click off to Android's
  * download manager. On a Capacitor native build that hand-off is
@@ -3340,12 +3207,32 @@ async function importData(e){
  const input=e?.target,file=input?.files?.[0];if(!file)return;const finish=()=>{if(input)input.value=""};
  try{
   const raw=await readBackupFile(file),parsed=JSON.parse(raw);
-  await applyRestoredPayload(parsed);
-  logEvent("بازیابی اطلاعات","پشتیبان وارد شد و اطلاعات روی این گوشی جایگزین شد","settings");localStorage.setItem(KEY,JSON.stringify(data));
+  const restored=parsed?.format==="hesabdar-backup"&&parsed.data&&typeof parsed.data==="object"?parsed.data:parsed;
+  if(!restored||typeof restored!=="object"||Array.isArray(restored))throw new Error("invalid-backup");
+  const previousLock={pin:data.pin,pinHash:data.pinHash,pinSalt:data.pinSalt,patternHash:data.patternHash,patternSalt:data.patternSalt,lockMethod:data.lockMethod,biometricEnabled:data.biometricEnabled,webauthnCredId:data.webauthnCredId};
+  const wasHydrating=sync.hydrating;sync.hydrating=true;
+  try{
+   data=JSON.parse(JSON.stringify(restored));normalizeData();Object.assign(data,previousLock);data.audit??=[];data.notes??=[];
+   // Mark the restore as a complete replacement locally before any async work.
+   localStorage.setItem(KEY,JSON.stringify(data));render();
+   if(sync.unsubscribe){sync.unsubscribe();sync.unsubscribe=null}
+   sync.dirty.clear();
+   if(sync.user&&sync.db)await replaceCloudAfterRestore();
+   // Verify the exact restored collections, not just two arrays.
+   const checkBefore=JSON.parse(localStorage.getItem(KEY)||"null");
+   for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats"]){if(!Array.isArray(checkBefore?.[k]))throw new Error("storage-verification-failed:"+k)}
+   const check=JSON.parse(localStorage.getItem(KEY)||"null");
+   if(!check||!Array.isArray(check.accounts)||!Array.isArray(check.transactions))throw new Error("storage-verification-failed");
+   data=check;normalizeData();render();localStorage.setItem(KEY,JSON.stringify(data));
+   logEvent("بازیابی اطلاعات","پشتیبان وارد شد و اطلاعات روی این گوشی جایگزین شد","settings");localStorage.setItem(KEY,JSON.stringify(data));
+  }finally{
+   sync.hydrating=wasHydrating;
+   if(sync.user&&sync.db&&!sync.unsubscribe){sync.unsubscribe=recordsCollection().onSnapshot(snap=>{if(sync.hydrating)return;const remote=snap.docs.map(d=>d.data());if(mergeCloud(remote)){localStorage.setItem(KEY,JSON.stringify(data));render();syncSave()}setSyncStatus("☁️ آنلاین • همگام‌سازی لحظه‌ای")},err=>setSyncStatus("⚠️ همگام‌سازی: "+(err.code||err.message)))}
+  }
   finish();alert("بازیابی با موفقیت انجام شد. اطلاعات فایل پشتیبان روی این گوشی جایگزین شد.");
  }catch(err){finish();console.error("backup restore",err);
   const msg=err&&err.message==="empty-backup"?"بازیابی انجام نشد: فایل انتخاب‌شده خوانده نشد (خالی بود). اگر فایل از تلگرام/بلوتوث دریافت شده، اول آن را دانلود کن (نه فقط پیش‌نمایش) و از پوشه Download انتخابش کن.":"بازیابی انجام نشد: فایل پشتیبان خوانده یا معتبر نیست. فایل JSON اصلی را دوباره انتخاب کن.";
   alert(msg)}
 }
 function clearData(){if(confirm("همه اطلاعات حذف شود؟")){const pin=data.pin,pinHash=data.pinHash,pinSalt=data.pinSalt,patternHash=data.patternHash,patternSalt=data.patternSalt,lockMethod=data.lockMethod,biometricEnabled=data.biometricEnabled,webauthnCredId=data.webauthnCredId,lang=data.lang;data=blankData();data.pin=pin;data.pinHash=pinHash;data.pinSalt=pinSalt;data.patternHash=patternHash;data.patternSalt=patternSalt;data.lockMethod=lockMethod;data.biometricEnabled=biometricEnabled;data.webauthnCredId=webauthnCredId;data.lang=lang;save();logEvent("پاک کردن اطلاعات","اطلاعات برنامه پاک شد","delete");}}
-(async function initApp(){normalizeData();purgeOldTrash();applyAccentThemeOnLoad();await migratePinSecurity();await initSync();renderLicenseSettingsAccess();const licenseOK=await enforceLicenseAccess();if(!licenseOK){render();return}showLock();render();applyDashboardConfig();applyAppMode();renderBrandingInSettings();renderSettingsFeatures();applyLanguage();maybeAutoBackup("اجرای برنامه");processRecurringTransactions();logEvent("اجرای برنامه","برنامه حسابدار اجرا شد","system");await startLicenseWatcher();if(!sync.auth){[4000,12000,30000].forEach(ms=>setTimeout(()=>{if(!sync.auth)initSync()},ms))}syncAllNotesToReminders().catch(console.error);syncAllChecksToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error);startUpdateChecker();startReminderChecker();renderLicenseStatus();setTimeout(()=>{if(!licenseGate())openLicenseGate()},450);if(!hasLockCode())setTimeout(showWhatsNewOnce,320);})();
+(async function initApp(){normalizeData();purgeOldTrash();applyAccentThemeOnLoad();await migratePinSecurity();showLock();render();applyDashboardConfig();applyAppMode();renderBrandingInSettings();renderSettingsFeatures();applyLanguage();maybeAutoBackup("اجرای برنامه");processRecurringTransactions();logEvent("اجرای برنامه","برنامه حسابدار اجرا شد","system");await initSync();if(!sync.auth){[4000,12000,30000].forEach(ms=>setTimeout(()=>{if(!sync.auth)initSync()},ms))}syncAllNotesToReminders().catch(console.error);syncAllChecksToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error);startUpdateChecker();startReminderChecker();if(!hasLockCode())setTimeout(showWhatsNewOnce,320);})();

@@ -143,8 +143,16 @@ main{padding:0}
 .income{color:var(--green)!important} .expense{color:var(--red)!important}
 strong.income,strong.expense{font-size:15px;font-variant-numeric:tabular-nums}
 
-.tx-thumb{width:44px;height:44px;object-fit:cover;border-radius:10px;margin-top:6px;display:block}
+.tx-thumb{width:44px;height:44px;object-fit:cover;border-radius:10px;display:block}
+.tx-thumb-wrap{position:relative;display:inline-block;margin-top:6px;cursor:pointer}
+.tx-thumb-count{position:absolute;bottom:-4px;left:-4px;background:var(--accent,#3b82f6);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:8px;padding:0 3px;box-shadow:0 0 0 2px var(--bg,#fff)}
 .attachment-large img{width:100%;border-radius:var(--radius)}
+.tx-gallery{display:flex;flex-direction:column;gap:10px}
+.tx-images-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.tx-images-grid .tx-img-item{position:relative;width:72px;height:72px}
+.tx-images-grid .tx-img-item img{width:100%;height:100%;object-fit:cover;border-radius:10px;border:.5px solid var(--sep)}
+.tx-images-grid .tx-img-remove{position:absolute;top:-6px;left:-6px;width:20px;height:20px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:11px;line-height:20px;padding:0;cursor:pointer}
+.tx-images-count{font-size:11px;color:var(--label3);margin-top:4px}
 
 .search,.filters select,.filters input{
   width:100%;padding:12px 14px;border:none;border-radius:var(--radius-sm);background:var(--card);
@@ -642,7 +650,8 @@ body:not(.dark) .reorder-btns button{background:var(--bg3)}
 .reorder-btns button:disabled{opacity:.3}
 .reorder-btns button:active{transform:scale(.9)}
 .note-edit-row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
-.note-edit-row input{flex:1}
+.note-edit-row input.note-item-input{flex:1}
+.note-edit-row input.note-item-done{flex:none;width:20px;height:20px;accent-color:var(--blue)}
 
 /* ===== v5.5: AI enhance button for logo / stamp / signature ===== */
 .ai-enhance-row{display:flex;gap:8px;align-items:center;margin:6px 0 10px;flex-wrap:wrap}
@@ -731,15 +740,13 @@ button,.nav,a,input,select,textarea{touch-action:manipulation}
  #invoicePreview,#invoicePreview *{visibility:visible}
  #invoicePreview{position:absolute;inset:0;margin:0;box-shadow:none;border:none}
 }
-.license-row{margin:10px 0}.license-row small{display:block;margin-top:5px}.license-row .settings-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}.license-row .settings-actions button{flex:0 0 auto}#licenseCreatedLink,#licenseShareLink{width:100%;direction:ltr;text-align:left;font-size:12px}#licenseStatusBox .card{line-height:1.9}
 
-/* License hard lock v2.6 */
-#licenseHardGate{position:fixed;inset:0;z-index:2147483647;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.78);backdrop-filter:blur(10px);font-family:inherit}
-#licenseHardGate .license-hard-card{width:min(430px,94vw);background:var(--card,#fff);color:var(--text,#111);border-radius:24px;padding:28px;box-shadow:0 24px 80px rgba(0,0,0,.35);text-align:center}
-#licenseHardGate .license-hard-icon{font-size:46px;margin-bottom:8px}
-#licenseHardGate input{width:100%;box-sizing:border-box;margin:14px 0 10px;padding:13px;border-radius:12px;border:1px solid #ccc;font:inherit}
-#licenseHardGate button{width:100%;margin:5px 0;padding:13px;border:0;border-radius:12px;font:inherit;cursor:pointer}
-#licenseHardGate .primary{background:#111;color:#fff}
-#licenseHardGate small{display:block;margin-top:14px;opacity:.65;line-height:1.7}
-html.license-locked body>*:not(#licenseHardGate){pointer-events:none!important}
-html.license-locked body{overflow:hidden!important}
+/* --- License box (Settings > Sync) --- */
+.license-box{background:var(--bg3);border:.5px solid var(--sep);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px}
+.license-box-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.license-badge{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--gray);color:#fff;white-space:nowrap}
+.license-badge.active{background:var(--green)}
+.license-badge.trial{background:var(--orange)}
+.license-badge.expired,.license-badge.revoked{background:var(--red)}
+.license-uid{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:ltr;text-align:left;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;background:var(--card);border:.5px solid var(--sep);border-radius:8px;padding:7px 10px;cursor:pointer}
+.license-copy-btn{border:none;background:var(--bg3);color:var(--label);border-radius:8px;padding:7px 10px;font-size:12px;white-space:nowrap}
