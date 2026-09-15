@@ -404,6 +404,7 @@ body:not(.dark) .sheet .close{background:#E5E5EA}
 .week-reminder-chip{background:rgba(255,159,10,.16);background:color-mix(in srgb, #FF9F0A 16%, var(--bg3));color:#B9700A}
 body.dark .week-reminder-chip{color:#FFB84D}
 .week-reminder-chip:active{background:rgba(255,159,10,.3);background:color-mix(in srgb, #FF9F0A 30%, var(--bg3))}
+.week-chip-time{display:inline-block;direction:ltr;font-weight:800;opacity:.75;margin-inline-end:2px}
 
 /* side menu drawer */
 .menu-modal{align-items:stretch;justify-content:flex-start}
@@ -741,12 +742,15 @@ button,.nav,a,input,select,textarea{touch-action:manipulation}
  #invoicePreview{position:absolute;inset:0;margin:0;box-shadow:none;border:none}
 }
 
-/* --- License box (Settings > Sync) --- */
-.license-box{background:var(--bg3);border:.5px solid var(--sep);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px}
-.license-box-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.license-badge{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--gray);color:#fff;white-space:nowrap}
-.license-badge.active{background:var(--green)}
-.license-badge.trial{background:var(--orange)}
-.license-badge.expired,.license-badge.revoked{background:var(--red)}
-.license-uid{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:ltr;text-align:left;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;background:var(--card);border:.5px solid var(--sep);border-radius:8px;padding:7px 10px;cursor:pointer}
-.license-copy-btn{border:none;background:var(--bg3);color:var(--label);border-radius:8px;padding:7px 10px;font-size:12px;white-space:nowrap}
+/* ===== Image viewer: zoom / pan / save ===== */
+.image-viewer{width:min(100%,520px);display:flex;flex-direction:column;gap:10px}
+.image-viewer-head{display:flex;justify-content:space-between;align-items:center;font-size:15px}
+.image-viewer-stage{height:min(62vh,560px);min-height:300px;background:#000;border-radius:16px;overflow:hidden;display:flex;align-items:center;justify-content:center;touch-action:none;position:relative}
+.image-viewer-stage img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;transform-origin:center center;transition:transform .12s ease;user-select:none;-webkit-user-drag:none;will-change:transform}
+.image-viewer-tools{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap}
+.image-viewer-tools button,.image-viewer-nav button{border:none;background:var(--bg3);color:var(--label);border-radius:10px;min-height:38px;padding:0 12px;font:inherit;font-size:13px}
+.image-viewer-tools button:last-child{background:var(--blue);color:#fff;font-weight:700}
+.image-viewer-tools span{min-width:48px;text-align:center;font-size:12px;color:var(--label2)}
+.image-viewer-nav{display:flex;justify-content:space-between;gap:8px}.image-viewer-nav button{flex:1}
+.image-viewer-nav button:disabled{opacity:.35}
+.image-viewer-hint{text-align:center;margin:0}

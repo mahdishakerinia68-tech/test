@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="2.5";
+const APP_VERSION="2.7.1";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -121,7 +121,7 @@ const DEFAULT_SYNC_CONFIG={
   appId:"1:1048332879407:web:d1168138d754d28c8d68da",
   measurementId:"G-562NVEJKZT"
 };
-let sync={app:null,auth:null,db:null,user:null,unsubscribe:null,licenseUnsub:null,ready:false,saving:false,queued:false,hydrating:false,authListener:false,dirty:new Map()};
+let sync={app:null,auth:null,db:null,user:null,unsubscribe:null,ready:false,saving:false,queued:false,hydrating:false,authListener:false,dirty:new Map()};
 function syncConfig(){try{return JSON.parse(localStorage.getItem(SYNC_KEY)||"null")||DEFAULT_SYNC_CONFIG}catch{return DEFAULT_SYNC_CONFIG}}
 function autoBackupEnabled(){return localStorage.getItem(AUTO_BACKUP_ENABLED_KEY)!=="false"}
 function setAutoBackupEnabled(v){localStorage.setItem(AUTO_BACKUP_ENABLED_KEY,v?"true":"false"); if(v) createAutoBackup("فعال‌سازی پشتیبان خودکار"); logEvent(v?"پشتیبان خودکار فعال شد":"پشتیبان خودکار غیرفعال شد",v?"از این پس هر ۶ ساعت یک فایل پشتیبان واقعی داخل گوشی ساخته می‌شود":"پشتیبان‌گیری خودکار خاموش شد","settings",false); renderSettingsFeatures()}
@@ -207,7 +207,7 @@ function maybeAutoBackup(reason){
 }
 function getAutoBackupFileInfo(){try{return JSON.parse(localStorage.getItem(AUTO_BACKUP_LAST_FILE_KEY)||"null")}catch{return null}}
 function restoreLatestAutoBackup(){try{const list=JSON.parse(localStorage.getItem(AUTO_BACKUP_KEY)||"[]"); if(!list.length)return alert("هنوز پشتیبان خودکاری وجود ندارد."); if(!confirm("آخرین پشتیبان خودکار جایگزین اطلاعات فعلی شود؟"))return; data=list[0].data; normalizeData(); save(); logEvent("بازیابی پشتیبان خودکار",new Date(list[0].at).toLocaleString("fa-IR"),"settings"); alert("آخرین پشتیبان خودکار بازیابی شد.")}catch(e){alert("پشتیبان خودکار قابل بازیابی نیست.")}}
-function normalizeData(){data=data||blankData(); for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats","audit","trash"]){data[k]??=[];} data.pin=typeof data.pin==="string"?data.pin:""; data.pinHash=typeof data.pinHash==="string"?data.pinHash:""; data.pinSalt=typeof data.pinSalt==="string"?data.pinSalt:""; data.patternHash=typeof data.patternHash==="string"?data.patternHash:""; data.patternSalt=typeof data.patternSalt==="string"?data.patternSalt:""; data.lockMethod=(data.lockMethod==="pattern")?"pattern":"pin"; data.biometricEnabled=!!data.biometricEnabled; data.webauthnCredId=typeof data.webauthnCredId==="string"?data.webauthnCredId:""; data.lang=(data.lang==="en")?"en":"fa"; data.branding??={storeName:"",logo:"",stamp:"",signature:""}; data.yearSettlements??={}; data._sync??={tombstones:{}}; data._sync.tombstones??={}; for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats"]){for(const r of data[k]){r.id??=uid();r.updatedAt??=new Date().toISOString();}} for(const c of [...data.expenseCats,...data.incomeCats]){c.children??=[];for(const ch of c.children){ch.id??=uid();}} data.notes.forEach((n,i)=>{if(typeof n.order!=="number")n.order=i;}); data.reminders.forEach((r,i)=>{if(typeof r.order!=="number")r.order=i;});}
+function normalizeData(){data=data||blankData(); for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats","audit","trash"]){data[k]??=[];} data.pin=typeof data.pin==="string"?data.pin:""; data.pinHash=typeof data.pinHash==="string"?data.pinHash:""; data.pinSalt=typeof data.pinSalt==="string"?data.pinSalt:""; data.patternHash=typeof data.patternHash==="string"?data.patternHash:""; data.patternSalt=typeof data.patternSalt==="string"?data.patternSalt:""; data.lockMethod=(data.lockMethod==="pattern")?"pattern":"pin"; data.biometricEnabled=!!data.biometricEnabled; data.webauthnCredId=typeof data.webauthnCredId==="string"?data.webauthnCredId:""; data.lang=(data.lang==="en")?"en":"fa"; data.branding??={storeName:"",logo:"",stamp:"",signature:""}; data.yearSettlements??={}; data._sync??={tombstones:{}}; data._sync.tombstones??={}; data.smsSeen??=[]; for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats"]){for(const r of data[k]){r.id??=uid();r.updatedAt??=new Date().toISOString();}} for(const c of [...data.expenseCats,...data.incomeCats]){c.children??=[];for(const ch of c.children){ch.id??=uid();}} data.notes.forEach((n,i)=>{if(typeof n.order!=="number")n.order=i;}); data.reminders.forEach((r,i)=>{if(typeof r.order!=="number")r.order=i;});}
 /* ---- Language switch (v5.9) -------------------------------------------
  * Translates the app's static "chrome" — menu, page section headers, and
  * settings group titles — between Persian and English, and switches
@@ -322,6 +322,7 @@ async function addToAndroidClock(r){const p=getNativeSystemAlarm();if(!p||!r?.da
 function getNativeLocalNotifications(){try{if(nativeNotifications)return nativeNotifications;const p=globalThis.Capacitor?.Plugins?.LocalNotifications;if(p&&typeof p.schedule==="function")nativeNotifications=p;return nativeNotifications}catch(e){return null}}
 function notificationIdForReminder(id){let h=0;for(const ch of String(id||""))h=((h<<5)-h+ch.charCodeAt(0))|0;return NATIVE_NOTIFICATION_ID_PREFIX+(Math.abs(h)%100000000)}
 function localDateFromInput(v){if(!v)return null;const d=new Date(v);return Number.isNaN(d.getTime())?null:d}
+function timeFa(v){const d=localDateFromInput(v);if(!d)return '';return `${toFaDigits(String(d.getHours()).padStart(2,'0'))}:${toFaDigits(String(d.getMinutes()).padStart(2,'0'))}`}
 function addMonthsSafe(d,n){const out=new Date(d.getTime()),day=out.getDate();out.setDate(1);out.setMonth(out.getMonth()+n);const last=new Date(out.getFullYear(),out.getMonth()+1,0).getDate();out.setDate(Math.min(day,last));return out}
 function nextReminderDate(r,now=new Date()){let d=localDateFromInput(r?.date);if(!d)return null;const rep=r.repeat||"once";if(rep==="once")return d>now?d:null;let guard=0;while(d<=now&&guard++<500){if(rep==="daily")d=new Date(d.getTime()+86400000);else if(rep==="weekly")d=new Date(d.getTime()+7*86400000);else if(rep==="monthly")d=addMonthsSafe(d,1);else return null}return d>now?d:null}
 async function cancelNativeReminder(id){const p=getNativeLocalNotifications();if(!p)return;try{await p.cancel({notifications:[{id:notificationIdForReminder(id)}]})}catch(e){console.warn("cancel reminder",e)}}
@@ -484,7 +485,7 @@ function renderDueSoon(){
   box.innerHTML=`🔔 ${overdue?`<b>${fa(overdue)} یادآوری دیرشده</b> • `:""}${fa(todayCount)} یادآوری در ۲۴ ساعت آینده`;
 }
 
-const blankData=()=>({accounts:[],transactions:[],people:[],reminders:[],notes:[],checks:[],invoices:[],customers:[],products:[],audit:[],trash:[],expenseCats:defaultsExpense.map((name,i)=>({id:"e"+i,name,children:[]})),incomeCats:defaultsIncome.map((name,i)=>({id:"i"+i,name,children:[]})),pin:"",patternHash:"",patternSalt:"",lockMethod:"pin",biometricEnabled:false,webauthnCredId:"",lang:"fa",branding:{storeName:"",logo:"",stamp:"",signature:""},yearSettlements:{}});
+const blankData=()=>({accounts:[],transactions:[],people:[],reminders:[],notes:[],checks:[],invoices:[],customers:[],products:[],audit:[],trash:[],expenseCats:defaultsExpense.map((name,i)=>({id:"e"+i,name,children:[]})),incomeCats:defaultsIncome.map((name,i)=>({id:"i"+i,name,children:[]})),pin:"",patternHash:"",patternSalt:"",lockMethod:"pin",biometricEnabled:false,webauthnCredId:"",lang:"fa",branding:{storeName:"",logo:"",stamp:"",signature:""},yearSettlements:{},smsSeen:[]});
 window.addEventListener("error",e=>{console.error(e.error||e.message)});
 window.addEventListener("unhandledrejection",e=>{console.error(e.reason)});
 window.addEventListener("online",async()=>{if(sync.db)sync.db.enableNetwork().catch(console.error);setSyncStatus("🌐 اینترنت برقرار شد؛ در حال بررسی اتصال دو گوشی..."); if(!sync.auth)await initSync(); if(sync.dirty&&sync.dirty.size)syncSave(); await verifyTwoPhoneConnection(true);});
@@ -671,7 +672,7 @@ async function hydrateSync(){
   if(!sync.user||!sync.db)return;
   sync.hydrating=true;
   try{const remote=await pullRest();mergeCloud(remote);localStorage.setItem(KEY,JSON.stringify(data));await reconcileInitial(remote);render();setSyncStatus("☁️ آنلاین • همگام‌سازی لحظه‌ای")}
-  catch(e){console.error(e);setSyncStatus(friendlySyncError(e))}
+  catch(e){console.error(e);setSyncStatus("⚠️ دریافت اولیه ناموفق: "+(e.code||e.message))}
   finally{sync.hydrating=false}
 }
 async function syncTick(){
@@ -709,76 +710,28 @@ async function initSync(){
     sync.auth.onAuthStateChanged(async user=>{
       sync.user=user;fillSettingsSyncEmail();
       if(sync.timer)clearInterval(sync.timer);if(sync.unsubscribe){sync.unsubscribe();sync.unsubscribe=null}
-      if(sync.licenseUnsub){sync.licenseUnsub();sync.licenseUnsub=null}
-      if(!user){sync.ready=false;if(sync.presenceTimer)clearInterval(sync.presenceTimer);setSyncStatus("☁️ برای همگام‌سازی وارد شوید");hideLicenseBox();return}
-      watchLicense(user.uid);
+      if(!user){sync.ready=false;if(sync.presenceTimer)clearInterval(sync.presenceTimer);setSyncStatus("☁️ برای همگام‌سازی وارد شوید");return}
       sync.ready=true;await hydrateSync();await rescheduleAllNativeReminders();startDevicePresence();await verifyTwoPhoneConnection(false);
       sync.unsubscribe=recordsCollection().onSnapshot(snap=>{
         if(sync.hydrating)return;
         const remote=snap.docs.map(d=>d.data());
         if(mergeCloud(remote)){localStorage.setItem(KEY,JSON.stringify(data));render();syncSave();syncAllNotesToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error)}
         setSyncStatus("☁️ آنلاین • همگام‌سازی لحظه‌ای")
-      },e=>setSyncStatus(friendlySyncError(e)));
+      },e=>setSyncStatus("⚠️ همگام‌سازی: "+(e.code||e.message)));
       sync.timer=setInterval(syncTick,SYNC_INTERVAL);
     });
   }catch(e){console.error(e);setSyncStatus("⚠️ تنظیمات Firebase نامعتبر است")}
 }
-/* --- License status (v2.6): read-only badge in Settings > Sync. Real
- * enforcement happens in Firestore Security Rules (a user whose license
- * isn't active/trial simply gets a permission-denied on read/write of
- * their own cloud data) — this UI only turns that into a clear Persian
- * message and shows the UID the buyer needs to send to support so an
- * admin can activate/extend their license from the admin panel. */
-function friendlySyncError(e){
-  if(e&&e.code==="permission-denied")return "⚠️ لایسنس شما فعال نیست یا منقضی شده — کد اتصال را از تنظیمات برای پشتیبانی بفرست";
-  return "⚠️ همگام‌سازی: "+(e&&(e.code||e.message)||"")
-}
-function licenseStatusLabel(s){return ({active:"فعال",trial:"آزمایشی",expired:"منقضی‌شده",revoked:"لغو شده"})[s]||"نامشخص"}
-function hideLicenseBox(){const b=$("licenseBox");if(b)b.style.display="none"}
-function renderLicenseBox(lic){
-  const box=$("licenseBox"),badge=$("licenseBadge"),detail=$("licenseDetail"),uidEl=$("licenseUid");
-  if(!box)return;
-  box.style.display="flex";
-  if(uidEl)uidEl.textContent=sync.user?sync.user.uid:"—";
-  if(!badge||!detail)return;
-  if(!lic){badge.textContent="بدون لایسنس";badge.className="license-badge";detail.textContent="برای فعال‌سازی، کد بالا را برای پشتیبانی ارسال کن.";return}
-  const st=lic.status||"expired";
-  badge.textContent=licenseStatusLabel(st);
-  badge.className="license-badge "+st;
-  let exp="";
-  try{if(lic.expiresAt&&typeof lic.expiresAt.toDate==="function")exp=" • تا "+lic.expiresAt.toDate().toLocaleDateString("fa-IR");
-  else if(lic.expiresAt===null)exp=" • دائمی";}catch(e){}
-  detail.textContent=(lic.plan?("پلن: "+lic.plan):"")+exp;
-}
-function watchLicense(uid){
-  if(sync.licenseUnsub){sync.licenseUnsub();sync.licenseUnsub=null}
-  if(!uid||!sync.db)return;
-  sync.licenseUnsub=sync.db.collection("licenses").doc(uid).onSnapshot(
-    snap=>renderLicenseBox(snap.exists?snap.data():null),
-    ()=>renderLicenseBox(null)
-  );
-}
-function copyLicenseUid(){
-  if(!sync.user)return alert("اول با حساب همگام‌سازی وارد شو");
-  const uid=sync.user.uid;
-  const done=()=>setSyncStatus("📋 کد اتصال کپی شد");
-  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(uid).then(done).catch(()=>fallbackCopyLicenseUid(uid))}
-  else fallbackCopyLicenseUid(uid);
-}
-function fallbackCopyLicenseUid(t){
-  try{const ta=document.createElement("textarea");ta.value=t;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);setSyncStatus("📋 کد اتصال کپی شد")}
-  catch(e){alert("کد اتصال: "+t)}
-}
 async function syncSave(){
   if(!sync.ready||!sync.user||sync.hydrating)return;
   sync.queued=true;if(sync.saving)return;sync.saving=true;
-  while(sync.queued){sync.queued=false;try{await pushRest();setSyncStatus("☁️ ذخیره ابری انجام شد — "+dataSummary(data)); logEvent("همگام‌سازی ابری","ذخیره تغییرات در ابر","sync",false)}catch(e){console.error(e);setSyncStatus(friendlySyncError(e))}}
+  while(sync.queued){sync.queued=false;try{await pushRest();setSyncStatus("☁️ ذخیره ابری انجام شد — "+dataSummary(data)); logEvent("همگام‌سازی ابری","ذخیره تغییرات در ابر","sync",false)}catch(e){console.error(e);setSyncStatus("⚠️ ذخیره ابری انجام نشد: "+(e.code||"")+" "+e.message)}}
   sync.saving=false;
 }
 async function pushToCloud(){
   if(!sync.user){if(!await ensureSyncReady())return;if(!sync.user)return alert("اول با حساب همگام‌سازی وارد شو");}
   try{await pushRest();setSyncStatus("☁️ اطلاعات این گوشی به ابر منتقل شد — "+dataSummary(data));alert("ارسال با موفقیت انجام شد\n"+dataSummary(data));}
-  catch(e){alert(e&&e.code==="permission-denied"?"لایسنس شما فعال نیست یا منقضی شده — کد اتصال را از تنظیمات برای پشتیبانی بفرست":"ارسال ناموفق: "+(e.code||'')+"\n"+e.message)}
+  catch(e){alert("ارسال ناموفق: "+(e.code||'')+"\n"+e.message)}
 }
 async function pullFromCloud(){
   if(!sync.user){if(!await ensureSyncReady())return;if(!sync.user)return alert("اول با حساب همگام‌سازی وارد شو");}
@@ -786,7 +739,7 @@ async function pullFromCloud(){
     const remote=await pullRest();
     if(!remote||!remote.length)return alert("هنوز اطلاعاتی در ابر وجود ندارد");
     mergeCloud(remote);localStorage.setItem(KEY,JSON.stringify(data));render();setSyncStatus("☁️ اطلاعات از ابر دریافت شد — "+dataSummary(data));alert("اطلاعات ابری دریافت شد\n"+dataSummary(data));
-  }catch(e){alert(e&&e.code==="permission-denied"?"لایسنس شما فعال نیست یا منقضی شده — کد اتصال را از تنظیمات برای پشتیبانی بفرست":"دریافت ناموفق: "+(e.code||'')+"\n"+e.message)}
+  }catch(e){alert("دریافت ناموفق: "+(e.code||'')+"\n"+e.message)}
 }
 function openSyncSettings(){
  const c=syncConfig()||{};
@@ -931,7 +884,13 @@ function showWhatsNewOnce(){
   <h2>🎉 به حساب‌یار خوش آمدی</h2>
   <p class="hint">این صفحه فقط یک‌بار در اولین اجرای این نسخه نمایش داده می‌شود.</p>
   <div class="whats-new-section">
-   <h3>🛠 تغییرات این نسخه (۲.۵)</h3>
+   <h3>🛠 تغییرات این نسخه (۲.۷)</h3>
+   <ul>
+    <li>⏰ جدول هفتگی یادداشت‌ها و یادآوری‌ها حالا کنار هر آیتم ساعتش را هم نشان می‌دهد و برنامه‌های هر روز بر اساس همان ساعت مرتب می‌شوند؛ یعنی هرچه زودتر باشد بالاتر از بقیه‌ی همان روز می‌نشیند.</li>
+   </ul>
+  </div>
+  <div class="whats-new-section">
+   <h3>🛠 تغییرات نسخه قبل (۲.۵)</h3>
    <ul>
     <li>📎 پیوست تراکنش حالا چند-عکسی شد: برای هر تراکنش (مثلاً هزینه‌ی تعمیرگاه) می‌توانی تا ۵ عکس با هم ذخیره کنی — مثلاً هم عکس فاکتور و هم عکس فیش واریزی را کنار هم نگه داری. از پنجره‌ی ثبت/ویرایش تراکنش عکس‌ها را یکی‌یکی یا چندتایی اضافه کن، هرکدام را جدا با ضربدر حذف کن، و در لیست تراکنش‌ها روی عکس بزن تا همه‌ی عکس‌های آن تراکنش را با هم ببینی.</li>
    </ul>
@@ -1045,16 +1004,16 @@ function showLock(){
   const svg=$("patternSvg");
   svg.onpointerdown=e=>patternDown(e,async path=>{
    const ok=await verifyPattern(path).catch(()=>false);
-   if(ok){$("lock")?.remove();setTimeout(showWhatsNewOnce,180);return}
+   if(ok){$("lock")?.remove();setTimeout(showWhatsNewOnce,180);setTimeout(()=>checkForNewBankSms(true),1200);return}
    $("lockMsg").textContent="الگو اشتباه است";patternPath=[];patternRedraw(svg);
   });
  }else{
   $("unlockBtn").onclick=unlock;
   $("pinInput").onkeydown=e=>{if(e.key==="Enter")unlock()};
  }
- if(bioBtn)$("bioUnlockBtn").onclick=async()=>{const ok=await biometricVerify().catch(()=>false);if(ok)$("lock")?.remove();else alert("تایید بیومتریک انجام نشد")};
+ if(bioBtn)$("bioUnlockBtn").onclick=async()=>{const ok=await biometricVerify().catch(()=>false);if(ok){$("lock")?.remove();setTimeout(()=>checkForNewBankSms(true),1200)}else alert("تایید بیومتریک انجام نشد")};
 }
-async function unlock(){const input=$("pinInput");if(!input)return;const ok=await verifyPin(input.value).catch(()=>false);if(!ok)return alert("رمز اشتباه است");$("lock")?.remove();setTimeout(showWhatsNewOnce,180)}
+async function unlock(){const input=$("pinInput");if(!input)return;const ok=await verifyPin(input.value).catch(()=>false);if(!ok)return alert("رمز اشتباه است");$("lock")?.remove();setTimeout(showWhatsNewOnce,180);setTimeout(()=>checkForNewBankSms(true),1200)}
 async function setPin(){
  if(data.lockMethod==="pattern"&&data.patternHash){alert("در حال حاضر قفل الگو فعال است. برای تغییر به رمز عددی، اول با «حذف رمز ورود» آن را غیرفعال کن.");return}
  const old=data.pinHash||data.pin?(prompt("رمز فعلی را وارد کن:")||""):"";
@@ -1510,6 +1469,122 @@ function processBankMessage(){
   data.transactions.unshift(nt);markDirty("transactions",nt.id,false,nt,nt.updatedAt);save();logEvent("ثبت پیامک بانکی",`${title} • ${money(amount)}`,"create");closeModal();
 }
 function saveBankTx(type,amount,accountID){const nt=touch({id:uid(),title:$("bt").value.trim()||"تراکنش بانکی",amount,type,category:$("bc").value,accountID,date:new Date().toISOString(),source:"bank"});data.transactions.unshift(nt);markDirty("transactions",nt.id,false,nt,nt.updatedAt);save();logEvent("ایجاد تراکنش بانکی",`${nt.title} • ${money(nt.amount)}`,"create");closeModal()}
+
+/* ===== v2.7.1: خواندن و دسته‌بندی خودکار پیامک‌های بانکی =====
+   وقتی اپ (نسخه نصب‌شده/کپسیتور) باز می‌شود، پیامک‌های صندوق دریافتی که از
+   شماره فرستنده‌ی ثبت‌شده‌ی هر حساب آمده‌اند خوانده می‌شوند، مبلغ و نوع
+   (هزینه/دریافت) از روی متن پیامک حدس زده می‌شود و همه‌ی پیامک‌های تازه —
+   چه یکی چه چند تا — در یک لیست برای تایید کاربر نمایش داده می‌شوند. بعد از
+   زدن «ثبت»، هر مورد به‌صورت یک تراکنش عادی ذخیره می‌شود و چون موجودی حساب
+   (accountBalance) همیشه از روی تراکنش‌ها محاسبه می‌شود، موجودی حساب هم
+   خودکار به‌روز می‌شود. پیامک‌هایی که یک‌بار دیده شده‌اند (چه ثبت شوند چه
+   نادیده گرفته شوند) در data.smsSeen نگه داشته می‌شوند تا دوباره تکرار نشوند. */
+function smsPlugin(){return window.Capacitor?.Plugins?.SmsInbox||null}
+function smsSenderNorm(s){return String(s||"").replace(/\D/g,"").replace(/^98/,"").replace(/^0/,"")}
+function smsSenderMatch(addr,accSender){const a=smsSenderNorm(addr),b=smsSenderNorm(accSender);if(!a||!b)return false;return a===b||a.endsWith(b)||b.endsWith(a)}
+function smsMsgHash(m){return String(m.address||m.sender||"")+"|"+String(m.date||m._id||m.id||"")+"|"+String(m.body||m.text||"").slice(0,30)}
+function parseBankSmsAmount(text){
+  const t=String(text||"");
+  let m=t.match(/(?:مبلغ|به\s*مبلغ)[:\s]*([\d,،٬۰-۹]{3,})/)||t.match(/([\d,،٬]{4,})\s*(?:ریال|ريال|تومان)/)||t.match(/([\d,،٬]{4,})/);
+  if(!m)return 0;
+  const digits=toEnDigits(m[1]).replace(/[^\d]/g,"");
+  let n=Number(digits)||0;
+  if(/ریال|ريال/.test(t)&&!/تومان/.test(t))n=Math.round(n/10);
+  return n;
+}
+function toEnDigits(s){return String(s).replace(/[۰-۹]/g,d=>"۰۱۲۳۴۵۶۷۸۹".indexOf(d))}
+function parseBankSmsType(text){
+  const t=String(text||"");
+  if(/واریز|واريز|افزایش موجودی|دریافت وجه|بازگشت وجه|شارژ کیف پول/.test(t))return "income";
+  if(/برداشت|خرید|پرداخت|كسر وجه|کسر وجه|انتقال وجه از|هزینه/.test(t))return "expense";
+  return "expense";
+}
+let smsReviewQueue=[];
+async function checkForNewBankSms(silent){
+  const plugin=smsPlugin();
+  if(!plugin){if(!silent)alert("این قابلیت فقط در نسخه نصب‌شده‌ی اپلیکیشن (نه در مرورگر) در دسترس است");return}
+  if(silent&&modal&&!modal.classList.contains("hidden"))return; // پنجره‌ی دیگری باز است، مزاحم نشویم
+  const known=data.accounts.filter(a=>a.sender&&a.sender.trim());
+  if(!known.length){if(!silent)alert("ابتدا شماره فرستنده‌ی پیامک بانک را برای حساب‌ها ثبت کن (داخل ویرایش حساب)");return}
+  try{
+    if(plugin.checkPermissions){
+      let perm=await plugin.checkPermissions().catch(()=>null);
+      if(perm?.sms!=="granted"){
+        if(silent)return;
+        if(!confirm("برای خواندن خودکار پیامک‌های بانکی، اجازه‌ی دسترسی به پیامک‌های گوشی لازم است. اجازه داده شود؟"))return;
+        perm=await plugin.requestPermissions?.().catch(()=>null);
+        if(perm?.sms!=="granted")return alert("دسترسی به پیامک‌ها داده نشد");
+      }
+    }
+    const res=await plugin.getSmsList?.({box:"inbox"}).catch(()=>null);
+    const list=(res&&(res.sms||res.list||res.messages))||(Array.isArray(res)?res:[]);
+    if(!Array.isArray(list)||!list.length){if(!silent)alert("پیامکی در گوشی پیدا نشد");return}
+    const seen=new Set(data.smsSeen||[]);
+    const candidates=[];
+    for(const m of list){
+      const acc=known.find(a=>smsSenderMatch(m.address||m.sender,a.sender));
+      if(!acc)continue;
+      const hash=smsMsgHash(m);
+      if(seen.has(hash))continue;
+      const text=String(m.body||m.text||"").trim();
+      if(!text)continue;
+      const amount=parseBankSmsAmount(text);
+      if(!amount)continue;
+      let dateISO=new Date().toISOString();
+      const dNum=Number(m.date);
+      if(dNum)dateISO=new Date(dNum).toISOString();else if(m.date&&!isNaN(new Date(m.date)))dateISO=new Date(m.date).toISOString();
+      candidates.push({hash,accountID:acc.id,type:parseBankSmsType(text),amount,title:acc.bank?`تراکنش ${acc.bank}`:"تراکنش بانکی",text,date:dateISO});
+    }
+    if(!candidates.length){if(!silent)alert("پیامک بانکی جدیدی برای ثبت پیدا نشد");return}
+    smsReviewQueue=candidates;renderSmsReview();
+  }catch(e){console.warn("checkForNewBankSms failed",e);if(!silent)alert("خواندن پیامک‌های بانکی با خطا مواجه شد")}
+}
+function smsReviewRowHTML(c,i){
+  const acc=data.accounts.find(a=>a.id===c.accountID);
+  const catOpts=`<option value="بانکی">بانکی</option>${data.expenseCats.map(x=>`<option value="${esc(x.name)}" ${x.name===c.title?"selected":""}>${esc(x.name)}</option>`).join("")}`;
+  return `<div class="card sms-review-item" data-i="${i}">
+    <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="smsChk${i}" checked> <b>${esc(acc?.name||"حساب نامشخص")}${acc?.bank?" • "+esc(acc.bank):""}</b></label>
+    <div class="hint" style="margin:6px 0">${esc(c.text.slice(0,140))}${c.text.length>140?"…":""}</div>
+    <div class="form">
+      <select id="smsType${i}"><option value="income" ${c.type==="income"?"selected":""}>دریافتی / واریز</option><option value="expense" ${c.type==="expense"?"selected":""}>پرداخت / برداشت</option></select>
+      <input id="smsAmt${i}" type="text" inputmode="numeric" class="amt-input" value="${fmtAmtValue(c.amount)}" placeholder="مبلغ تراکنش">
+      <input id="smsTitle${i}" value="${esc(c.title)}" placeholder="عنوان / شرح">
+      <select id="smsCat${i}">${catOpts}</select>
+    </div>
+  </div>`;
+}
+function renderSmsReview(){
+  if(!smsReviewQueue.length){closeModal();return}
+  const body=smsReviewQueue.map((c,i)=>smsReviewRowHTML(c,i)).join("");
+  openModal(`<h2>🏦 ${fa(smsReviewQueue.length)} پیامک بانکی جدید</h2><div class="form">${body}
+    <button class="primary" onclick="confirmSmsReview()">ثبت موارد تیک‌خورده در تراکنش‌ها</button>
+    <button onclick="dismissSmsReview()">نادیده گرفتن همه</button>
+  </div>`);
+}
+function confirmSmsReview(){
+  let count=0;
+  smsReviewQueue.forEach((c,i)=>{
+    const chk=$("smsChk"+i);
+    if(chk&&chk.checked){
+      const amount=parseMoney($("smsAmt"+i)?.value||"")||c.amount;
+      const type=$("smsType"+i)?.value||c.type;
+      const title=$("smsTitle"+i)?.value.trim()||c.title;
+      const category=$("smsCat"+i)?.value||"بانکی";
+      const nt=touch({id:uid(),title,amount,type,category,accountID:c.accountID,date:c.date,source:"bank",bankMessage:c.text});
+      data.transactions.unshift(nt);markDirty("transactions",nt.id,false,nt,nt.updatedAt);
+      count++;
+    }
+    data.smsSeen.push(c.hash);
+  });
+  if(data.smsSeen.length>500)data.smsSeen=data.smsSeen.slice(-500);
+  smsReviewQueue=[];save();closeModal();
+  if(count){logEvent("تشخیص خودکار پیامک بانکی",`${fa(count)} تراکنش از روی پیامک ثبت شد`,"create");alert(`${fa(count)} تراکنش با موفقیت ثبت شد`)}
+}
+function dismissSmsReview(){
+  smsReviewQueue.forEach(c=>data.smsSeen.push(c.hash));
+  if(data.smsSeen.length>500)data.smsSeen=data.smsSeen.slice(-500);
+  smsReviewQueue=[];save();closeModal();
+}
 /* v3.11: انتقال به «حساب دیگران» تا امروز فقط شماره کارت گیرنده را
    می‌گرفت. حالا روش انتقال هم مشخص می‌شود — «کارت به کارت» (شماره کارت
    ۱۶ رقمی) یا «انتقال به شبا» (شماره شبا) — و همان روش هم در عنوان
@@ -1828,7 +1903,7 @@ function pickInstallmentReceipt(personId,instId){
 }
 function viewInstallmentImage(personId,instId){
   const p=data.people.find(x=>x.id===personId);const it=p?.installments?.items.find(x=>x.id===instId);if(!it?.receipt)return;
-  openModal(`<h2>📎 عکس رسید قسط</h2><div class="attachment-large"><img src="${it.receipt}" alt="رسید"></div>`);
+  imageViewerOpen([it.receipt],0);
 }
 function toggleInstallment(personId,instId){
   const p=data.people.find(x=>x.id===personId);if(!p?.installments)return;
@@ -2044,11 +2119,12 @@ function notesWeekTableHTML(){
     const day=new Date(start.getTime()+i*86400000);
     const jd=gregorianToJalali(day.getFullYear(),day.getMonth()+1,day.getDate());
     const isToday=day.getTime()===t.getTime();
-    const dayNotes=data.notes.filter(n=>noteOccursOnDay(n,day)).sort((a,b)=>(a.order??0)-(b.order??0));
-    const dayReminders=(data.reminders||[]).filter(r=>!r.sourceNoteId&&r.date&&reminderOccursOnDay(r,day)).sort((a,b)=>(a.order??0)-(b.order??0));
-    const noteChips=dayNotes.map(n=>`<button type="button" class="week-note-chip" onclick="openNote('${n.id}')">📝 ${esc(n.title)}</button>`).join("");
-    const reminderChips=dayReminders.map(r=>`<button type="button" class="week-note-chip week-reminder-chip" onclick="openReminder('${r.id}')">🔔 ${esc(r.title)}</button>`).join("");
-    const chips=(noteChips+reminderChips)||`<span class="meta">برنامه‌ای ثبت نشده</span>`;
+    const dayNotes=data.notes.filter(n=>noteOccursOnDay(n,day)).map(n=>({kind:"note",id:n.id,title:n.title,date:n.date,order:n.order??0}));
+    const dayReminders=(data.reminders||[]).filter(r=>!r.sourceNoteId&&r.date&&reminderOccursOnDay(r,day)).map(r=>({kind:"reminder",id:r.id,title:r.title,date:r.date,order:r.order??0}));
+    /* اولویت‌بندی برنامه‌های هر روز بر اساس ساعت: هرچه زودتر، بالاتر؛ اگر ساعتی
+       ثبت نشده باشد آخر لیست همان روز قرار می‌گیرد و ترتیب قبلی (order) حفظ می‌شود. */
+    const dayItems=dayNotes.concat(dayReminders).map(it=>{const d=localDateFromInput(it.date);return {...it,mins:d?d.getHours()*60+d.getMinutes():Infinity}}).sort((a,b)=>a.mins-b.mins||a.order-b.order);
+    const chips=dayItems.length?dayItems.map(it=>{const timeLbl=Number.isFinite(it.mins)?`<span class="week-chip-time">${timeFa(it.date)}</span> `:"";return it.kind==="reminder"?`<button type="button" class="week-note-chip week-reminder-chip" onclick="openReminder('${it.id}')">🔔 ${timeLbl}${esc(it.title)}</button>`:`<button type="button" class="week-note-chip" onclick="openNote('${it.id}')">📝 ${timeLbl}${esc(it.title)}</button>`}).join(""):`<span class="meta">برنامه‌ای ثبت نشده</span>`;
     rows.push(`<tr class="${isToday?"week-today":""}"><td class="week-day-cell"><b>${PERSIAN_WEEKDAY_NAMES[i]}</b><div class="meta">${toFaDigits(jd[2])} ${PERSIAN_MONTHS[jd[1]-1]}</div></td><td class="week-notes-cell">${chips}</td></tr>`);
   }
   return `<div class="week-table-wrap"><div class="week-table-head"><button type="button" class="cal-nav" onclick="changeNotesWeek(-1)" aria-label="هفته قبل">❮</button><div><b>جدول هفتگی</b><div class="meta">${rangeLabel}</div></div><button type="button" class="cal-nav" onclick="changeNotesWeek(1)" aria-label="هفته بعد">❯</button></div><table class="week-table"><tbody>${rows.join("")}</tbody></table><button type="button" class="cal-today-btn" onclick="changeNotesWeek(0)">هفته جاری</button></div>`;
@@ -2428,7 +2504,89 @@ function transferItemHTML(t){
 }
 function txImagesOf(t){return (t?.images&&t.images.length)?t.images:(t?.image?[t.image]:[])}
 function txHTML(t){if(t.type==="transfer")return transferItemHTML(t);let a=data.accounts.find(x=>x.id===t.accountID),sign=t.type==="income"?"+":"−";const recurBadge=t.recurring&&t.recurring!=="none"?` • 🔁 ${t.recurring==="monthly"?"ماهانه":"هفتگی"}`:t.source==="recurring"?" • 🔁 خودکار":"";const imgs=txImagesOf(t);const thumb=imgs.length?`<div class="tx-thumb-wrap" onclick="viewImage('${t.id}')"><img class="tx-thumb" src="${imgs[0]}" alt="پیوست">${imgs.length>1?`<span class="tx-thumb-count">${fa(imgs.length)}</span>`:""}</div>`:"";return `<div class="item"><div><b>${esc(t.title)}</b><div class="meta">${esc(t.category||"")} • ${a?esc(a.name):""} • ${t.source==="bank"?"بانکی":t.source==="recurring"?"تکرارشونده":"دستی"}${recurBadge}</div><div class="meta">${jalaliDateTimeInput(t.date)}</div>${thumb}</div><div><strong class="${t.type}">${sign}${money(t.amount)}</strong>${actionButtons("openTx","deleteTx",t.id)}</div></div>`}
-function viewImage(id){const t=data.transactions.find(x=>x.id===id);const imgs=txImagesOf(t);if(!imgs.length)return;openModal(`<h2>📎 تصویر${imgs.length>1?"‌های":""} پیوست (${fa(imgs.length)})</h2><div class="attachment-large tx-gallery">${imgs.map(src=>`<img src="${src}" alt="پیوست">`).join("")}</div>`)}
+let imageViewerState={imgs:[],index:0,scale:1,x:0,y:0,startDist:0,startScale:1,startX:0,startY:0,dragX:0,dragY:0};
+function imageViewerRender(){
+ const img=$("imageViewerImg"),count=$("imageViewerCount"); if(!img)return;
+ const src=imageViewerState.imgs[imageViewerState.index]; img.src=src; imageViewerReset(false);
+ if(count)count.textContent=`${fa(imageViewerState.index+1)} / ${fa(imageViewerState.imgs.length)}`;
+ const prev=$("imageViewerPrev"),next=$("imageViewerNext"); if(prev)prev.disabled=imageViewerState.index===0; if(next)next.disabled=imageViewerState.index===imageViewerState.imgs.length-1;
+}
+function imageViewerApply(){const img=$("imageViewerImg");if(img)img.style.transform=`translate3d(${imageViewerState.x}px,${imageViewerState.y}px,0) scale(${imageViewerState.scale})`;const z=$("imageViewerZoomLabel");if(z)z.textContent=`${Math.round(imageViewerState.scale*100)}٪`;}
+function imageViewerReset(){imageViewerState.scale=1;imageViewerState.x=0;imageViewerState.y=0;imageViewerApply()}
+function imageViewerZoom(delta){imageViewerState.scale=Math.max(1,Math.min(5,imageViewerState.scale+delta));if(imageViewerState.scale===1){imageViewerState.x=0;imageViewerState.y=0}imageViewerApply()}
+function imageViewerPan(dx,dy){if(imageViewerState.scale<=1)return;imageViewerState.x+=dx;imageViewerState.y+=dy;imageViewerApply()}
+function imageViewerPrev(){if(imageViewerState.index>0){imageViewerState.index--;imageViewerRender()}}
+function imageViewerNext(){if(imageViewerState.index<imageViewerState.imgs.length-1){imageViewerState.index++;imageViewerRender()}}
+function imageViewerOpen(imgs,index=0){
+ imageViewerState={imgs,index,scale:1,x:0,y:0,startDist:0,startScale:1,startX:0,startY:0,dragX:0,dragY:0};
+ openModal(`<div class="image-viewer"><div class="image-viewer-head"><b>📎 مشاهده عکس</b><span id="imageViewerCount"></span></div><div id="imageViewerStage" class="image-viewer-stage"><img id="imageViewerImg" alt="پیوست" draggable="false"></div><div class="image-viewer-tools"><button type="button" onclick="imageViewerZoom(-0.25)">−</button><span id="imageViewerZoomLabel">100٪</span><button type="button" onclick="imageViewerZoom(0.25)">＋</button><button type="button" onclick="imageViewerReset()">↺</button><button type="button" onclick="downloadViewedImage()">⬇️ ذخیره عکس</button></div><div class="image-viewer-nav"><button id="imageViewerPrev" type="button" onclick="imageViewerPrev()">‹ قبلی</button><button id="imageViewerNext" type="button" onclick="imageViewerNext()">بعدی ›</button></div><p class="hint image-viewer-hint">با دو انگشت زوم کن و با یک انگشتِ عکسِ زوم‌شده را جابه‌جا کن.</p></div>`);
+ imageViewerRender();
+ const stage=$("imageViewerStage"); if(stage){
+  stage.style.touchAction="none";
+  const pointers=new Map();
+  let lastPinchDistance=0;
+  let pinchActive=false;
+  stage.addEventListener("wheel",e=>{e.preventDefault();imageViewerZoom(e.deltaY<0?.2:-.2)},{passive:false});
+  stage.addEventListener("pointerdown",e=>{
+   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+   stage.setPointerCapture?.(e.pointerId);
+   if(pointers.size===2){
+    const pts=[...pointers.values()];
+    lastPinchDistance=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);
+    pinchActive=true;
+   }else if(pointers.size===1){
+    imageViewerState.dragX=e.clientX;imageViewerState.dragY=e.clientY;
+   }
+  });
+  stage.addEventListener("pointermove",e=>{
+   if(!pointers.has(e.pointerId))return;
+   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+   if(pointers.size>=2){
+    const pts=[...pointers.values()];
+    const dist=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);
+    if(lastPinchDistance>0){
+     const factor=dist/lastPinchDistance;
+     const next=Math.max(1,Math.min(5,imageViewerState.scale*factor));
+     imageViewerState.scale=next;
+     if(next===1){imageViewerState.x=0;imageViewerState.y=0}
+     imageViewerApply();
+    }
+    lastPinchDistance=dist;
+    pinchActive=true;
+    return;
+   }
+   if(pointers.size===1 && !pinchActive && e.buttons===1){
+    const dx=e.clientX-imageViewerState.dragX,dy=e.clientY-imageViewerState.dragY;
+    imageViewerState.dragX=e.clientX;imageViewerState.dragY=e.clientY;imageViewerPan(dx,dy);
+   }
+  });
+  const endPointer=e=>{
+   pointers.delete(e.pointerId);
+   if(pointers.size<2)lastPinchDistance=0;
+   if(pointers.size===0)pinchActive=false;
+   try{stage.releasePointerCapture?.(e.pointerId)}catch(_){ }
+   if(pointers.size===1){const p=[...pointers.values()][0];imageViewerState.dragX=p.x;imageViewerState.dragY=p.y;pinchActive=false;}
+  };
+  stage.addEventListener("pointerup",endPointer);stage.addEventListener("pointercancel",endPointer);stage.addEventListener("pointerleave",()=>{});
+ }
+}
+async function downloadViewedImage(){
+ const src=imageViewerState.imgs[imageViewerState.index]; if(!src)return;
+ const filename=`hesabdar-image-${Date.now()}.jpg`;
+ try{
+  const fs=filesystemPlugin();
+  if(fs && src.startsWith("data:")){
+   const base64=src.split(",")[1];
+   await fs.writeFile({path:`Download/حسابداری/عکس‌ها/${filename}`,data:base64,directory:AUTO_BACKUP_DIRECTORY,recursive:true});
+   alert("عکس با موفقیت در پوشه Download/حسابداری/عکس‌ها ذخیره شد."); return;
+  }
+ }catch(e){console.warn("native image save failed",e)}
+ try{
+  const a=document.createElement("a");a.href=src;a.download=filename;a.target="_blank";document.body.appendChild(a);a.click();a.remove();
+  alert("عکس برای ذخیره/دانلود آماده شد. در آیفون در صورت نمایش عکس، گزینه Share > Save Image را بزن.");
+ }catch(e){alert("ذخیره عکس انجام نشد.")}
+}
+function viewImage(id){const t=data.transactions.find(x=>x.id===id);const imgs=txImagesOf(t);if(!imgs.length)return;imageViewerOpen(imgs,0)}
 function empty(s){return `<div class="card" style="text-align:center">${s}</div>`}
 
 function invoiceDateLabel(v){return jalaliLabel(v)}
@@ -3235,4 +3393,4 @@ async function importData(e){
   alert(msg)}
 }
 function clearData(){if(confirm("همه اطلاعات حذف شود؟")){const pin=data.pin,pinHash=data.pinHash,pinSalt=data.pinSalt,patternHash=data.patternHash,patternSalt=data.patternSalt,lockMethod=data.lockMethod,biometricEnabled=data.biometricEnabled,webauthnCredId=data.webauthnCredId,lang=data.lang;data=blankData();data.pin=pin;data.pinHash=pinHash;data.pinSalt=pinSalt;data.patternHash=patternHash;data.patternSalt=patternSalt;data.lockMethod=lockMethod;data.biometricEnabled=biometricEnabled;data.webauthnCredId=webauthnCredId;data.lang=lang;save();logEvent("پاک کردن اطلاعات","اطلاعات برنامه پاک شد","delete");}}
-(async function initApp(){normalizeData();purgeOldTrash();applyAccentThemeOnLoad();await migratePinSecurity();showLock();render();applyDashboardConfig();applyAppMode();renderBrandingInSettings();renderSettingsFeatures();applyLanguage();maybeAutoBackup("اجرای برنامه");processRecurringTransactions();logEvent("اجرای برنامه","برنامه حسابدار اجرا شد","system");await initSync();if(!sync.auth){[4000,12000,30000].forEach(ms=>setTimeout(()=>{if(!sync.auth)initSync()},ms))}syncAllNotesToReminders().catch(console.error);syncAllChecksToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error);startUpdateChecker();startReminderChecker();if(!hasLockCode())setTimeout(showWhatsNewOnce,320);})();
+(async function initApp(){normalizeData();purgeOldTrash();applyAccentThemeOnLoad();await migratePinSecurity();showLock();render();applyDashboardConfig();applyAppMode();renderBrandingInSettings();renderSettingsFeatures();applyLanguage();maybeAutoBackup("اجرای برنامه");processRecurringTransactions();logEvent("اجرای برنامه","برنامه حسابدار اجرا شد","system");await initSync();if(!sync.auth){[4000,12000,30000].forEach(ms=>setTimeout(()=>{if(!sync.auth)initSync()},ms))}syncAllNotesToReminders().catch(console.error);syncAllChecksToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error);startUpdateChecker();startReminderChecker();if(!hasLockCode()){setTimeout(showWhatsNewOnce,320);setTimeout(()=>checkForNewBankSms(true),1200)}})();
