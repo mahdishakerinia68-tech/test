@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="2.7.1";
+const APP_VERSION="2.7.2";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -1004,16 +1004,16 @@ function showLock(){
   const svg=$("patternSvg");
   svg.onpointerdown=e=>patternDown(e,async path=>{
    const ok=await verifyPattern(path).catch(()=>false);
-   if(ok){$("lock")?.remove();setTimeout(showWhatsNewOnce,180);setTimeout(()=>checkForNewBankSms(true),1200);return}
+   if(ok){$("lock")?.remove();setTimeout(showWhatsNewOnce,180);setTimeout(runSmsAutoChecks,1200);return}
    $("lockMsg").textContent="الگو اشتباه است";patternPath=[];patternRedraw(svg);
   });
  }else{
   $("unlockBtn").onclick=unlock;
   $("pinInput").onkeydown=e=>{if(e.key==="Enter")unlock()};
  }
- if(bioBtn)$("bioUnlockBtn").onclick=async()=>{const ok=await biometricVerify().catch(()=>false);if(ok){$("lock")?.remove();setTimeout(()=>checkForNewBankSms(true),1200)}else alert("تایید بیومتریک انجام نشد")};
+ if(bioBtn)$("bioUnlockBtn").onclick=async()=>{const ok=await biometricVerify().catch(()=>false);if(ok){$("lock")?.remove();setTimeout(runSmsAutoChecks,1200)}else alert("تایید بیومتریک انجام نشد")};
 }
-async function unlock(){const input=$("pinInput");if(!input)return;const ok=await verifyPin(input.value).catch(()=>false);if(!ok)return alert("رمز اشتباه است");$("lock")?.remove();setTimeout(showWhatsNewOnce,180);setTimeout(()=>checkForNewBankSms(true),1200)}
+async function unlock(){const input=$("pinInput");if(!input)return;const ok=await verifyPin(input.value).catch(()=>false);if(!ok)return alert("رمز اشتباه است");$("lock")?.remove();setTimeout(showWhatsNewOnce,180);setTimeout(runSmsAutoChecks,1200)}
 async function setPin(){
  if(data.lockMethod==="pattern"&&data.patternHash){alert("در حال حاضر قفل الگو فعال است. برای تغییر به رمز عددی، اول با «حذف رمز ورود» آن را غیرفعال کن.");return}
  const old=data.pinHash||data.pin?(prompt("رمز فعلی را وارد کن:")||""):"";
@@ -1584,6 +1584,61 @@ function dismissSmsReview(){
   smsReviewQueue.forEach(c=>data.smsSeen.push(c.hash));
   if(data.smsSeen.length>500)data.smsSeen=data.smsSeen.slice(-500);
   smsReviewQueue=[];save();closeModal();
+}
+
+/* ===== v2.7.2: ورودی پیامک از طریق Shortcuts آیفون =====
+   iOS به هیچ اپی (حتی اپ‌های رسمی App Store) اجازه‌ی خواندن مستقیم صندوق
+   پیامک را نمی‌دهد. راه رسمی جایگزین: کاربر در اپ Shortcuts یک Automation
+   می‌سازد که با رسیدن پیامک از شماره‌ی بانک، متن پیامک را می‌گیرد و همین
+   صفحه را با یک URL شامل متن پیامک باز می‌کند (?sms=...). اپ همان لحظه‌ی
+   باز شدن، این پارامتر را می‌خواند، حساب را (از روی شماره یا در نبود آن
+   از روی تنها حساب دارای شماره‌ی فرستنده) تشخیص می‌دهد و همان پنجره‌ی
+   تاییدِ معمولِ پیامک بانکی را باز می‌کند — دقیقاً مثل حالت اندروید، با
+   این تفاوت که تشخیص پیامک به‌جای پلاگین بومی، به‌دست خود کاربر (از طریق
+   Automation رسمی iOS) انجام می‌شود. */
+let pendingShortcutSms=null;
+function captureShortcutSmsParams(){
+  try{
+    const u=new URL(location.href);
+    const text=u.searchParams.get("sms")||u.searchParams.get("smstext")||u.searchParams.get("text");
+    if(!text)return;
+    pendingShortcutSms={text:String(text).slice(0,500),addr:u.searchParams.get("addr")||u.searchParams.get("sender")||"",acc:u.searchParams.get("account")||"",ts:Date.now()};
+    u.search="";history.replaceState(null,"",u.toString());
+  }catch(e){console.warn("captureShortcutSmsParams failed",e)}
+}
+captureShortcutSmsParams();
+function runSmsAutoChecks(){
+  if(pendingShortcutSms){processPendingShortcutSms();return}
+  checkForNewBankSms(true);
+}
+function processPendingShortcutSms(){
+  const p=pendingShortcutSms;pendingShortcutSms=null;
+  if(!p||!p.text||!data?.accounts)return;
+  if(modal&&!modal.classList.contains("hidden"))return; // پنجره‌ی دیگری باز است
+  let acc=null;
+  if(p.acc)acc=data.accounts.find(a=>a.id===p.acc||a.name===p.acc);
+  if(!acc&&p.addr)acc=data.accounts.find(a=>a.sender&&smsSenderMatch(p.addr,a.sender));
+  if(!acc){const withSender=data.accounts.filter(a=>a.sender&&a.sender.trim());acc=withSender.length===1?withSender[0]:(data.accounts.length===1?data.accounts[0]:null)}
+  if(!acc)return alert("پیامکی از Shortcuts رسید ولی نتوانستم حساب مربوطه را تشخیص بدهم؛ لطفاً برای هر حساب شماره فرستنده را ثبت کن یا account را در URL بفرست.");
+  const hash="shortcut|"+p.ts+"|"+p.text.slice(0,30);
+  if((data.smsSeen||[]).includes(hash))return;
+  smsReviewQueue=[{hash,accountID:acc.id,type:parseBankSmsType(p.text),amount:parseBankSmsAmount(p.text),title:acc.bank?`تراکنش ${acc.bank}`:"تراکنش بانکی",text:p.text,date:new Date().toISOString()}];
+  renderSmsReview();
+}
+function openShortcutsHelp(){
+  const base=location.origin+location.pathname;
+  const url=`${base}?sms=[متن پیامک]&addr=[شماره فرستنده]`;
+  openModal(`<h2>📲 دریافت خودکار پیامک با Shortcuts (آیفون)</h2><div class="form">
+    <div class="hint">چون اپل اجازه‌ی خواندن مستقیم پیامک را به هیچ اپی نمی‌دهد، این تنها راه رسمی است. در اپ <b>Shortcuts</b> آیفون:</div>
+    <div class="hint">۱) تب <b>Automation</b> → دکمه‌ی ＋ → <b>Message</b> → فرستنده را شماره‌ی بانک بگذار → Next.<br>
+    ۲) <b>Run Immediately</b> را انتخاب کن (تا بدون تاییدِ دستی اجرا شود).<br>
+    ۳) اکشن <b>Text</b> اضافه کن و متغیر «Shortcut Input / Message» را داخلش بگذار.<br>
+    ۴) اکشن <b>URL Encode</b> را روی همان متن اجرا کن.<br>
+    ۵) اکشن <b>Open URLs</b> اضافه کن و این آدرس را بگذار (به‌جای [متن رمزنگاری‌شده] همان خروجیِ URL Encode را بگذار):</div>
+    <textarea readonly style="min-height:70px">${esc(url)}</textarea>
+    <div class="hint">با اجرای Automation، خود مرورگر/PWA باز می‌شود و پنجره‌ی تایید تراکنش همین‌جا نشان داده می‌شود — دقیقاً مثل حالت اندروید.</div>
+    <button class="primary" onclick="closeModal()">متوجه شدم</button>
+  </div>`);
 }
 /* v3.11: انتقال به «حساب دیگران» تا امروز فقط شماره کارت گیرنده را
    می‌گرفت. حالا روش انتقال هم مشخص می‌شود — «کارت به کارت» (شماره کارت
@@ -3393,4 +3448,4 @@ async function importData(e){
   alert(msg)}
 }
 function clearData(){if(confirm("همه اطلاعات حذف شود؟")){const pin=data.pin,pinHash=data.pinHash,pinSalt=data.pinSalt,patternHash=data.patternHash,patternSalt=data.patternSalt,lockMethod=data.lockMethod,biometricEnabled=data.biometricEnabled,webauthnCredId=data.webauthnCredId,lang=data.lang;data=blankData();data.pin=pin;data.pinHash=pinHash;data.pinSalt=pinSalt;data.patternHash=patternHash;data.patternSalt=patternSalt;data.lockMethod=lockMethod;data.biometricEnabled=biometricEnabled;data.webauthnCredId=webauthnCredId;data.lang=lang;save();logEvent("پاک کردن اطلاعات","اطلاعات برنامه پاک شد","delete");}}
-(async function initApp(){normalizeData();purgeOldTrash();applyAccentThemeOnLoad();await migratePinSecurity();showLock();render();applyDashboardConfig();applyAppMode();renderBrandingInSettings();renderSettingsFeatures();applyLanguage();maybeAutoBackup("اجرای برنامه");processRecurringTransactions();logEvent("اجرای برنامه","برنامه حسابدار اجرا شد","system");await initSync();if(!sync.auth){[4000,12000,30000].forEach(ms=>setTimeout(()=>{if(!sync.auth)initSync()},ms))}syncAllNotesToReminders().catch(console.error);syncAllChecksToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error);startUpdateChecker();startReminderChecker();if(!hasLockCode()){setTimeout(showWhatsNewOnce,320);setTimeout(()=>checkForNewBankSms(true),1200)}})();
+(async function initApp(){normalizeData();purgeOldTrash();applyAccentThemeOnLoad();await migratePinSecurity();showLock();render();applyDashboardConfig();applyAppMode();renderBrandingInSettings();renderSettingsFeatures();applyLanguage();maybeAutoBackup("اجرای برنامه");processRecurringTransactions();logEvent("اجرای برنامه","برنامه حسابدار اجرا شد","system");await initSync();if(!sync.auth){[4000,12000,30000].forEach(ms=>setTimeout(()=>{if(!sync.auth)initSync()},ms))}syncAllNotesToReminders().catch(console.error);syncAllChecksToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error);startUpdateChecker();startReminderChecker();if(!hasLockCode()){setTimeout(showWhatsNewOnce,320);setTimeout(runSmsAutoChecks,1200)}})();

@@ -109,7 +109,8 @@
     <button class="accordion-head" type="button" aria-expanded="false" onclick="toggleAccordion(this,event)"><b data-i18n="page.bankMsg">پیامک بانک</b><span class="acc-arrow">⌄</span></button>
     <div class="accordion-body">
       <div class="card hint">شماره فرستنده بانک را برای هر حساب ثبت کن. با باز شدن اپ، پیامک‌های تازه‌ی همین شماره‌ها خودکار خوانده و برای تایید نشانت داده می‌شوند؛ یا هر وقت خواستی همین‌جا بررسی کن.
-        <button class="primary" onclick="event.stopPropagation();checkForNewBankSms(false)">📥 بررسی پیامک‌های جدید بانکی</button>
+        <button class="primary" onclick="event.stopPropagation();checkForNewBankSms(false)">📥 بررسی پیامک‌های جدید بانکی (اندروید)</button>
+        <button onclick="event.stopPropagation();openShortcutsHelp()">📲 راه‌اندازی خودکار روی آیفون (Shortcuts)</button>
         <button onclick="event.stopPropagation();openBankMessage()">ثبت دستی پیامک بانکی</button>
       </div>
     </div>
@@ -456,6 +457,6 @@
 <script src="capacitor-biometric-bridge.js"></script>
 <script src="capacitor-sms-bridge.js"></script>
 <script src="app.js"></script>
-<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js?v=2-7-1",{updateViaCache:"none"}).catch(console.error)}</script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js?v=2-7-2",{updateViaCache:"none"}).catch(console.error)}</script>
 </body>
 </html>
