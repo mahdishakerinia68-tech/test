@@ -75,17 +75,25 @@ main{padding:0}
 .page > h2:first-child{font-size:28px;font-weight:800;letter-spacing:-.4px;margin:6px 2px 14px}
 
 /* ===== Hero / cards / grid ===== */
+/* ===== v2.7.1 — "دوات و مُهر" hero: an ink-well + wax-seal signature instead of
+   the smooth teal-to-navy diagonal almost every finance app ships with. Deep
+   ink base, a warm ember seam cut across it, and a stamped ring badge in the
+   corner (echoing an accountant's official مهر) give it its own identity. */
 .hero{
-  padding:22px 22px 20px;border-radius:var(--radius-lg);
+  padding:24px 22px 22px;border-radius:26px 26px 26px 8px;
   background:
-    radial-gradient(140% 120% at 100% 0%, rgba(255,255,255,.16), transparent 55%),
-    linear-gradient(135deg,#12A99B 0%,#0E6F72 48%,#173B49 100%);
+    radial-gradient(60% 90% at 108% 108%, rgba(216,142,4,.38), transparent 60%),
+    linear-gradient(128deg,#0E1B20 0%,#173B49 42%,#0E6F72 78%,#12A99B 100%);
   color:#fff;box-shadow:0 16px 32px rgba(15,60,60,.32);position:relative;overflow:hidden;
 }
 .hero::before{
-  content:"";position:absolute;inset:0;opacity:.10;pointer-events:none;
+  content:"";position:absolute;inset:0;opacity:.09;pointer-events:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84' viewBox='0 0 84 84'%3E%3Cg fill='none' stroke='white' stroke-width='1'%3E%3Cpath d='M42 2 L58 22 L42 42 L26 22 Z M42 42 L58 62 L42 82 L26 62 Z M2 42 L22 26 L42 42 L22 58 Z M42 42 L62 26 L82 42 L62 58 Z'/%3E%3C/g%3E%3C/svg%3E");
   background-size:84px 84px;
+}
+.hero::after{
+  content:"";position:absolute;width:74px;height:74px;left:-22px;bottom:-22px;border-radius:50%;
+  border:1.5px dashed rgba(255,255,255,.28);pointer-events:none;
 }
 .hero span{font-size:13px;opacity:.85;font-weight:500;position:relative}
 .hero strong{display:block;font-size:clamp(22px,7vw,32px);margin-top:6px;font-weight:800;letter-spacing:-.5px;overflow-wrap:break-word;word-break:break-word;position:relative;font-variant-numeric:tabular-nums}
@@ -108,7 +116,7 @@ main{padding:0}
 
 .invoice-home-btn{
   width:100%;margin-top:12px;padding:15px;border:none;border-radius:var(--radius);
-  background:linear-gradient(135deg,#173B49,#0E6F72);color:#fff;font-weight:700;font-size:15.5px;
+  background:linear-gradient(120deg,#0E1B20,#173B49 55%,#0E6F72);color:#fff;font-weight:700;font-size:15.5px;
   box-shadow:0 10px 22px rgba(14,111,114,.28);
 }
 .invoice-home-btn:active{transform:scale(.98)}
@@ -130,7 +138,8 @@ main{padding:0}
   font-size:19px;font-weight:600;box-shadow:0 6px 16px color-mix(in srgb, var(--blue) 45%, transparent);
 }
 .section-head .actions button{border-radius:999px;width:auto;padding:0 12px;font-size:12.5px}
-.section-label{font-size:12px;font-weight:700;color:var(--label2);margin:16px 4px 8px;text-transform:none}
+.section-label{font-size:12px;font-weight:700;color:var(--label2);margin:16px 4px 8px;text-transform:none;display:flex;align-items:center;gap:6px}
+.section-label::before{content:"";width:3px;height:12px;border-radius:2px;background:var(--orange);display:inline-block}
 
 /* ===== List items (iOS grouped table style) ===== */
 .item{
@@ -215,17 +224,47 @@ body:not(.dark) .card-number-box{background:var(--bg3)}
 .page-accordion .accordion-body .section-head{margin:6px 2px 10px}
 .page-accordion.open .accordion-body{max-height:3000px}
 
-/* notes */
-.note-card{align-items:flex-start;flex-direction:column;gap:6px}
+/* notes — a distinct "index-card" cut (tabbed corner + accent edge) sets
+   the checklist apart from the plain flat item rows used for transactions. */
+.note-card{align-items:flex-start;flex-direction:column;gap:6px;border-radius:16px 6px 16px 16px;border-inline-start:3px solid var(--blue)}
+.note-badge{background:color-mix(in srgb, var(--blue) 16%, transparent);color:var(--blue);font-weight:700}
 .note-main{display:flex;flex-direction:column;width:100%;align-items:flex-start;gap:2px}
 .note-text{font-size:13px;color:var(--label2);margin-top:4px}
 .note-badge{font-size:11px;background:var(--bg3);border-radius:999px;padding:3px 9px;color:var(--label2)}
 .note-count{font-size:11px;color:var(--label2)}
 .note-alarm{width:100%;border-top:1px dashed var(--sep);padding-top:8px;margin-top:6px}
-.note-checklist{width:100%;display:flex;flex-direction:column;gap:6px;margin-top:8px;border-top:1px dashed var(--sep);padding-top:8px}
+.note-checklist{width:100%;display:flex;flex-direction:column;gap:7px;margin-top:8px;border-top:1px dashed var(--sep);padding-top:8px}
 .note-check-row{display:flex;align-items:center;gap:8px;font-size:13.5px;width:100%}
 .note-check-row.done{opacity:.5;text-decoration:line-through}
 .note-actions{display:flex;gap:6px;width:100%;justify-content:flex-end;margin-top:4px}
+.note-all-done{padding:6px 0;font-style:normal}
+
+/* ===== v2.7.1 — custom "مهر" (ink-stamp) checkbox for note checklist items =====
+   Swapping the bare OS checkbox for a stamped circle fits the ledger/inkwell
+   identity of the app instead of looking like every other generic list. */
+.note-check-label{display:flex;align-items:center;gap:9px;flex:1;min-width:0;cursor:pointer}
+.note-check-label input[type=checkbox]{position:absolute;opacity:0;width:1px;height:1px}
+.note-check-mark{
+  flex-shrink:0;width:21px;height:21px;border-radius:50%;border:1.6px solid color-mix(in srgb, var(--blue) 55%, var(--sep));
+  background:var(--card);position:relative;transition:background .18s ease,border-color .18s ease,transform .12s ease;
+}
+.note-check-label input[type=checkbox]:checked + .note-check-mark{background:var(--blue);border-color:var(--blue);transform:scale(1.04)}
+.note-check-mark::after{
+  content:"";position:absolute;inset:0;opacity:0;transition:opacity .15s ease;
+  background:
+    linear-gradient(45deg,transparent 42%,#fff 42%,#fff 52%,transparent 52%) no-repeat,
+    linear-gradient(-45deg,transparent 55%,#fff 55%,#fff 65%,transparent 65%) no-repeat;
+  clip-path:polygon(20% 48%,38% 66%,80% 24%,88% 32%,38% 82%,12% 56%);background-color:#fff;
+}
+.note-check-label input[type=checkbox]:checked + .note-check-mark::after{opacity:1}
+.note-check-label:active .note-check-mark{transform:scale(.9)}
+
+.note-done-toggle{
+  align-self:flex-start;border:1px dashed color-mix(in srgb, var(--green) 55%, var(--sep));background:color-mix(in srgb, var(--green) 10%, transparent);
+  color:var(--green);font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:999px;margin-top:2px;
+}
+.note-done-toggle:active{transform:scale(.96)}
+.note-done-list{display:flex;flex-direction:column;gap:7px;margin-top:2px;padding-top:6px;border-top:1px dotted var(--sep)}
 
 /* checks */
 .settlement-ok{color:var(--green);font-weight:600;padding:10px;background:color-mix(in srgb, var(--green) 12%, transparent);border-radius:10px}
@@ -404,6 +443,10 @@ body:not(.dark) .sheet .close{background:#E5E5EA}
 .week-reminder-chip{background:rgba(255,159,10,.16);background:color-mix(in srgb, #FF9F0A 16%, var(--bg3));color:#B9700A}
 body.dark .week-reminder-chip{color:#FFB84D}
 .week-reminder-chip:active{background:rgba(255,159,10,.3);background:color-mix(in srgb, #FF9F0A 30%, var(--bg3))}
+.week-person-chip{background:color-mix(in srgb, var(--red) 15%, var(--bg3));color:var(--red)}
+.week-person-chip:active{background:color-mix(in srgb, var(--red) 30%, var(--bg3))}
+.week-credit-chip{background:color-mix(in srgb, var(--green) 16%, var(--bg3));color:var(--green)}
+.week-credit-chip:active{background:color-mix(in srgb, var(--green) 30%, var(--bg3))}
 .week-chip-time{display:inline-block;direction:ltr;font-weight:800;opacity:.75;margin-inline-end:2px}
 
 /* side menu drawer */
@@ -438,7 +481,7 @@ body.dark .week-reminder-chip{color:#FFB84D}
 .menu-grid .nav:active{background:var(--bg3)}
 
 /* PIN lock screen */
-.lock{position:fixed;inset:0;z-index:999;background:linear-gradient(160deg,#12A99B,#101E27);display:flex;align-items:center;justify-content:center;padding:20px}
+.lock{position:fixed;inset:0;z-index:999;background:linear-gradient(160deg,#0E1B20,#173B49 60%,#12A99B);display:flex;align-items:center;justify-content:center;padding:20px}
 .lockbox{background:rgba(255,255,255,.97);border-radius:22px;padding:32px 26px;text-align:center;max-width:320px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4)}
 .lockbox h1{font-size:22px;margin-bottom:6px;color:#111}
 .lockbox p{color:#666;font-size:13px;margin-bottom:16px}
@@ -754,3 +797,123 @@ button,.nav,a,input,select,textarea{touch-action:manipulation}
 .image-viewer-nav{display:flex;justify-content:space-between;gap:8px}.image-viewer-nav button{flex:1}
 .image-viewer-nav button:disabled{opacity:.35}
 .image-viewer-hint{text-align:center;margin:0}
+
+/* ===== v1.1 Pro Installments UI ===== */
+.inst-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.inst-modal-head h2{margin:2px 0;font-size:22px}.inst-modal-kicker,.inst-eyebrow{font-size:11px;color:var(--label2);font-weight:800;letter-spacing:.2px}.inst-close-hint{border:0;background:var(--bg3);color:var(--label2);border-radius:999px;padding:7px 11px;font:inherit;font-size:11px}
+.inst-hero{border:1px solid var(--sep);border-radius:20px;padding:16px;margin:4px 0 14px;background:linear-gradient(145deg,var(--card),var(--bg3));box-shadow:0 8px 24px rgba(0,0,0,.06)}
+.inst-hero-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.inst-hero h3{margin:2px 0;font-size:19px}.inst-freq{font-size:11px;color:var(--label2)}.inst-hero-icon{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:var(--blue);color:#fff;font-size:21px;box-shadow:0 6px 14px rgba(0,0,0,.12)}
+.inst-total{display:flex;justify-content:space-between;align-items:end;margin:16px 0 8px}.inst-total span{font-size:12px;color:var(--label2)}.inst-total strong{font-size:24px}.inst-progress{height:9px;border-radius:99px;background:var(--bg3);overflow:hidden;border:1px solid var(--sep)}.inst-progress-fill{height:100%;border-radius:99px;background:var(--blue);transition:width .25s ease}.inst-progress-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--label2);margin-top:6px}.inst-progress-meta b{color:var(--label)}
+.inst-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:13px}.inst-stats>div{padding:9px 7px;border-radius:12px;background:var(--bg3);text-align:center}.inst-stats span{display:block;font-size:10px;color:var(--label2);margin-bottom:3px}.inst-stats b{font-size:11px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.inst-list-head{display:flex;justify-content:space-between;align-items:center;margin:16px 2px 8px;font-size:13px}.inst-list-head span{font-size:11px;color:var(--label2)}
+.inst-card{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px;border:1px solid var(--sep);border-radius:16px;background:var(--card);margin:8px 0;transition:.15s}.inst-card.paid{opacity:.78}.inst-card.overdue{border-color:color-mix(in srgb,var(--red) 45%,var(--sep))}.inst-card.soon{border-color:color-mix(in srgb,#e09a24 48%,var(--sep))}.inst-card-main{display:flex;align-items:flex-start;gap:9px;min-width:0}.inst-number{width:32px;height:32px;border-radius:11px;background:var(--bg3);display:grid;place-items:center;font-weight:900;font-size:12px;flex:none}.inst-card.paid .inst-number{background:color-mix(in srgb,#20a56a 16%,var(--bg3))}.inst-card-info{min-width:0}.inst-title-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.inst-title-row b{font-size:13px}.inst-status{font-size:9px;border-radius:999px;padding:3px 6px;font-weight:800}.inst-status.paid{background:rgba(32,165,106,.12);color:#16804f}.inst-status.pending{background:var(--bg3);color:var(--label2)}.inst-status.soon{background:rgba(224,154,36,.13);color:#9b650b}.inst-status.overdue{background:rgba(210,70,70,.12);color:var(--red)}.inst-due{font-size:10px;color:var(--label2);margin-top:4px}.inst-receipt{display:flex;align-items:center;gap:5px;margin-top:5px;font-size:9px;color:var(--label2)}.inst-receipt .tx-thumb{width:28px;height:28px;border-radius:7px}.inst-card-side{text-align:end;min-width:112px}.inst-card-side>strong{display:block;font-size:13px;margin-bottom:6px}.inst-card-side .actions{display:flex;justify-content:flex-end;gap:4px;flex-wrap:wrap}.inst-card-side button{font-size:10px;padding:6px 8px;border-radius:9px;min-height:30px}.inst-receipt-btn{background:var(--bg3);color:var(--label);border:1px solid var(--sep)}
+@media(max-width:430px){.inst-card{align-items:flex-start}.inst-card-side{min-width:94px}.inst-card-side button{font-size:9px;padding:5px 6px}.inst-stats b{font-size:10px}.inst-hero{padding:13px}.inst-total strong{font-size:21px}}
+
+/* =========================================================
+   نسخه ۱ — طرح ۱ «مدرن و خاص»
+   الهام از رابط انتخاب‌شده: سرمه‌ای عمیق، آبی نئونی، کارت‌های نرم
+   و ناوبری پایین صفحه. قابلیت‌های قبلی برنامه دست‌نخورده می‌مانند.
+   ========================================================= */
+:root{
+  --blue:#2D9CFF;
+  --green:#24D18A;
+  --red:#FF526A;
+  --orange:#FFB84D;
+  --yellow:#FFD66B;
+  --gray:#9BA9C3;
+  --bg:#071226;
+  --bg2:#0A1830;
+  --bg3:#10213C;
+  --card:#0E203A;
+  --grouped:#0E203A;
+  --label:#F4F8FF;
+  --label2:#9EABC2;
+  --label3:#65738C;
+  --sep:rgba(140,169,211,.15);
+  --radius:16px;
+  --radius-lg:24px;
+  --radius-sm:11px;
+  --shadow:0 10px 28px rgba(0,0,0,.22);
+  color-scheme:dark;
+}
+body{background:radial-gradient(circle at 100% 0%,rgba(34,113,255,.13),transparent 34%),linear-gradient(180deg,#071226 0%,#08172B 100%);color:var(--label)}
+html{background:#071226}
+.app{max-width:600px;background:linear-gradient(180deg,rgba(7,18,38,.96),rgba(6,17,34,.98));padding-bottom:calc(var(--safe-b) + 92px)}
+.top-bar{position:sticky;top:0;padding:calc(12px + var(--safe-t)) 14px 11px;background:rgba(7,18,38,.84);border-bottom:1px solid rgba(105,147,211,.12);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
+.top-bar-left{gap:9px;flex-direction:row-reverse}
+.menu-trigger{order:3;width:38px;height:38px;background:#102543;color:#DCEBFF;border:1px solid rgba(94,151,226,.18);box-shadow:0 7px 18px rgba(0,0,0,.22);font-size:0}
+.menu-trigger::before{content:'☰';font-size:18px}
+.app-logo{width:42px;height:42px;border-radius:12px;box-shadow:0 0 0 1px rgba(75,154,255,.24),0 8px 20px rgba(0,83,180,.28)}
+.top-bar-titles{display:flex;flex-direction:column;align-items:flex-end}
+.top-bar-titles h1{font-size:19px;color:#F7FAFF}
+.version-pill{background:rgba(45,156,255,.14);color:#62B5FF;border:1px solid rgba(45,156,255,.2)}
+.sync-badge{color:#8394AE;font-size:10px}
+.top-bar-date{background:#0D2039;border-color:rgba(112,151,208,.14);color:#93A4BE}
+.header-actions{display:none}
+.page{padding:12px 14px 10px}
+.page > h2:first-child{font-size:25px}
+.section-head{margin:19px 2px 9px}
+.section-head h2{font-size:18px}
+.section-head button{background:#167CF2;box-shadow:0 7px 18px rgba(22,124,242,.28)}
+.hero{padding:20px 19px 18px;border-radius:22px;background:radial-gradient(80% 100% at 100% 0%,rgba(57,154,255,.4),transparent 52%),linear-gradient(135deg,#102A50 0%,#0B315D 52%,#092348 100%);box-shadow:0 15px 35px rgba(0,61,135,.27);border:1px solid rgba(91,162,255,.18)}
+.hero::before{opacity:.16;background-image:radial-gradient(circle at 20% 30%,#5EB2FF 1px,transparent 1px);background-size:18px 18px}
+.hero::after{border-color:rgba(101,180,255,.28)}
+.hero span{color:#C3D5F0}.hero strong{font-size:29px;letter-spacing:-.7px}
+.hero #dueSoon:not(:empty){background:rgba(69,154,255,.15);border:1px solid rgba(88,169,255,.16)}
+.grid{gap:9px;margin:10px 0}
+.card{background:linear-gradient(145deg,#102640,#0C1D35);border:1px solid rgba(107,149,209,.13);box-shadow:0 8px 22px rgba(0,0,0,.17);border-radius:15px;padding:14px}
+.card span{color:#9EADC5}.card b{font-size:18px}
+.dash-widget[data-widget="stats"] .card:first-child{background:linear-gradient(145deg,rgba(255,55,88,.15),#0E203A);border-color:rgba(255,82,106,.22)}
+.dash-widget[data-widget="stats"] .card:last-child{background:linear-gradient(145deg,rgba(26,208,137,.13),#0E203A);border-color:rgba(36,209,138,.2)}
+.dash-widget[data-widget="stats"] .income{color:#36E49A!important}.dash-widget[data-widget="stats"] .expense{color:#FF5E75!important}
+.grid>button{background:#0E203A;border:1px solid rgba(111,150,209,.13);color:#EAF2FF;box-shadow:0 8px 20px rgba(0,0,0,.15);border-radius:15px}
+.grid>button:first-child{background:linear-gradient(145deg,rgba(40,132,255,.15),#0E203A)}
+.grid>button:last-child{background:linear-gradient(145deg,rgba(167,91,255,.12),#0E203A)}
+.invoice-home-btn{background:linear-gradient(135deg,#187CF1,#1355C6);box-shadow:0 10px 24px rgba(17,104,230,.25)}
+.home-tools{grid-template-columns:repeat(3,1fr)}
+.tool-card{background:#0E203A;border:1px solid rgba(111,150,209,.13);box-shadow:0 8px 20px rgba(0,0,0,.15)}
+.tool-card b{color:#E9F2FF}.tool-card small{color:#8294AF}
+.item{background:#0E203A;border-color:rgba(111,150,209,.13);box-shadow:0 8px 20px rgba(0,0,0,.15)}
+.search,.filters select,.filters input{background:#0D2039;color:#EAF2FF;border-color:rgba(111,150,209,.16)}
+.tabs{background:#0A192E}.tabs button{color:#9EABC2}.tabs button.active,.tabs button:active{background:#153052;color:#62B5FF}
+.actions button{background:#102541;color:#D9E8FC}
+.page-accordion .accordion-head{font-size:18px}
+.modal{background:rgba(2,8,20,.72)}
+.sheet{background:#0B1B31;border:1px solid rgba(112,151,211,.16);box-shadow:0 24px 60px rgba(0,0,0,.45)}
+.bottom-nav{position:fixed;z-index:45;left:50%;bottom:0;transform:translateX(-50%);width:min(600px,100%);padding:8px 10px calc(8px + var(--safe-b));display:grid;grid-template-columns:repeat(5,1fr);gap:4px;background:rgba(7,18,38,.92);border-top:1px solid rgba(111,150,209,.14);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
+.bottom-nav-item{border:0;background:transparent;color:#71829D;min-height:52px;border-radius:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font:inherit;font-size:9.5px;font-weight:600}
+.bottom-nav-item .bn-icon{font-size:19px;line-height:1}
+.bottom-nav-item.active{color:#48A8FF;background:rgba(45,156,255,.10)}
+.bottom-nav-item:active{transform:scale(.96)}
+body.store-mode .bottom-nav{display:none}
+.store-exit-bar{background:#0C1E36;border-color:rgba(112,151,211,.12)}
+.store-exit-btn{background:#167CF2}
+.menu-sheet{max-height:86vh}
+.menu-group-title{color:#8395AF}
+.nav{background:#0E203A!important;border-color:rgba(111,150,209,.12)!important;color:#E7F0FF!important}
+.nav.active{background:rgba(45,156,255,.14)!important;color:#56AEFF!important}
+.close{background:#102541!important;color:#C8D8EE!important}
+.primary{background:#167CF2!important;color:#fff!important}
+.danger{background:rgba(255,82,106,.12)!important;color:#FF6B80!important}
+.hint{color:#8798B0!important}
+input::placeholder,textarea::placeholder{color:#687B96}
+select option{background:#0D2039;color:#EEF5FF}
+@media(max-width:430px){
+  .page{padding-inline:12px}
+  .hero{padding:18px 16px}
+  .hero strong{font-size:26px}
+  .home-tools{gap:7px}
+  .tool-card{padding:12px 5px}
+  .tool-card b{font-size:11px}
+  .tool-card small{font-size:9px}
+}
+
+/* طرح ۱ — حالت روشن اختیاری، برای اینکه دکمه تم قبلی همچنان کار کند */
+body:not(.dark){
+  --bg:#F5F8FD;--bg2:#FFFFFF;--bg3:#EAF1FA;--card:#FFFFFF;--grouped:#FFFFFF;
+  --label:#12213A;--label2:#66758D;--label3:#9AA7B9;--sep:rgba(35,65,105,.13);
+  background:linear-gradient(180deg,#F5F8FD,#EAF1FA);color:var(--label)
+}
+body:not(.dark) .app{background:linear-gradient(180deg,#F7FAFF,#EEF4FB)}
+body:not(.dark) .top-bar{background:rgba(247,250,255,.88)}
+body:not(.dark) .card,body:not(.dark) .item,body:not(.dark) .grid>button,body:not(.dark) .tool-card{background:#fff;color:#12213A}
+body:not(.dark) .bottom-nav{background:rgba(247,250,255,.93)}
