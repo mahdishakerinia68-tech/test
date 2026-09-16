@@ -1068,8 +1068,8 @@ function activatePage(name){
     a swipe or the phone's back button reveal the full app from inside
     the locked kiosk. Guarding here closes that regardless of caller. */
  if(appMode()==="store"&&!STORE_ALLOWED_PAGES.includes(name))name="invoices";
- document.querySelectorAll(".nav,.bottom-nav-item").forEach(x=>x.classList.remove("active"));
- document.querySelectorAll(`.nav[data-page="${name}"],.bottom-nav-item[data-page="${name}"]`).forEach(x=>x.classList.add("active"));
+ document.querySelectorAll(".nav, .v1-bottom-nav button").forEach(x=>x.classList.remove("active"));
+ document.querySelectorAll(`.nav[data-page="${name}"], .v1-bottom-nav button[data-page="${name}"]`).forEach(x=>x.classList.add("active"));
  document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
  const page=$(name);
  if(page)page.classList.add("active");
@@ -1103,10 +1103,6 @@ function goBackPage(){
 document.querySelectorAll(".nav").forEach(b=>b.addEventListener("click",e=>{
  e.preventDefault();
  goToPage(b.dataset.page,true);
-}));
-document.querySelectorAll(".bottom-nav-item").forEach(b=>b.addEventListener("click",e=>{
- e.preventDefault();
- goToPage(b.dataset.page,false);
 }));
 document.addEventListener("input",e=>{if(e.target.closest("#invoiceRows"))updateInvoiceLiveTotal()});
 $("theme").onclick=()=>{const dark=document.body.classList.toggle("dark");logEvent("تغییر تم",dark?"حالت شیشه‌ای تیره فعال شد":"حالت شیشه‌ای روشن فعال شد","settings")};

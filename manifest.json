@@ -1,10 +1,10 @@
 {
-  "name": "حساب‌یار 1",
+  "name": "حساب‌یار 2",
   "short_name": "حساب‌یار",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#08152D",
-  "theme_color": "#08152D",
+  "background_color": "#061426",
+  "theme_color": "#061426",
   "lang": "fa",
   "dir": "rtl",
   "icons": [
