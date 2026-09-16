@@ -809,76 +809,388 @@ button,.nav,a,input,select,textarea{touch-action:manipulation}
 @media(max-width:430px){.inst-card{align-items:flex-start}.inst-card-side{min-width:94px}.inst-card-side button{font-size:9px;padding:5px 6px}.inst-stats b{font-size:10px}.inst-hero{padding:13px}.inst-total strong{font-size:21px}}
 
 /* =========================================================
-   V1 — طرح ۱ «مدرن و خاص»
-   Deep navy + electric blue financial dashboard
+   HesabYar — White Modern Redesign v2
+   Visual layer only: existing functionality is preserved.
    ========================================================= */
 :root{
-  --blue:#39A8FF; --green:#35D38A; --red:#FF4D68; --orange:#FFB84A; --yellow:#FFD86B; --gray:#9BB1C9;
-  --bg:#061426; --bg2:#0A1B31; --bg3:#0D2440; --card:#0B2038; --grouped:#0B2038;
-  --label:#F4F9FF; --label2:rgba(220,235,250,.68); --label3:rgba(220,235,250,.35); --sep:rgba(104,164,220,.18);
-  --radius:18px; --radius-lg:24px; --radius-sm:13px;
-  --shadow:0 10px 28px rgba(0,0,0,.22),0 0 0 1px rgba(90,160,230,.05);
-  color-scheme:dark;
+  --blue:#2563eb!important;
+  --green:#16a34a!important;
+  --red:#dc2626!important;
+  --orange:#ea8a00!important;
+  --yellow:#d9a400!important;
+  --gray:#64748b!important;
+  --bg:#f5f7fb!important;
+  --bg2:#ffffff!important;
+  --bg3:#f8fafc!important;
+  --card:#ffffff!important;
+  --grouped:#ffffff!important;
+  --label:#172033!important;
+  --label2:#667085!important;
+  --label3:#98a2b3!important;
+  --sep:#e7ebf2!important;
+  --radius:18px!important;
+  --radius-lg:26px!important;
+  --radius-sm:13px!important;
+  --shadow:0 4px 18px rgba(16,24,40,.055),0 1px 3px rgba(16,24,40,.06)!important;
 }
-html,body{background:
- radial-gradient(900px 500px at 100% -10%,rgba(42,137,255,.20),transparent 60%),
- radial-gradient(700px 500px at -15% 35%,rgba(29,76,155,.16),transparent 65%),var(--bg);}
-body{color:var(--label)}
-.app{max-width:620px;background:transparent;padding-bottom:calc(var(--safe-b) + 92px)}
-.top-bar{background:rgba(6,20,38,.76);border-bottom:1px solid rgba(76,150,225,.16);backdrop-filter:saturate(160%) blur(24px)}
-.app-logo{width:38px;height:38px;border-radius:11px;box-shadow:0 8px 20px rgba(23,126,240,.22),0 0 0 1px rgba(88,169,255,.2)}
-.top-bar-titles h1{font-size:20px}.version-pill{background:rgba(57,168,255,.15);color:#6FC1FF;border:1px solid rgba(57,168,255,.18)}
-.top-bar-date{background:rgba(12,36,64,.86);border-color:rgba(77,153,226,.18);color:#B9D3EA}
-.menu-trigger,.header-actions button{background:#0C2541;border:1px solid rgba(77,153,226,.18);color:#EAF5FF;box-shadow:0 8px 20px rgba(0,0,0,.18)}
-.page{padding:16px 15px 8px}
-.page > h2:first-child,.section-head h2{color:#F6FAFF}
-.home-head{margin-top:8px}.home-quick-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-.home-quick-btn,.dash-customize-btn{background:#0B223B!important;color:#A9D6FF!important;border:1px solid rgba(75,159,235,.18)!important;box-shadow:none!important}
+html,body{background:#f5f7fb!important;color:#172033!important}
+body.dark{background:#f5f7fb!important;color:#172033!important;color-scheme:light!important}
+body.dark *{color-scheme:light!important}
 
-.hero{padding:25px 22px 24px;border-radius:27px;background:
- radial-gradient(90% 130% at 100% 100%,rgba(51,169,255,.46),transparent 52%),
- radial-gradient(70% 100% at 0% 0%,rgba(30,80,190,.34),transparent 55%),
- linear-gradient(135deg,#0A2140 0%,#103C70 48%,#0D6FD0 100%);
- box-shadow:0 18px 40px rgba(4,72,150,.30),inset 0 1px 0 rgba(255,255,255,.12);border:1px solid rgba(117,193,255,.22)}
-.hero::before{opacity:.07}.hero::after{border-color:rgba(126,207,255,.3)}
-.hero span{color:#DCEEFF}.hero strong{font-size:clamp(25px,8vw,36px);text-shadow:0 3px 18px rgba(0,0,0,.22)}
-.hero-arrow{color:#9DD5FF!important;font-size:11px!important}
-.hero #dueSoon:not(:empty){background:rgba(3,25,52,.28);border:1px solid rgba(255,255,255,.12)}
-.grid{gap:11px}.card{background:linear-gradient(145deg,rgba(13,37,63,.98),rgba(8,27,48,.98));border:1px solid rgba(82,155,220,.14);box-shadow:var(--shadow)}
-.card span{color:#9FBAD3}.card b{color:#F4F9FF}.income{color:#42E09A!important}.expense{color:#FF647D!important}
-.grid>button,.tool-card{background:linear-gradient(145deg,#0D2946,#091D34);border:1px solid rgba(77,159,235,.16);color:#EAF5FF;box-shadow:0 10px 24px rgba(0,0,0,.18)}
-.grid>button:first-child,.tool-card:first-child{border-color:rgba(57,168,255,.22)}
-.invoice-home-btn{background:linear-gradient(120deg,#0D3158,#0B6EC9 58%,#35A8FF);box-shadow:0 12px 28px rgba(22,126,224,.26);border:1px solid rgba(148,216,255,.2)}
-.tool-card small{color:#88A9C7}
-.section-head button{background:linear-gradient(135deg,#1687ED,#43B7FF);box-shadow:0 8px 20px rgba(25,139,235,.28)}
-.item{background:linear-gradient(145deg,#0C233C,#091B31);border:1px solid rgba(75,154,226,.14);box-shadow:var(--shadow)}
-.item b{color:#F0F7FF}.meta{color:#86A7C5}
-.search,.filters select,.filters input{background:#091C31!important;color:#EDF7FF!important;border:1px solid rgba(77,155,225,.18)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.025)}
-.search::placeholder{color:#6886A3}.tabs{background:#07182B;border:1px solid rgba(76,145,210,.12)}
-.tabs button.active,.inv-type-tabs button.active{background:linear-gradient(135deg,#123C67,#0E2C4C);color:#69C1FF;box-shadow:0 7px 18px rgba(0,0,0,.22)}
-.accordion-card.open{border-color:rgba(55,163,255,.28);box-shadow:0 12px 30px rgba(0,0,0,.24),0 0 0 1px rgba(45,155,255,.04)}
-.accordion-head{color:#EEF7FF}.acc-arrow{color:#75BFFF!important}
-.menu-sheet,.sheet{background:linear-gradient(160deg,#0A2038,#07182B 70%,#061426);border:1px solid rgba(91,164,231,.16);box-shadow:0 -20px 70px rgba(0,0,0,.46),0 0 0 1px rgba(50,145,230,.05)}
-.sheet .close{background:#102D4A!important;color:#DCEEFF!important;border:1px solid rgba(84,158,223,.16)}
-.menu-search{background:#081B30;border-color:rgba(81,157,223,.18);color:#EEF7FF}.menu-group-title{color:#7292AF}
-.menu-grid .nav{background:rgba(12,38,65,.82);border:1px solid rgba(77,157,226,.12);color:#DDEFFF}.menu-grid .nav.active{background:rgba(45,157,255,.13);color:#58B8FF;border-color:rgba(63,171,255,.25)}
-.form input,.form select,.form textarea,.settings-group input,.settings-group select{background:#081B30!important;color:#EEF7FF!important;border-color:rgba(77,157,226,.18)!important}
-.form input:focus,.form select:focus,.form textarea:focus{border-color:#3AAEFF!important;box-shadow:0 0 0 3px rgba(58,174,255,.10)}
-.primary{background:linear-gradient(135deg,#1587ED,#3DB6FF)!important;color:#fff!important;border:1px solid rgba(143,215,255,.2)!important;box-shadow:0 10px 24px rgba(26,137,228,.24)}
-.danger{background:linear-gradient(135deg,#A92845,#E34D68)!important;color:#fff!important}
-.week-table-wrap,.cal-sheet{background:#091D33;border:1px solid rgba(76,155,223,.14)}
-.week-table tr.week-today{background:rgba(42,161,255,.08)}
-.cal-cell.cal-selected{background:#168EF0}
+/* App shell */
+.app{max-width:920px!important;background:#f5f7fb!important;padding-bottom:42px!important}
+main{padding:0 18px 28px}
+.top-bar{
+  position:sticky!important;top:0!important;z-index:100!important;
+  max-width:920px;margin:0 auto;
+  padding:12px 20px!important;
+  background:rgba(255,255,255,.92)!important;
+  border-bottom:1px solid #e9edf3!important;
+  box-shadow:0 3px 18px rgba(16,24,40,.045)!important;
+  backdrop-filter:blur(18px)!important;
+}
+.app-logo{width:42px!important;height:42px!important;border-radius:13px!important;box-shadow:0 5px 15px rgba(37,99,235,.12)!important}
+.top-bar-titles h1{font-size:20px!important;font-weight:800!important;color:#111827!important}
+.version-pill{background:#eff6ff!important;color:#2563eb!important;border:1px solid #dbeafe!important}
+.sync-badge{font-size:10.5px!important;color:#7b8494!important}
+.top-bar-date{background:#f8fafc!important;border:1px solid #e7ebf2!important;color:#667085!important}
+.header-actions button,.menu-trigger{background:#fff!important;border:1px solid #e7ebf2!important;box-shadow:0 3px 12px rgba(16,24,40,.06)!important;color:#344054!important}
 
-/* Signature accents: thin electric-blue edge + subtle glow on important cards */
-.dash-widget[data-widget="hero"],.dash-widget[data-widget="stats"]{position:relative}
-.dash-widget[data-widget="hero"]::after{content:"";display:block;height:1px;width:58%;margin:-1px auto 0;background:linear-gradient(90deg,transparent,#48B7FF,transparent);opacity:.55}
-.dash-widget[data-widget="stats"] .card:first-child{box-shadow:inset 3px 0 0 #35D38A,var(--shadow)}
-.dash-widget[data-widget="stats"] .card:last-child{box-shadow:inset 3px 0 0 #FF4D68,var(--shadow)}
+/* Hide dark mode control: this version is intentionally white-only. */
+#theme{display:none!important}
 
-/* Mobile bottom navigation, matching طرح ۱ */
-.v1-bottom-nav{position:fixed;z-index:80;left:50%;bottom:calc(10px + var(--safe-b));transform:translateX(-50%);width:min(590px,calc(100% - 22px));height:68px;padding:7px 8px;display:grid;grid-template-columns:repeat(5,1fr);gap:5px;background:rgba(5,18,34,.88);border:1px solid rgba(79,160,231,.20);border-radius:22px;box-shadow:0 18px 44px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.05);backdrop-filter:blur(24px) saturate(160%)}
-.v1-bottom-nav button{border:0;background:transparent;color:#7F9BB7;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:inherit;font-size:10px;font-weight:600;transition:.18s ease}
-.v1-bottom-nav button .v1-icon{font-size:19px;line-height:1}.v1-bottom-nav button.active{background:linear-gradient(180deg,rgba(33,143,238,.22),rgba(25,103,177,.12));color:#67C2FF;box-shadow:inset 0 0 0 1px rgba(70,177,255,.14)}
-.v1-bottom-nav button:active{transform:scale(.94)}
-@media(max-width:380px){.v1-bottom-nav{height:64px}.v1-bottom-nav button{font-size:9px}.v1-bottom-nav button .v1-icon{font-size:17px}.home-quick-actions{gap:4px}.home-quick-btn,.dash-customize-btn{width:32px!important;height:32px!important}}
+/* Page headers */
+.page{padding:16px 0 8px!important;animation:fadein .2s ease!important}
+.section-head{margin:10px 2px 12px!important}
+.section-head h2,.page > h2:first-child{font-size:22px!important;font-weight:850!important;color:#101828!important;letter-spacing:-.4px!important}
+.section-head button{background:#fff!important;border:1px solid #e2e8f0!important;color:#2563eb!important;box-shadow:0 3px 10px rgba(16,24,40,.05)!important}
+
+/* Home hero */
+.hero{
+  min-height:178px!important;padding:24px!important;border-radius:26px!important;
+  background:linear-gradient(135deg,#2563eb 0%,#3b82f6 55%,#60a5fa 100%)!important;
+  box-shadow:0 14px 30px rgba(37,99,235,.20)!important;
+  border:0!important;position:relative;overflow:hidden!important;color:#fff!important;
+}
+.hero::before{width:190px!important;height:190px!important;right:-55px!important;top:-80px!important;background:rgba(255,255,255,.12)!important;border:0!important}
+.hero::after{width:140px!important;height:140px!important;left:-55px!important;bottom:-75px!important;background:rgba(255,255,255,.08)!important;border:0!important}
+.hero span{color:#fff!important;font-size:13px!important;opacity:.88!important}
+.hero strong{font-size:clamp(27px,7vw,39px)!important;color:#fff!important;margin-top:9px!important}
+.hero-arrow{background:rgba(255,255,255,.14)!important;border-radius:999px!important;padding:6px 10px!important}
+
+/* Dashboard stat cards */
+.grid{gap:12px!important;margin:12px 0!important}
+.card,.grid>button,.tool-card,.item,.accordion-card{
+  background:#fff!important;border:1px solid #e8ecf2!important;
+  box-shadow:0 5px 18px rgba(16,24,40,.045)!important;
+}
+.card{padding:18px!important;border-radius:18px!important;min-height:88px!important}
+.card span{color:#667085!important;font-size:12px!important}
+.card b{font-size:21px!important;color:#101828!important}
+.card b.income{color:#16a34a!important}.card b.expense{color:#dc2626!important}
+.grid>button{min-height:72px!important;border-radius:18px!important;font-size:24px!important;color:#2563eb!important;transition:.16s!important}
+.grid>button span{font-size:12px!important;color:#344054!important;font-weight:700!important}
+.grid>button:active,.tool-card:active,.invoice-home-btn:active{transform:translateY(1px) scale(.99)!important}
+
+/* Quick tools */
+.home-tools{gap:12px!important;margin-top:12px!important}
+.tool-card{min-height:100px!important;border-radius:18px!important;padding:16px 10px!important}
+.tool-card b{font-size:12.5px!important;color:#344054!important;margin-top:8px!important}
+.tool-card small{font-size:10.5px!important;color:#98a2b3!important}
+.invoice-home-btn{
+  width:100%!important;min-height:58px!important;border:0!important;border-radius:18px!important;
+  background:#111827!important;color:#fff!important;font-weight:800!important;font-size:15px!important;
+  box-shadow:0 9px 20px rgba(17,24,39,.13)!important;margin-top:12px!important;
+}
+
+/* List cards / account cards */
+.item{border-radius:18px!important;margin:10px 0!important;padding:15px!important}
+.item b{font-size:14px!important;color:#172033!important}
+.account-item{padding:16px!important}
+.card-number-box{background:#f8fafc!important;border:1px solid #e7ebf2!important;border-radius:12px!important}
+.card-actions button{background:#f8fafc!important;border:1px solid #e7ebf2!important;border-radius:9px!important;color:#344054!important}
+
+/* Accordion redesign */
+.page-accordion{margin:12px 0!important;padding:0!important;overflow:hidden!important}
+.page-accordion .accordion-head{
+  min-height:62px!important;padding:17px 18px!important;background:#fff!important;
+  border:0!important;color:#172033!important;font-size:16px!important;
+}
+.page-accordion .accordion-head>b:first-child{font-size:16px!important}
+.page-accordion .accordion-body{padding:0 14px 14px!important;background:#fff!important}
+.page-accordion.open{box-shadow:0 7px 22px rgba(16,24,40,.06)!important}
+.acc-arrow{width:28px;height:28px;display:flex!important;align-items:center;justify-content:center;background:#f1f5f9;border-radius:9px;color:#667085!important}
+
+/* Inputs and forms */
+.field{gap:7px!important}
+.field-cap{font-size:11.5px!important;color:#475467!important;font-weight:750!important}
+input,select,textarea{
+  border:1px solid #dfe5ec!important;background:#fff!important;color:#172033!important;
+  border-radius:13px!important;min-height:44px!important;outline:none!important;
+  box-shadow:inset 0 1px 2px rgba(16,24,40,.02)!important;
+}
+input:focus,select:focus,textarea:focus{border-color:#93b4f7!important;box-shadow:0 0 0 3px rgba(37,99,235,.09)!important}
+button{transition:transform .16s ease,box-shadow .16s ease,background .16s ease!important}
+
+/* Bottom navigation / navigation buttons */
+.bottom-nav,.nav-bar{background:rgba(255,255,255,.96)!important;border-top:1px solid #e7ebf2!important;box-shadow:0 -6px 20px rgba(16,24,40,.05)!important;backdrop-filter:blur(16px)!important}
+.nav{border-radius:13px!important;color:#667085!important}
+.nav.active{background:#eff6ff!important;color:#2563eb!important}
+
+/* Menu */
+.menu-sheet{
+  background:#fff!important;border:1px solid #e7ebf2!important;
+  box-shadow:0 20px 60px rgba(16,24,40,.16)!important;
+}
+.menu-search{background:#f8fafc!important;border:1px solid #e5e7eb!important}
+.menu-groups{gap:10px!important}
+.menu-group{background:#fff;border:1px solid #edf0f4;border-radius:16px;padding:5px!important}
+.menu-group-title{color:#667085!important;margin:0!important}
+.menu-grid .nav{padding:11px 12px!important}
+.menu-grid .nav.active{background:#eff6ff!important;color:#2563eb!important}
+
+/* Modals / sheets */
+.modal{background:rgba(15,23,42,.38)!important;backdrop-filter:blur(4px)!important}
+.sheet{
+  background:#fff!important;border:1px solid #e7ebf2!important;
+  border-radius:26px 26px 0 0!important;box-shadow:0 -12px 45px rgba(16,24,40,.16)!important;
+}
+.sheet h2{color:#101828!important;font-size:20px!important}
+.sheet-grabber{background:#d0d5dd!important}
+
+/* Settings */
+.settings-page{gap:11px!important}
+.settings-group{background:#fff!important;border:1px solid #e7ebf2!important;border-radius:18px!important;overflow:hidden!important;box-shadow:0 4px 16px rgba(16,24,40,.04)!important}
+.settings-acc-head{padding:16px!important}
+.settings-group-head h3{color:#172033!important}
+
+/* Invoice */
+.invoice-table-head{color:#667085!important}
+.invoice-row input,.invoice-row select{background:#fff!important;border:1px solid #e1e6ed!important}
+.invoice-total-box{background:#f8fafc!important;border:1px solid #e5eaf0!important;border-radius:18px!important}
+.invoice-preview{border:1px solid #e4e7ec!important;box-shadow:0 10px 30px rgba(16,24,40,.07)!important}
+
+/* Badges, empty states and generic controls */
+.badge,.pill{border-radius:999px!important}
+button.primary,.primary-btn,.save-btn{background:#2563eb!important;color:#fff!important;border:0!important;box-shadow:0 7px 16px rgba(37,99,235,.18)!important}
+button.danger{background:#fef2f2!important;color:#dc2626!important;border:1px solid #fee2e2!important}
+
+/* Tables and reports */
+table{background:#fff!important;border-radius:16px!important;overflow:hidden!important;border:1px solid #e7ebf2!important}
+th{background:#f8fafc!important;color:#475467!important}
+td{border-color:#edf0f4!important}
+
+/* Desktop refinement */
+@media (min-width:700px){
+  main{padding-left:28px;padding-right:28px}
+  .page{padding-top:20px!important}
+  .home-head{margin-top:4px!important}
+  .hero{min-height:205px!important;padding:30px!important}
+  .hero strong{font-size:42px!important}
+  .grid{gap:16px!important}
+  .card{min-height:104px!important;padding:20px!important}
+  .item{padding:18px!important}
+}
+@media (max-width:560px){
+  main{padding-left:12px;padding-right:12px}
+  .top-bar{padding-left:12px!important;padding-right:12px!important}
+  .top-bar-date{font-size:10.5px!important;padding:6px 9px!important}
+  .app-logo{width:38px!important;height:38px!important}
+  .top-bar-titles h1{font-size:18px!important}
+  .home-tools{grid-template-columns:1fr 1fr!important}
+}
+
+/* ================================================================
+   HESABYAR WHITE EDITION — full visual redesign
+   Keeps existing HTML/JS functionality while replacing the old visual
+   language with a clean, bright Persian finance-app interface.
+   ================================================================ */
+:root{
+  --blue:#2563EB;
+  --green:#16A34A;
+  --red:#DC2626;
+  --orange:#D97706;
+  --yellow:#CA8A04;
+  --gray:#64748B;
+  --bg:#F7F9FC;
+  --bg2:#FFFFFF;
+  --bg3:#F1F5F9;
+  --card:#FFFFFF;
+  --grouped:#FFFFFF;
+  --label:#172033;
+  --label2:#667085;
+  --label3:#98A2B3;
+  --sep:#E6EAF0;
+  --radius:18px;
+  --radius-lg:24px;
+  --radius-sm:13px;
+  --shadow:0 4px 18px rgba(15,23,42,.055),0 1px 3px rgba(15,23,42,.04);
+}
+/* The new edition is intentionally light-only. */
+body.dark{
+  --bg:#F7F9FC;--bg2:#FFFFFF;--bg3:#F1F5F9;--card:#FFFFFF;--grouped:#FFFFFF;
+  --label:#172033;--label2:#667085;--label3:#98A2B3;--sep:#E6EAF0;
+  --blue:#2563EB;--green:#16A34A;--red:#DC2626;--orange:#D97706;--yellow:#CA8A04;--gray:#64748B;
+  --shadow:0 4px 18px rgba(15,23,42,.055),0 1px 3px rgba(15,23,42,.04);
+  color-scheme:light;
+}
+html,body{background:#F7F9FC!important;color:#172033!important}
+body{font-size:14px}
+button{cursor:pointer}
+.app{max-width:680px;padding-bottom:90px}
+
+/* Header */
+.top-bar{
+  padding:calc(12px + var(--safe-t)) 16px 12px;
+  background:rgba(255,255,255,.94)!important;
+  border-bottom:1px solid #E9EDF3;
+  box-shadow:0 2px 12px rgba(15,23,42,.035);
+}
+.app-logo{width:42px;height:42px;border-radius:13px;box-shadow:0 5px 14px rgba(37,99,235,.14)}
+.top-bar-left{gap:11px}
+.top-bar-titles h1{font-size:18px;font-weight:800;color:#172033}
+.version-pill{background:#EEF4FF;color:#2563EB;padding:3px 8px}
+.sync-badge{font-size:10.5px;color:#7A8596;margin-top:2px}
+.menu-trigger,.header-actions button{
+  width:40px;height:40px;background:#F4F7FB!important;color:#344054!important;
+  border:1px solid #E7ECF2;box-shadow:none;border-radius:12px;
+}
+.top-bar-date{background:#F4F7FB;border:1px solid #E7ECF2;color:#667085;border-radius:12px;padding:7px 11px}
+#theme{display:none!important}
+
+/* Page shell */
+.page{padding:18px 16px 12px;animation:fadein .2s ease}
+.page > h2:first-child,.section-head h2{color:#172033;font-weight:850}
+.page > h2:first-child{font-size:25px;margin:5px 2px 18px}
+.section-head{margin:22px 2px 11px}
+.section-head h2{font-size:19px;letter-spacing:-.2px}
+.section-head button{background:#2563EB!important;box-shadow:0 7px 16px rgba(37,99,235,.18)!important}
+
+/* Home */
+.home-head{margin-top:4px;align-items:center}
+.home-head h2{font-size:25px}
+.home-quick-actions{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.home-quick-btn,.dash-customize-btn{
+  width:32px;height:32px;border-radius:10px!important;border:1px solid #E5EAF1!important;
+  background:#fff!important;color:#526071!important;box-shadow:none!important;font-size:14px!important;
+}
+.hero{
+  min-height:160px;padding:23px 22px 20px;border-radius:24px;
+  background:#fff!important;color:#172033!important;
+  border:1px solid #E5EAF1;box-shadow:0 10px 28px rgba(37,99,235,.08);
+  position:relative;overflow:hidden;
+}
+.hero::before{
+  opacity:1;inset:auto;content:"";position:absolute;width:170px;height:170px;left:-70px;bottom:-105px;
+  background:radial-gradient(circle,rgba(37,99,235,.13),transparent 68%);
+}
+.hero::after{width:90px;height:90px;left:auto;right:-40px;bottom:-45px;border-color:rgba(37,99,235,.10)}
+.hero span{color:#667085;opacity:1;font-size:12.5px;font-weight:600;position:relative}
+.hero .hero-arrow{color:#2563EB;font-size:11px;margin-inline-start:8px}
+.hero strong{font-size:31px;color:#172033;margin-top:9px;position:relative}
+.hero #dueSoon:not(:empty){background:#EEF4FF;color:#2563EB;border:1px solid #DCE8FF}
+.grid{gap:11px;margin:11px 0}
+.card{
+  background:#fff;border:1px solid #E7EBF1;border-radius:17px;padding:15px;
+  box-shadow:var(--shadow)
+}
+.card span{color:#7A8596;font-size:11.5px}
+.card b{color:#172033;font-size:19px}
+.grid>button{
+  background:#fff;border:1px solid #E7EBF1;border-radius:17px;box-shadow:var(--shadow);
+  min-height:76px;color:#344054;font-size:14px;gap:5px
+}
+.grid>button:first-child{border-top:3px solid #2563EB}
+.grid>button:last-child{border-top:3px solid #16A34A}
+.invoice-home-btn{
+  margin-top:11px;padding:16px;border-radius:17px;background:#2563EB!important;
+  box-shadow:0 10px 22px rgba(37,99,235,.20)!important;font-size:15px
+}
+.home-tools{gap:10px}
+.tool-card{background:#fff;border:1px solid #E7EBF1;border-radius:17px;box-shadow:var(--shadow);padding:14px 8px;color:#344054}
+.tool-card b{color:#344054}
+.tool-card small{color:#98A2B3}
+
+/* Lists */
+.item{background:#fff;border:1px solid #E7EBF1;border-radius:16px;box-shadow:var(--shadow);margin:9px 0;padding:13px 14px}
+.item b{color:#172033}
+.meta{color:#7A8596}
+.empty{padding:30px 10px!important;color:#98A2B3}
+.search,.filters select,.filters input{
+  background:#fff!important;border:1px solid #DDE3EB!important;border-radius:13px!important;
+  box-shadow:0 2px 8px rgba(15,23,42,.025);color:#172033!important
+}
+.search{padding:13px 15px}
+.filters{gap:9px}
+.actions button{background:#F3F6FA!important;border:1px solid #E5EAF1!important;color:#475467!important}
+.actions button.danger-icon,.danger-icon{background:#FFF1F1!important;color:#DC2626!important}
+.mini-danger{background:#FFF1F1;color:#DC2626}
+
+/* Tabs */
+.tabs{background:#EEF2F7!important;border:1px solid #E2E8F0;padding:3px;border-radius:13px}
+.tabs button{color:#667085}
+.tabs button.active,.tabs button:active{background:#fff!important;color:#2563EB;box-shadow:0 2px 8px rgba(15,23,42,.07)}
+
+/* Account accordions */
+.page-accordion{margin:11px 0;background:#fff;border:1px solid #E7EBF1;border-radius:17px;box-shadow:var(--shadow)}
+.page-accordion .accordion-head{padding:16px 15px;font-size:16px!important;color:#172033}
+.accordion-head span:last-child{color:#98A2B3}
+.page-accordion .accordion-body{background:#FAFBFD}
+.card-number-box{background:#F4F7FB!important;border:1px solid #E7ECF2}
+
+/* Notes / checks / categories */
+.note-card{border-inline-start:3px solid #2563EB}
+.note-badge{background:#EEF4FF;color:#2563EB}
+.note-alarm{border-color:#E6EAF0}
+.note-checklist{border-color:#E6EAF0}
+.note-check-mark{border-color:#B9C6D8;background:#fff}
+.note-check-label input[type=checkbox]:checked + .note-check-mark{background:#2563EB;border-color:#2563EB}
+.settlement-ok{background:#ECFDF3;color:#15803D}
+.settlement-pending{background:#FFF8E7;color:#B45309}
+.cat-btn{background:#fff;border:1px solid #DDE4ED}
+.cat-btn.selected-cat{background:#2563EB;border-color:#2563EB}
+
+/* Modals / sheets */
+.modal{background:rgba(15,23,42,.28)!important;backdrop-filter:blur(4px)}
+.sheet{
+  max-width:680px;background:#fff!important;border:1px solid #E5EAF1;border-bottom:0;
+  border-radius:25px 25px 0 0;padding:11px 18px calc(25px + var(--safe-b));
+  box-shadow:0 -14px 45px rgba(15,23,42,.14)
+}
+.sheet-grabber{background:#CBD5E1}
+.sheet .close{background:#F1F5F9!important;border:1px solid #E5EAF1;color:#667085}
+.sheet h2{color:#172033;font-size:20px}
+.form input,.form select,.form textarea{background:#fff!important;border:1px solid #DDE3EB!important;border-radius:13px!important;color:#172033!important}
+.form input:focus,.form select:focus,.form textarea:focus{border-color:#93B4FF!important;box-shadow:0 0 0 3px rgba(37,99,235,.08)}
+
+/* Settings and feature cards */
+.settings-actions button,.primary{background:#2563EB!important;color:#fff!important;border-color:#2563EB!important}
+button:not(.primary):not(.danger):not(.danger-icon){-webkit-tap-highlight-color:transparent}
+
+/* Tables / report blocks */
+table{border-color:#E5EAF1!important}
+th{background:#F4F7FB!important;color:#475467!important}
+td{border-color:#E7EBF1!important}
+
+/* Scrollbars */
+*{scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:99px}
+
+/* Mobile polish */
+@media (max-width:520px){
+  .app{max-width:100%}
+  .page{padding-inline:13px}
+  .top-bar{padding-inline:13px}
+  .home-quick-actions{max-width:210px}
+  .hero{min-height:151px}
+  .hero strong{font-size:28px}
+  .home-tools{grid-template-columns:1fr 1fr 1fr}
+  .home-tools .tool-card{min-height:90px}
+  .page-accordion .accordion-head{font-size:15px!important}
+}
+@media (max-width:360px){
+  .top-bar-date{display:none}
+  .home-quick-actions{max-width:180px}
+  .home-tools{grid-template-columns:1fr}
+}

@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="1.0.0";
+const APP_VERSION="1.1.1";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -1068,8 +1068,8 @@ function activatePage(name){
     a swipe or the phone's back button reveal the full app from inside
     the locked kiosk. Guarding here closes that regardless of caller. */
  if(appMode()==="store"&&!STORE_ALLOWED_PAGES.includes(name))name="invoices";
- document.querySelectorAll(".nav, .v1-bottom-nav button").forEach(x=>x.classList.remove("active"));
- document.querySelectorAll(`.nav[data-page="${name}"], .v1-bottom-nav button[data-page="${name}"]`).forEach(x=>x.classList.add("active"));
+ document.querySelectorAll(".nav").forEach(x=>x.classList.remove("active"));
+ document.querySelectorAll(`.nav[data-page="${name}"]`).forEach(x=>x.classList.add("active"));
  document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
  const page=$(name);
  if(page)page.classList.add("active");
