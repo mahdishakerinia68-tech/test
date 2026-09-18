@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="1.1.1";
+const APP_VERSION="1.2.5";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -113,7 +113,9 @@ const SYNC_INTERVAL=5000;
 // Firebase project configuration supplied for this app.
 // This is safe to ship in a web app; access is protected by Firebase Authentication + Firestore Rules.
 const DEFAULT_SYNC_CONFIG={
-  apiKey:"AIzaSyAj80ZFjd8nqVwgIIdPTbUbDXoCPwFSxh4",
+  // Firebase API keys are intentionally not committed to the repository.
+  // Existing users keep their locally stored sync configuration.
+  apiKey:"",
   authDomain:"hesabdari-fd3a3.firebaseapp.com",
   projectId:"hesabdari-fd3a3",
   storageBucket:"hesabdari-fd3a3.firebasestorage.app",
@@ -139,7 +141,10 @@ function setAutoBackupEnabled(v){localStorage.setItem(AUTO_BACKUP_ENABLED_KEY,v?
 const AUTO_BACKUP_DIRECTORY="ExternalStorage";
 const AUTO_BACKUP_FOLDER="Download/حسابداری";
 const AUTO_BACKUP_LAST_FILE_KEY="hesabdar-auto-backup-last-file-v1";
-function backupFileName(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `hesabdar-backup-${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`}
+function backupFileName(){
+ const d=new Date(),p=n=>String(n).padStart(2,"0");
+ return `hesabdar-backup-${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.json`;
+}
 async function pruneOldBackupFiles(fs){
  try{
   const res=await fs.readdir({path:AUTO_BACKUP_FOLDER,directory:AUTO_BACKUP_DIRECTORY});
@@ -189,7 +194,7 @@ function createAutoBackup(reason="زمان‌بندی"){
   while(list.length>5)list.pop();
   localStorage.setItem(AUTO_BACKUP_KEY,JSON.stringify(list));
   localStorage.setItem(AUTO_BACKUP_KEY+"-last",new Date().toISOString());
-  writeAutoBackupFile(JSON.parse(raw)).then(res=>{
+  writeAutoBackupFile(backupPayload()).then(res=>{
    if(res?.ok){localStorage.setItem(AUTO_BACKUP_LAST_FILE_KEY,JSON.stringify({filename:res.filename,where:res.where,at:new Date().toISOString()}));renderSettingsFeatures()}
   }).catch(e=>console.warn("auto backup file",e));
   return true;
@@ -306,7 +311,11 @@ function gregorianToJalali(gy,gm,gd){let gdm=[0,31,59,90,120,151,181,212,243,273
 function jalaliToGregorian(jy,jm,jd){jy+=1595;let days=-355668+(365*jy)+(div(jy,33)*8)+div(((jy%33)+3),4)+jd+((jm<7)?(jm-1)*31:((jm-7)*30)+186);let gy=400*div(days,146097);days%=146097;if(days>36524){gy+=100*div(--days,36524);days%=36524;if(days>=365)days++}gy+=4*div(days,1461);days%=1461;if(days>365){gy+=div(days-1,365);days=(days-1)%365}let gd=days+1;let sal_a=[0,31,((gy%4===0&&gy%100!==0)||(gy%400===0))?29:28,31,30,31,30,31,31,30,31,30,31];let gm;for(gm=1;gm<=12;gm++){const v=sal_a[gm];if(gd<=v)break;gd-=v}return [gy,gm,gd]}
 function padFa(n){return String(n).padStart(2,'0').replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d])}
 function toFaDigits(s){return String(s).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d])}
-function toEnDigits(s){return String(s).replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))}
+/* v1.2.7: کیبورد فارسی/عربی روی گوشی‌ها معمولاً ارقام ۰-۹ (فارسی) یا ٠-٩ (عربی) را
+ * می‌فرستد، نه ارقام انگلیسی. قبلاً فقط ارقام فارسی تبدیل می‌شدند و فیلدهای عددی/مبلغی
+ * با کیبورد فارسی/عربی عملاً کار نمی‌کردند (ورودی خالی می‌ماند یا صفر ذخیره می‌شد).
+ * حالا هر دو دسته رقم پشتیبانی می‌شوند. */
+function toEnDigits(s){return String(s).replace(/[۰-۹٠-٩]/g,d=>{const fa='۰۱۲۳۴۵۶۷۸۹'.indexOf(d);if(fa!==-1)return String(fa);return String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))})}
 function jalaliLabel(v){if(!v)return '—';let d=new Date(v);if(Number.isNaN(d.getTime())){let m=toEnDigits(v).match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);return m?`${m[1]}/${String(m[2]).padStart(2,'0')}/${String(m[3]).padStart(2,'0')}`:String(v)}let j=gregorianToJalali(d.getFullYear(),d.getMonth()+1,d.getDate());return `${toFaDigits(j[0])}/${padFa(j[1])}/${padFa(j[2])}`} 
 function jalaliInputValue(v){if(!v)return '';let d=new Date(v);if(Number.isNaN(d.getTime()))return String(v);let j=gregorianToJalali(d.getFullYear(),d.getMonth()+1,d.getDate());return `${toFaDigits(j[0])}/${String(j[1]).padStart(2,'0')}/${String(j[2]).padStart(2,'0')}`} 
 function jalaliToISO(v){let m=toEnDigits(v||'').trim().match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);if(!m)return '';let g=jalaliToGregorian(+m[1],+m[2],+m[3]);return `${g[0]}-${String(g[1]).padStart(2,'0')}-${String(g[2]).padStart(2,'0')}`}
@@ -557,7 +566,16 @@ function renderAudit(){
   box.innerHTML=logs.map(e=>`<div class="audit-item"><div class="audit-icon">${auditIcon(e.kind)}</div><div class="audit-main"><b>${esc(e.action)}</b>${e.detail?`<div class="meta">${esc(e.detail)}</div>`:""}<small>${new Intl.DateTimeFormat("fa-IR-u-ca-persian",{dateStyle:"short",timeStyle:"short"}).format(new Date(e.at))}</small></div></div>`).join("")||empty("هنوز گزارشی ثبت نشده است");
 }
 function clearAudit(){if(!data.audit?.length)return alert("گزارشی برای پاک کردن وجود ندارد");if(confirm("همه گزارش‌های فعالیت پاک شوند؟")){const old=data.audit.slice();data.audit=[];for(const e of old)markDirty("audit",e.id,true,{id:e.id},new Date().toISOString());save();logEvent("گزارش‌ها پاک شدند","سابقه فعالیت قبلی حذف شد","system")}}
-function persistLocal(){try{localStorage.setItem(KEY,JSON.stringify(data));return true}catch(e){console.warn("localStorage save failed",e);return false}}
+function persistLocal(){
+ try{
+  localStorage.setItem(KEY,JSON.stringify(data));
+  return true;
+ }catch(e){
+  if(e?.name==="QuotaExceededError"||e?.code===22){return false}
+  console.warn("localStorage save failed");
+  return false;
+ }
+}
 const STORAGE_FULL_MSG="⚠️ حافظه ذخیره‌سازی دستگاه پر شده و تغییرات ذخیره نشد.\nبرای آزاد شدن فضا از تنظیمات، یک پشتیبان بگیر و چند عکس پیوست قدیمی (رسید/تراکنش) را حذف کن.";
 function save(){
  if(!persistLocal()){alert(STORAGE_FULL_MSG);return}
@@ -625,7 +643,16 @@ async function pushRest(items=null){
 }
 async function pullRest(){
   if(!sync.user||!sync.db)throw new Error("همگام‌سازی آماده نیست");
-  const snap=await recordsCollection().get();
+  // Always read the true latest data from the Firestore server when possible,
+  // instead of a device's own local cache. Two phones (iPhone/Android/...)
+  // signed into the same account share one "users/{uid}/records" collection
+  // already — but without this, a device could still show its own last-seen
+  // snapshot for a moment instead of the actual latest merged state written
+  // by another device/platform. Falls back to the normal (cache-allowed) read
+  // when offline, so nothing breaks without a connection.
+  let snap;
+  try{snap=await recordsCollection().get({source:"server"})}
+  catch(e){snap=await recordsCollection().get()}
   return snap.docs.map(d=>d.data());
 }
 function recordsFromLocal(){
@@ -673,7 +700,7 @@ async function hydrateSync(){
   if(!sync.user||!sync.db)return;
   sync.hydrating=true;
   try{const remote=await pullRest();mergeCloud(remote);localStorage.setItem(KEY,JSON.stringify(data));await reconcileInitial(remote);render();setSyncStatus("☁️ آنلاین • همگام‌سازی لحظه‌ای")}
-  catch(e){console.error(e);setSyncStatus("⚠️ دریافت اولیه ناموفق: "+(e.code||e.message))}
+  catch(e){console.error("cloud pull failed");setSyncStatus("⚠️ دریافت اولیه ناموفق؛ اتصال یا تنظیمات Firebase را بررسی کنید.")}
   finally{sync.hydrating=false}
 }
 async function syncTick(){
@@ -726,13 +753,22 @@ async function initSync(){
 async function syncSave(){
   if(!sync.ready||!sync.user||sync.hydrating)return;
   sync.queued=true;if(sync.saving)return;sync.saving=true;
-  while(sync.queued){sync.queued=false;try{await pushRest();setSyncStatus("☁️ ذخیره ابری انجام شد — "+dataSummary(data)); logEvent("همگام‌سازی ابری","ذخیره تغییرات در ابر","sync",false)}catch(e){console.error(e);setSyncStatus("⚠️ ذخیره ابری انجام نشد: "+(e.code||"")+" "+e.message)}}
+  while(sync.queued){sync.queued=false;try{await pushRest();setSyncStatus("☁️ ذخیره ابری انجام شد — "+dataSummary(data)); logEvent("همگام‌سازی ابری","ذخیره تغییرات در ابر","sync",false) }catch(e){console.error("cloud sync failed");setSyncStatus("⚠️ ذخیره ابری انجام نشد؛ اتصال یا تنظیمات Firebase را بررسی کنید.")}}
   sync.saving=false;
 }
 async function pushToCloud(){
   if(!sync.user){if(!await ensureSyncReady())return;if(!sync.user)return alert("اول با حساب همگام‌سازی وارد شو");}
-  try{await pushRest();setSyncStatus("☁️ اطلاعات این گوشی به ابر منتقل شد — "+dataSummary(data));alert("ارسال با موفقیت انجام شد\n"+dataSummary(data));}
-  catch(e){alert("ارسال ناموفق: "+(e.code||'')+"\n"+e.message)}
+  try{
+   // Manual send is a MERGE, not a replace: first fetch the latest shared
+   // records, merge them with this phone, then upload the unified dataset.
+   const remote=await pullRest();
+   mergeCloud(remote||[]);
+   localStorage.setItem(KEY,JSON.stringify(data));
+   markAllLocalDirty();
+   await pushRest();
+   setSyncStatus("☁️ اطلاعات دو گوشی با هم ادغام و ذخیره شد — "+dataSummary(data));
+   alert("ارسال و ادغام با موفقیت انجام شد\n"+dataSummary(data));
+  }catch(e){alert("ارسال ناموفق: "+(e.code||'')+"\n"+e.message)}
 }
 async function pullFromCloud(){
   if(!sync.user){if(!await ensureSyncReady())return;if(!sync.user)return alert("اول با حساب همگام‌سازی وارد شو");}
@@ -795,12 +831,15 @@ async function createFromSettings(){
 async function logoutSync(){try{const email=sync.user?.email||"";await sync.auth?.signOut();alert("از حساب همگام‌سازی خارج شد");logEvent("خروج از حساب همگام‌سازی",email,"auth")}catch(e){alert(e.message)}}
 
 function normalize(s){return String(s||"").replace(/[۰-۹]/g,d=>"۰۱۲۳۴۵۶۷۸۹".indexOf(d)).replace(/[٬،]/g,",").replace(/\s+/g," ").trim()}
-function parseMoney(v){return Number(String(v).replace(/[^\d]/g,""))||0}
+function parseMoney(v){return Number(toEnDigits(String(v)).replace(/[^\d]/g,""))||0}
 
 function bytesToB64(bytes){let s="";for(const b of new Uint8Array(bytes))s+=String.fromCharCode(b);return btoa(s)}
 function b64ToBytes(s){const bin=atob(s);const out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out}
 async function hashPin(pin,saltB64){const salt=saltB64?b64ToBytes(saltB64):crypto.getRandomValues(new Uint8Array(16));const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(pin),"PBKDF2",false,["deriveBits"]);const bits=await crypto.subtle.deriveBits({name:"PBKDF2",salt,iterations:120000,hash:"SHA-256"},key,256);return {hash:bytesToB64(bits),salt:bytesToB64(salt)}}
-async function verifyPin(pin){if(data.pinHash&&data.pinSalt){const x=await hashPin(pin,data.pinSalt);return x.hash===data.pinHash}return String(pin)===String(data.pin||"")}
+/* v1.2.7: رمز عددی همیشه با ارقام انگلیسی هش/ذخیره می‌شود؛ اگر کاربر هنگام
+ * ورود یا تعیین رمز از کیبورد فارسی/عربی استفاده کند، اول به رقم انگلیسی
+ * تبدیل می‌شود تا با رمز قبلی (صرف‌نظر از کیبورد) مطابقت داشته باشد. */
+async function verifyPin(pin){pin=toEnDigits(String(pin??""));if(data.pinHash&&data.pinSalt){const x=await hashPin(pin,data.pinSalt);return x.hash===data.pinHash}return pin===String(data.pin||"")}
 async function migratePinSecurity(){if(!data.pin||data.pinHash)return;try{const x=await hashPin(data.pin);data.pinHash=x.hash;data.pinSalt=x.salt;data.pin="";localStorage.setItem(KEY,JSON.stringify(data));}catch(e){console.warn("PIN security migration",e)}}
 function hasLockCode(){return !!(data.pinHash||data.pin||data.patternHash)}
 
@@ -885,21 +924,21 @@ function showWhatsNewOnce(){
   <h2>🎉 به حساب‌یار خوش آمدی</h2>
   <p class="hint">این صفحه فقط یک‌بار در اولین اجرای این نسخه نمایش داده می‌شود.</p>
   <div class="whats-new-section">
-   <h3>🛠 تغییرات این نسخه (۲.۷.۳)</h3>
+   <h3>🛠 تغییرات این نسخه (۱.۲.۵)</h3>
    <ul>
     <li>🧾 رفع باگ اقساط بدهکار/بستانکار: تا قبل از این، وقتی از فرم ویرایشِ یک بدهکار/بستانکار «تعداد اقساط» را عوض می‌کردی، کل برنامه‌ی اقساط از نو ساخته می‌شد و اقساطی که از قبل پرداخت شده بودند (و تراکنشِ واقعی‌شان روی موجودی حساب اثر گذاشته بود) به‌حالت «پرداخت‌نشده» برمی‌گشتند. حالا با تغییر تعداد اقساط، فقط اقساطِ پرداخت‌نشده کم یا زیاد می‌شوند؛ اقساطِ پرداخت‌شده و تراکنش متصل به هرکدام (و در نتیجه اثرشان روی افزایش/کاهش موجودی حساب) دست‌نخورده باقی می‌مانند.</li>
     <li>🔒 اگر تعداد قسط جدید از تعداد اقساطِ پرداخت‌شده کمتر انتخاب شود، برنامه اجازه‌ی این کوچک‌تر شدن را نمی‌دهد و با یک پیام، تعداد را روی همان تعداد پرداخت‌شده نگه می‌دارد.</li>
    </ul>
   </div>
   <div class="whats-new-section">
-   <h3>🛠 تغییرات نسخه قبل (۲.۷.۲)</h3>
+   <h3>🛠 تغییرات نسخه قبل (۱.۲.۲)</h3>
    <ul>
     <li>👥 بدهکار/بستانکار حالا در «جدول هفتگی یادداشت‌ها» هم دیده می‌شود: اگر یک‌جا سررسید دارد، همان روز نشان داده می‌شود؛ اگر قسطی است، هر قسطِ پرداخت‌نشده سر ماه خودش (طبق همان تقسیم ماهانه‌ای که از قبل هنگام ساختن اقساط انجام می‌شد) روی روزِ سررسیدش می‌آید.</li>
     <li>🔔 برای هر سررسید (چه بدهی، چه طلب — یک‌جا یا هر قسط جدا) یک یادآوری واقعی با اعلان روی گوشی هم ساخته می‌شود؛ با پرداخت همان قسط یا تسویه‌ی کامل، یادآوری‌اش خودش پاک می‌شود. این یادآوری‌ها زیر یک بخش جدا به‌نام «👤 سررسید بدهکار/بستانکار» در صفحه‌ی یادآوری‌ها هم قابل دیدن‌اند.</li>
    </ul>
   </div>
   <div class="whats-new-section">
-   <h3>🛠 تغییرات نسخه قبل (۲.۷.۱)</h3>
+   <h3>🛠 تغییرات نسخه قبل (۱.۲.۱)</h3>
    <ul>
     <li>✓ در چک‌لیستِ یادداشت‌ها، به‌محض تیک خوردن یک آیتم، دیگر خط‌خورده وسط لیست نمی‌ماند — از دید کنار می‌رود و زیر یک دکمهٔ «✓ تکمیل‌شده» جمع می‌شود تا لیست شلوغ نشود؛ با زدن همان دکمه هر وقت خواستی می‌توانی موارد انجام‌شده را دوباره ببینی یا تیکشان را بردار.</li>
     <li>🎨 چهرهٔ اپ کمی خاص‌تر شد: کارت بالای صفحه (خانه) و کارت‌های یادداشت طرح تازه‌ای گرفتند و چک‌باکس آیتم‌های یادداشت هم به‌جای چک‌باکس معمولی مرورگر، یک نشان دایره‌ای مُهرمانند دارد.</li>
@@ -1040,10 +1079,11 @@ async function setPin(){
  if(data.lockMethod==="pattern"&&data.patternHash){alert("در حال حاضر قفل الگو فعال است. برای تغییر به رمز عددی، اول با «حذف رمز ورود» آن را غیرفعال کن.");return}
  const old=data.pinHash||data.pin?(prompt("رمز فعلی را وارد کن:")||""):"";
  if((data.pinHash||data.pin)&&!(await verifyPin(old)))return alert("رمز فعلی اشتباه است");
- const p=prompt(data.pinHash||data.pin?"رمز جدید ۴ تا ۸ رقمی:":"یک رمز ۴ تا ۸ رقمی برای ورود تعیین کن:");
+ let p=prompt(data.pinHash||data.pin?"رمز جدید ۴ تا ۸ رقمی:":"یک رمز ۴ تا ۸ رقمی برای ورود تعیین کن:");
  if(p===null)return;
+ p=toEnDigits(p);
  if(!/^\d{4,8}$/.test(p))return alert("رمز باید ۴ تا ۸ رقم باشد");
- const p2=prompt("رمز جدید را دوباره وارد کن:");
+ const p2=toEnDigits(prompt("رمز جدید را دوباره وارد کن:")||"");
  if(p!==p2)return alert("دو رمز یکسان نیستند");
  try{const x=await hashPin(p);data.pin="";data.pinHash=x.hash;data.pinSalt=x.salt;data.lockMethod="pin";save();logEvent("تغییر رمز ورود","رمز ورود تغییر کرد","settings");alert("رمز با موفقیت ذخیره شد");renderSettingsFeatures()}catch(e){alert("ذخیره رمز انجام نشد")}
 }
@@ -1165,12 +1205,30 @@ function groupThousandsStr(digitsOnly){return digitsOnly.replace(/\B(?=(\d{3})+(
 function fmtAmtValue(n){n=Math.round(Number(n)||0);return n?groupThousandsStr(String(n)):""}
 function formatAmountInputEl(el){
  const start=el.selectionStart,before=el.value.length;
- const digits=String(el.value||"").replace(/[^\d]/g,"");
+ const digits=toEnDigits(String(el.value||"")).replace(/[^\d]/g,"");
  const grouped=groupThousandsStr(digits);
  if(el.value===grouped)return;
  el.value=grouped;
  const diff=grouped.length-before;
  try{const pos=Math.max(0,(start||grouped.length)+diff);el.setSelectionRange(pos,pos)}catch(e){}
+}
+/* v1.2.7: فیلدهای عددی ساده (تعداد، درصد، موجودی) که جداکننده هزارگان
+ * ندارند اما باید همان‌طور که با کیبورد فارسی/عربی تایپ می‌شوند، به رقم
+ * انگلیسی تبدیل شوند تا Number(...) درست خوانده شود. با data-decimal="1"
+ * یک نقطه اعشار هم مجاز می‌شود (مثلاً تعداد کالای فاکتور). */
+function normalizeNumInputEl(el){
+ const allowDecimal=el.dataset.decimal==="1";
+ const start=el.selectionStart,before=el.value.length;
+ let v=toEnDigits(String(el.value||""));
+ v=allowDecimal?v.replace(/[^\d.]/g,""):v.replace(/[^\d]/g,"");
+ if(allowDecimal){
+  const firstDot=v.indexOf(".");
+  if(firstDot!==-1)v=v.slice(0,firstDot+1)+v.slice(firstDot+1).replace(/\./g,"");
+ }
+ if(el.value===v)return;
+ el.value=v;
+ const diff=v.length-before;
+ try{const pos=Math.max(0,(start||v.length)+diff);el.setSelectionRange(pos,pos)}catch(e){}
 }
 function bindAmountInputs(root){
  (root||document).querySelectorAll(".amt-input").forEach(el=>{
@@ -1178,6 +1236,12 @@ function bindAmountInputs(root){
   el.dataset.amtBound="1";
   el.addEventListener("input",()=>formatAmountInputEl(el));
   formatAmountInputEl(el);
+ });
+ (root||document).querySelectorAll(".num-input").forEach(el=>{
+  if(el.dataset.numBound)return;
+  el.dataset.numBound="1";
+  el.addEventListener("input",()=>normalizeNumInputEl(el));
+  normalizeNumInputEl(el);
  });
 }
 
@@ -1573,8 +1637,8 @@ function openProduct(id=null){const p=id&&data.products.find(x=>x.id===id);openM
  ${invField("قیمت فروش","تومان",`<input id="prdPrice" type="text" inputmode="numeric" class="amt-input" placeholder="۰" value="${fmtAmtValue(p?.price)}">`)}
  </div>
  <div class="two-fields">
- ${invField("موجودی فعلی","تعداد در انبار",`<input id="prdStock" type="number" min="0" inputmode="numeric" placeholder="۰" value="${Number(p?.stock)||""}">`)}
- ${invField("حداقل موجودی","برای هشدار موجودی کم",`<input id="prdMin" type="number" min="0" inputmode="numeric" placeholder="۰" value="${Number(p?.minStock)||""}">`)}
+ ${invField("موجودی فعلی","تعداد در انبار",`<input id="prdStock" type="text" class="num-input" inputmode="numeric" placeholder="۰" value="${Number(p?.stock)||""}">`)}
+ ${invField("حداقل موجودی","برای هشدار موجودی کم",`<input id="prdMin" type="text" class="num-input" inputmode="numeric" placeholder="۰" value="${Number(p?.minStock)||""}">`)}
  </div>
  <button class="primary" onclick="saveProduct('${p?.id||""}')">💾 ذخیره</button></div>`)}
 function saveProduct(id){const name=$("prdName").value.trim();if(!name)return alert("نام کالا را وارد کن");const o={name,code:$("prdCode").value.trim(),buyPrice:parseMoney($("prdBuy").value),price:parseMoney($("prdPrice").value),stock:Number($("prdStock").value)||0,minStock:Number($("prdMin").value)||0};if(id){const p=data.products.find(x=>x.id===id);Object.assign(p,o);touch(p);markDirty("products",p.id,false,p,p.updatedAt)}else{const p=touch({id:uid(),...o});data.products.unshift(p);markDirty("products",p.id,false,p,p.updatedAt)}save();logEvent(id?"ویرایش کالا":"افزودن کالا",name,id?"edit":"create");closeModal()}
@@ -1616,7 +1680,8 @@ function renderStockAdjustList(){
  const q=($("stockAdjSearch")?.value||"").trim().toLowerCase();
  const isLow=p=>Number(p.minStock)>0&&Number(p.stock)<=Number(p.minStock);
  const list=[...data.products].filter(p=>!q||String(p.name||"").toLowerCase().includes(q)||String(p.code||"").toLowerCase().includes(q)).sort((a,b)=>(isLow(a)?0:1)-(isLow(b)?0:1));
- box.innerHTML=list.map(p=>`<div class="item stock-adj-row${isLow(p)?" item-low":""}"><div><b>📦 ${esc(p.name)}</b><div class="meta">موجودی فعلی: ${fa(p.stock||0)}${isLow(p)?" • ⚠️ موجودی کم":""}</div></div><div class="stock-adj-controls"><input type="number" min="1" inputmode="numeric" placeholder="تعداد" id="qtyAdj_${p.id}" class="stock-adj-qty" onkeydown="if(event.key==='Enter')increaseStock('${p.id}')"><button type="button" class="primary" onclick="increaseStock('${p.id}')">＋</button></div></div>`).join("")||empty(q?"کالایی با این جستجو پیدا نشد":"هنوز کالایی ثبت نشده است");
+ box.innerHTML=list.map(p=>`<div class="item stock-adj-row${isLow(p)?" item-low":""}"><div><b>📦 ${esc(p.name)}</b><div class="meta">موجودی فعلی: ${fa(p.stock||0)}${isLow(p)?" • ⚠️ موجودی کم":""}</div></div><div class="stock-adj-controls"><input type="text" min="1" inputmode="numeric" class="num-input stock-adj-qty" placeholder="تعداد" id="qtyAdj_${p.id}" onkeydown="if(event.key==='Enter')increaseStock('${p.id}')"><button type="button" class="primary" onclick="increaseStock('${p.id}')">＋</button></div></div>`).join("")||empty(q?"کالایی با این جستجو پیدا نشد":"هنوز کالایی ثبت نشده است");
+ bindAmountInputs(box);
 }
 function increaseStock(id){
  const input=$("qtyAdj_"+id);const qty=Number(input?.value);
@@ -1715,7 +1780,7 @@ function openPerson(id=null){
  const p=id&&data.people.find(x=>x.id===id);
  const instCount=p?.installments?.count||1;
  const instFreq=p?.installments?.frequency||"monthly";
- openModal(`<h2>${p?"ویرایش بدهکار/بستانکار":"بدهکار / بستانکار"}</h2><div class="form"><select id="pt"><option value="debt" ${p?.type==="debt"?"selected":""}>من بدهکارم</option><option value="credit" ${p?.type==="credit"?"selected":""}>من طلبکارم</option></select><input id="pn" placeholder="نام شخص" value="${esc(p?.name||"")}"><input id="pa" type="text" inputmode="numeric" class="amt-input" placeholder="مبلغ کل" value="${fmtAmtValue(p?.amount)}">${simpleDateField("pd",jalaliInputValue(p?.due||""))}${invField("تعداد اقساط","مثلاً ۴ قسط؛ برنامه خودش اقساط را می‌چیند",`<input id="pInstCount" type="number" min="1" value="${instCount}">`)}${invField("فاصله اقساط","تاریخ و اعلان هر قسط خودکار ساخته می‌شود",`<select id="pInstFreq"><option value="monthly" ${instFreq==="monthly"?"selected":""}>ماهانه</option><option value="weekly" ${instFreq==="weekly"?"selected":""}>هفتگی</option></select>`)}<textarea id="pnote" placeholder="توضیحات">${esc(p?.note||"")}</textarea><button class="primary" onclick="savePerson('${p?.id||""}')">${p?"ذخیره تغییرات":"ذخیره"}</button></div>`)
+ openModal(`<h2>${p?"ویرایش بدهکار/بستانکار":"بدهکار / بستانکار"}</h2><div class="form"><select id="pt"><option value="debt" ${p?.type==="debt"?"selected":""}>من بدهکارم</option><option value="credit" ${p?.type==="credit"?"selected":""}>من طلبکارم</option></select><input id="pn" placeholder="نام شخص" value="${esc(p?.name||"")}"><input id="pa" type="text" inputmode="numeric" class="amt-input" placeholder="مبلغ کل" value="${fmtAmtValue(p?.amount)}">${simpleDateField("pd",jalaliInputValue(p?.due||""))}${invField("تعداد اقساط","مثلاً ۴ قسط؛ برنامه خودش اقساط را می‌چیند",`<input id="pInstCount" type="text" class="num-input" inputmode="numeric" min="1" value="${instCount}">`)}${invField("فاصله اقساط","تاریخ و اعلان هر قسط خودکار ساخته می‌شود",`<select id="pInstFreq"><option value="monthly" ${instFreq==="monthly"?"selected":""}>ماهانه</option><option value="weekly" ${instFreq==="weekly"?"selected":""}>هفتگی</option></select>`)}<textarea id="pnote" placeholder="توضیحات">${esc(p?.note||"")}</textarea><button class="primary" onclick="savePerson('${p?.id||""}')">${p?"ذخیره تغییرات":"ذخیره"}</button></div>`)
 }
 function localDateKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
 function generateInstallments(amount,count,startISO,frequency="monthly"){
@@ -2372,18 +2437,69 @@ const DEEPSEEK_URL_DEFAULT="https://api.deepseek.com/chat/completions";
 const SMART_NOTE_URL_STORAGE="hesabdar-smartnote-url-v1";
 const SMART_NOTE_MODEL_STORAGE="hesabdar-smartnote-model-v1";
 function anthropicKey(){return (localStorage.getItem(ANTHROPIC_KEY_STORAGE)||"").trim()}
-function smartNoteUrl(){return (localStorage.getItem(SMART_NOTE_URL_STORAGE)||"").trim()||DEEPSEEK_URL_DEFAULT}
+function smartNoteUrl() {
+  const custom = (
+    localStorage.getItem(SMART_NOTE_URL_STORAGE) || ""
+  ).trim();
+
+  if (!custom) {
+    return DEEPSEEK_URL_DEFAULT;
+  }
+
+  try {
+    const url = new URL(custom);
+
+    if (url.protocol !== "https:") {
+      return DEEPSEEK_URL_DEFAULT;
+    }
+
+    return url.href;
+  } catch {
+    return DEEPSEEK_URL_DEFAULT;
+  }
+}
 function smartNoteModel(){return (localStorage.getItem(SMART_NOTE_MODEL_STORAGE)||"").trim()||DEEPSEEK_MODEL_DEFAULT}
-function saveAnthropicKey(){
-  const v=$("anthropicKeyInput")?.value.trim();
-  if(!v)return alert("کلید API را وارد کن");
-  localStorage.setItem(ANTHROPIC_KEY_STORAGE,v);
-  const urlV=$("smartNoteUrlInput")?.value.trim();
-  if(urlV)localStorage.setItem(SMART_NOTE_URL_STORAGE,urlV);else localStorage.removeItem(SMART_NOTE_URL_STORAGE);
-  const modelV=$("smartNoteModelInput")?.value.trim();
-  if(modelV)localStorage.setItem(SMART_NOTE_MODEL_STORAGE,modelV);else localStorage.removeItem(SMART_NOTE_MODEL_STORAGE);
-  if($("anthropicKeyInput"))$("anthropicKeyInput").value="";
-  renderSettingsFeatures();alert("تنظیمات ذخیره شد.")
+function saveAnthropicKey() {
+  const value = $("anthropicKeyInput")?.value.trim();
+
+  if (!value) {
+    return alert("کلید API را وارد کن");
+  }
+
+  if (value.length < 20) {
+    return alert("کلید API کوتاه یا نامعتبر است");
+  }
+
+  const urlValue = $("smartNoteUrlInput")?.value.trim();
+  if (urlValue) {
+    try {
+      const parsedUrl = new URL(urlValue);
+      if (parsedUrl.protocol !== "https:") {
+        return alert("آدرس API باید با HTTPS شروع شود");
+      }
+      localStorage.setItem(SMART_NOTE_URL_STORAGE, parsedUrl.href);
+    } catch {
+      return alert("آدرس API معتبر نیست");
+    }
+  } else {
+    localStorage.removeItem(SMART_NOTE_URL_STORAGE);
+  }
+
+  localStorage.setItem(ANTHROPIC_KEY_STORAGE, value);
+
+  const modelValue = $("smartNoteModelInput")?.value.trim();
+  if (modelValue) {
+    localStorage.setItem(SMART_NOTE_MODEL_STORAGE, modelValue);
+  } else {
+    localStorage.removeItem(SMART_NOTE_MODEL_STORAGE);
+  }
+
+  if ($("anthropicKeyInput")) {
+    $("anthropicKeyInput").value = "";
+  }
+
+  renderSettingsFeatures();
+  alert("تنظیمات API فقط روی همین دستگاه ذخیره شد.");
 }
 function clearAnthropicKey(){if(!anthropicKey())return alert("کلیدی ثبت نشده است");if(!confirm("کلید و تنظیمات هوش مصنوعی حذف شود؟"))return;localStorage.removeItem(ANTHROPIC_KEY_STORAGE);localStorage.removeItem(SMART_NOTE_URL_STORAGE);localStorage.removeItem(SMART_NOTE_MODEL_STORAGE);renderSettingsFeatures();alert("کلید حذف شد.")}
 
@@ -2421,13 +2537,27 @@ async function analyzeSmartNote(){
 فقط و فقط یک JSON خام با این ساختار برگردان، بدون هیچ توضیح اضافه و بدون بک‌تیک یا کد بلاک:
 {"items":[{"kind":"debt|credit|reminder|expense|income","person":"نام شخص یا خالی","title":"عنوان کوتاه","amount":عدد به تومان یا 0 اگر نامشخص,"date":"YYYY/MM/DD شمسی یا خالی","note":"توضیح کوتاه اختیاری"}]}
 اگر متن هیچ مورد قابل استخراجی نداشت، items را آرایه خالی بگذار.`;
-    const res=await fetch(smartNoteUrl(),{
-      method:"POST",
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-      body:JSON.stringify({model:smartNoteModel(),max_tokens:1024,temperature:0,messages:[{role:"system",content:sys},{role:"user",content:text}]})
-    });
-    if(!res.ok){const errBody=await res.text().catch(()=>"")
-      ;throw new Error("HTTP "+res.status+" "+errBody.slice(0,200))}
+    const controller=new AbortController();
+    const timeoutId=setTimeout(()=>controller.abort(),30000);
+    let res;
+    try{
+      res=await fetch(smartNoteUrl(),{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+        body:JSON.stringify({model:smartNoteModel(),max_tokens:1024,temperature:0,messages:[{role:"system",content:sys},{role:"user",content:text}]}),
+        signal:controller.signal
+      });
+    }catch(fetchErr){
+      if(fetchErr?.name==="AbortError")throw new Error("زمان درخواست به پایان رسید (۳۰ ثانیه). اتصال اینترنت را بررسی کن.");
+      throw fetchErr;
+    }finally{
+      clearTimeout(timeoutId);
+    }
+    if(!res.ok){
+      const safeMessages={401:"کلید API معتبر نیست.",403:"دسترسی به سرویس هوش مصنوعی رد شد.",429:"محدودیت درخواست سرویس فعال شده است؛ کمی بعد دوباره تلاش کن."};
+      const message=safeMessages[res.status]||(res.status>=500?"سرویس هوش مصنوعی موقتاً در دسترس نیست.":"درخواست هوش مصنوعی انجام نشد.");
+      throw new Error(message);
+    }
     const data2=await res.json();
     const raw=data2?.choices?.[0]?.message?.content||"{}";
     const clean=raw.replace(/```json|```/g,"").trim();
@@ -2553,7 +2683,22 @@ function saveQuickRows(){
   for(const row of rows){const amount=parseMoney(row.querySelector(".quick-amount")?.value);if(!amount)continue;const category=row.querySelector(".quick-cat")?.value||"سایر";const title=row.querySelector(".quick-title")?.value.trim()||category;const accountID=row.querySelector(".quick-account")?.value||data.accounts[0]?.id;if(!accountID)continue;const nt=touch({id:uid(),title,amount,type:quickTxType,category,accountID,date:new Date().toISOString(),source:"quick"});data.transactions.unshift(nt);markDirty("transactions",nt.id,false,nt,nt.updatedAt);logEvent(quickTxType==="expense"?"ثبت هزینه سریع":"ثبت دریافتی سریع",`${title} • ${money(amount)} • ${data.accounts.find(a=>a.id===accountID)?.name||""}`,"create");count++}
   if(!count)return alert("مبلغ حداقل یک مورد را وارد کن");save();closeModal();render();
 }
-function accountBalance(id){let a=data.accounts.find(x=>x.id===id),v=Number(a?.balance)||0;data.transactions.forEach(t=>{const amt=Number(t.amount)||0;if(t.type==="income"&&t.accountID===id)v+=amt;if(t.type==="expense"&&t.accountID===id)v-=amt;if(t.type==="transfer"){if(t.from===id)v-=amt;if(t.destinationType!=="other"&&t.to===id)v+=amt}});return v}
+function accountBalance(id){
+ let a=data.accounts.find(x=>x.id===id),v=Number(a?.balance)||0;
+ data.transactions.forEach(t=>{
+  const amt=Number(t.amount)||0;
+  if(t.type==="income"&&t.accountID===id)v+=amt;
+  if(t.type==="expense"&&t.accountID===id)v-=amt;
+  if(t.type==="transfer"){
+   // Backward compatibility: older transfers used accountID as the source.
+   const fromId=t.from||t.accountID||"";
+   const toId=t.to||"";
+   if(fromId===id)v-=amt;
+   if(t.destinationType!=="other"&&toId===id)v+=amt;
+  }
+ });
+ return v;
+}
 function actionButtons(editFn,deleteFn,id){return `<div class="actions"><button type="button" title="ویرایش" onclick="${editFn}(\'${id}\')">✏️</button><button type="button" class="danger-icon" title="حذف" onclick="${deleteFn}(\'${id}\')">🗑</button></div>`}
 /* v3.11: transfer row markup pulled into its own function so it can be
    reused both in the transactions list (txHTML) and in a dedicated list
@@ -2567,7 +2712,7 @@ function transferItemHTML(t){
  }else{
   destLabel=`🏦 ${esc(data.accounts.find(a=>a.id===t.to)?.name||"")}`;
  }
- return `<div class="item"><div><b>↔ ${esc(t.title)}</b><div class="meta">از ${esc(data.accounts.find(a=>a.id===t.from)?.name||"")} ← ${destLabel}</div><div class="meta">${jalaliDateTimeInput(t.date)}</div></div><div><strong>${money(t.amount)}</strong>${actionButtons("openTransfer","deleteTx",t.id)}</div></div>`;
+ return `<div class="item"><div><b>↔ ${esc(t.title)}</b><div class="meta">از ${esc(data.accounts.find(a=>a.id===(t.from||t.accountID))?.name||"")} ← ${destLabel}</div><div class="meta">${jalaliDateTimeInput(t.date)}</div></div><div><strong>${money(t.amount)}</strong>${actionButtons("openTransfer","deleteTx",t.id)}</div></div>`;
 }
 function txImagesOf(t){return (t?.images&&t.images.length)?t.images:(t?.image?[t.image]:[])}
 function txHTML(t){if(t.type==="transfer")return transferItemHTML(t);let a=data.accounts.find(x=>x.id===t.accountID),sign=t.type==="income"?"+":"−";const recurBadge=t.recurring&&t.recurring!=="none"?` • 🔁 ${t.recurring==="monthly"?"ماهانه":"هفتگی"}`:t.source==="recurring"?" • 🔁 خودکار":"";const imgs=txImagesOf(t);const thumb=imgs.length?`<div class="tx-thumb-wrap" onclick="viewImage('${t.id}')"><img class="tx-thumb" src="${imgs[0]}" alt="پیوست">${imgs.length>1?`<span class="tx-thumb-count">${fa(imgs.length)}</span>`:""}</div>`:"";return `<div class="item"><div><b>${esc(t.title)}</b><div class="meta">${esc(t.category||"")} • ${a?esc(a.name):""} • ${t.source==="bank"?"بانکی":t.source==="recurring"?"تکرارشونده":"دستی"}${recurBadge}</div><div class="meta">${jalaliDateTimeInput(t.date)}</div>${thumb}</div><div><strong class="${t.type}">${sign}${money(t.amount)}</strong>${actionButtons("openTx","deleteTx",t.id)}</div></div>`}
@@ -2658,7 +2803,7 @@ function empty(s){return `<div class="card" style="text-align:center">${s}</div>
 
 function invoiceDateLabel(v){return jalaliLabel(v)}
 function invField(label,hint,inner){return `<div class="field"><span class="field-cap">${esc(label)}</span>${inner}${hint?`<small class="field-hint">${esc(hint)}</small>`:""}</div>`}
-function invoiceRowHTML(item,i){return `<div class="invoice-row"><input type="hidden" class="inv-product" value="${esc(item?.productId||"")}"><div class="inv-desc-wrap"><input class="inv-desc" autocomplete="off" placeholder="نام کالا یا خدمت (تایپ کن تا از انبار پیشنهاد بیاید)" value="${esc(item?.desc||"")}" oninput="onInvDescInput(this)" onfocus="onInvDescInput(this)" onblur="hideInvSuggestions(this)"><div class="inv-suggest"></div></div><input class="inv-qty" oninput="updateInvoiceLiveTotal()" type="number" min="0" step="any" placeholder="تعداد" value="${Number(item?.qty)||""}"><input class="inv-price amt-input" oninput="this.dataset.userEdited='1';updateInvoiceLiveTotal()" type="text" inputmode="numeric" placeholder="قیمت هر واحد" value="${fmtAmtValue(item?.price)}"><button type="button" class="danger-icon" title="حذف ردیف" onclick="this.parentElement.remove();updateInvoiceLiveTotal()">🗑</button></div>`}
+function invoiceRowHTML(item,i){return `<div class="invoice-row"><input type="hidden" class="inv-product" value="${esc(item?.productId||"")}"><div class="inv-desc-wrap"><input class="inv-desc" autocomplete="off" placeholder="نام کالا یا خدمت (تایپ کن تا از انبار پیشنهاد بیاید)" value="${esc(item?.desc||"")}" oninput="onInvDescInput(this)" onfocus="onInvDescInput(this)" onblur="hideInvSuggestions(this)"><div class="inv-suggest"></div></div><input class="inv-qty num-input" data-decimal="1" oninput="normalizeNumInputEl(this);updateInvoiceLiveTotal()" type="text" inputmode="decimal" min="0" placeholder="تعداد" value="${Number(item?.qty)||""}"><input class="inv-price amt-input" oninput="this.dataset.userEdited='1';updateInvoiceLiveTotal()" type="text" inputmode="numeric" placeholder="قیمت هر واحد" value="${fmtAmtValue(item?.price)}"><button type="button" class="danger-icon" title="حذف ردیف" onclick="this.parentElement.remove();updateInvoiceLiveTotal()">🗑</button></div>`}
 function addInvoiceRow(pref={}){const box=$("invoiceRows");if(!box)return;const div=document.createElement("div");div.innerHTML=invoiceRowHTML(pref,box.children.length);const el=div.firstElementChild;box.appendChild(el);bindAmountInputs(el)}
 /* v3.3: جایگزین select کالا شد با سرچ زنده روی همون فیلد «توضیحات» —
  * هرچی تایپ کنی، لیست کالاهای انبار (از طریق <datalist>) فیلتر و پیشنهاد
@@ -2748,9 +2893,9 @@ function openInvoice(id=null){
  <div class="inv-hide-daily" style="${hideDaily}">
  <div class="two-fields">
  ${invField("تخفیف مبلغی","مبلغ ثابتی که از جمع کل کم می‌شود (تومان)",`<input id="invDiscount" oninput="updateInvoiceLiveTotal()" type="text" inputmode="numeric" class="amt-input" placeholder="۰" value="${fmtAmtValue(inv?.discount)}">`)}
- ${invField("تخفیف درصدی","درصدی که بعد از تخفیف مبلغی کم می‌شود (٪)",`<input id="invDiscountPercent" oninput="updateInvoiceLiveTotal()" type="number" min="0" max="100" placeholder="۰" value="${Number(inv?.discountPercent)||0}">`)}
+ ${invField("تخفیف درصدی","درصدی که بعد از تخفیف مبلغی کم می‌شود (٪)",`<input id="invDiscountPercent" class="num-input" inputmode="numeric" oninput="normalizeNumInputEl(this);updateInvoiceLiveTotal()" type="text" min="0" max="100" placeholder="۰" value="${Number(inv?.discountPercent)||0}">`)}
  </div>
- ${invField("مالیات بر ارزش‌افزوده","درصدی که بعد از کسر تخفیف به قیمت اضافه می‌شود (٪)",`<input id="invTax" oninput="updateInvoiceLiveTotal()" type="number" min="0" placeholder="۰" value="${Number(inv?.taxRate)||0}">`)}
+ ${invField("مالیات بر ارزش‌افزوده","درصدی که بعد از کسر تخفیف به قیمت اضافه می‌شود (٪)",`<input id="invTax" class="num-input" inputmode="numeric" oninput="normalizeNumInputEl(this);updateInvoiceLiveTotal()" type="text" min="0" placeholder="۰" value="${Number(inv?.taxRate)||0}">`)}
  </div>
  ${invField("آدرس","اختیاری؛ آدرس مشتری",`<textarea id="invAddress" placeholder="مثلاً: تهران، خیابان ...">${esc(inv?.address||cust?.address||"")}</textarea>`)}
  <div class="invoice-table-head"><span>توضیحات / نام کالا</span><span>تعداد</span><span>مبلغ واحد</span><span></span></div>
@@ -3300,8 +3445,34 @@ function render(){
     the dashboard could sit higher than the real sum of all accounts even though every single
     transaction and every per-account balance was correct. Now it sums the same accountBalance()
     used everywhere else, so the total always matches. */
- const inc=data.transactions.filter(t=>t.type==="income").reduce((s,t)=>s+(Number(t.amount)||0),0),exp=data.transactions.filter(t=>t.type==="expense").reduce((s,t)=>s+(Number(t.amount)||0),0),totalBalance=data.accounts.reduce((s,a)=>s+accountBalance(a.id),0);
+ const now = new Date();
+ const currentMonth = now.getMonth();
+ const currentYear = now.getFullYear();
+ const currentMonthTransactions = data.transactions.filter(t => {
+  if (!t || t.type === "transfer") return false;
+  const date = new Date(t.date);
+  return !Number.isNaN(date.getTime()) &&
+   date.getMonth() === currentMonth &&
+   date.getFullYear() === currentYear;
+ });
+ const inc = currentMonthTransactions
+  .filter(t => t.type === "income")
+  .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+ const exp = currentMonthTransactions
+  .filter(t => t.type === "expense")
+  .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+ const totalBalance = data.accounts
+  .reduce((sum, account) => sum + accountBalance(account.id), 0);
  if($("balance"))$("balance").textContent=money(totalBalance);if($("income"))$("income").textContent=money(inc);if($("expense"))$("expense").textContent=money(exp);
+ const openDebt=data.people.filter(p=>p.type==="debt").reduce((s,p)=>s+Math.max(0,(Number(p.amount)||0)-(Number(p.paid)||0)),0);
+ const openCredit=data.people.filter(p=>p.type==="credit").reduce((s,p)=>s+Math.max(0,(Number(p.amount)||0)-(Number(p.paid)||0)),0);
+ const dayKey=new Date().toISOString().slice(0,10);
+ const todayTx=data.transactions.filter(t=>{const d=new Date(t.date);return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===dayKey}).length;
+ const lowStock=data.products.filter(p=>Number(p.stock??p.quantity??0)<=Number(p.minStock??p.lowStock??0)).length;
+ if($("homeDebt"))$("homeDebt").textContent=money(openDebt);
+ if($("homeCredit"))$("homeCredit").textContent=money(openCredit);
+ if($("homeTodayTx"))$("homeTodayTx").textContent=fa(todayTx);
+ if($("homeLowStock"))$("homeLowStock").textContent=fa(lowStock);
  if($("recent"))$("recent").innerHTML=data.transactions.slice(0,6).map(txHTML).join("")||empty("هنوز تراکنشی ثبت نشده");
  if($("accountList")&&pageActive("accounts"))$("accountList").innerHTML=data.accounts.map(a=>`<div class="item account-item"><div class="account-main"><b>${esc(a.name)}</b><div class="meta">${esc(a.bank||"حساب شخصی")}${a.sender?" • فرستنده: "+esc(a.sender):""}</div>${cardActions(a)}</div><div><strong>${money(accountBalance(a.id))}</strong>${actionButtons("openAccount","deleteAccount",a.id)}<button type="button" title="گزارش Excel" onclick="exportAccountExcel('${a.id}')">📊</button></div></div>`).join("")||empty("هنوز حسابی اضافه نشده");
  if($("transferList")&&pageActive("accounts"))$("transferList").innerHTML=data.transactions.filter(t=>t.type==="transfer").map(transferItemHTML).join("")||empty("هنوز انتقالی ثبت نشده");

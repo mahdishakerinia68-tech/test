@@ -1,0 +1,14 @@
+{
+  "name": "hesabyar",
+  "version": "1.2.5",
+  "private": true,
+  "description": "حساب‌یار - Web/PWA personal and business accounting application",
+  "scripts": {
+    "dev": "npx serve .",
+    "build": "npm run validate",
+    "check": "node --check app.js",
+    "check:sw": "node --check sw.js",
+    "check:bridges": "node --check capacitor-biometric-bridge.js && node --check capacitor-filesystem-bridge.js && node --check capacitor-local-notifications-bridge.js",
+    "validate": "npm run check && npm run check:sw && npm run check:bridges"
+  }
+}
