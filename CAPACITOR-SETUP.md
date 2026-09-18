@@ -1,10 +1,11 @@
 # Capacitor
 
-نسخه T1 در این repository یک Web/PWA release است و پروژه `android/` واقعی ندارد؛ بنابراین APK build فعال نشده است.
+Capacitor در این انتشار، **خارج از محدوده نسخه Web/PWA 1.2.8** است. هدف فعلی پروژه اجرای پایدار در مرورگر، PWA و GitHub Pages است.
 
-Bridgeهای زیر برای محیط native حفظ شده‌اند:
-- `capacitor-biometric-bridge.js`
-- `capacitor-filesystem-bridge.js`
-- `capacitor-local-notifications-bridge.js`
+فایل‌های bridge مربوط به Capacitor در مخزن برای سازگاری با کد فعلی باقی مانده‌اند، اما این نسخه workflow ساخت APK یا Android/iOS ندارد.
 
-برای استفاده native باید پروژه Capacitor واقعی و platform پروژه جداگانه مدیریت شود.
+## نکته درباره Update
+
+نسخه 1.2.8 قابلیت update از GitHub را به عنوان قابلیت فعال برنامه معرفی نمی‌کند. به‌روزرسانی نسخه وب از طریق انتشار فایل‌های جدید سایت و Service Worker انجام می‌شود.
+
+اگر در آینده انتشار native لازم شد، تنظیمات Capacitor باید جداگانه و بدون تغییر رفتار نسخه Web/PWA طراحی و تست شود.

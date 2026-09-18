@@ -1,9 +1,9 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="1.2.5";
+const APP_VERSION="1.2.8";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
-const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v1";
+const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v2";
 const AUTO_BACKUP_MS=6*60*60*1000;
 const APP_MODE_KEY="hesabdar-app-mode-v1";
 function appMode(){return localStorage.getItem(APP_MODE_KEY)||"business"}
@@ -105,7 +105,6 @@ function openAppModeSheet(){
   </div>`);
   applyAppMode();
 }
-const ANTHROPIC_KEY_STORAGE="hesabdar-anthropic-key-v1";
 const DEVICE_ID_KEY="hesabdar-device-id-v1";
 const DEVICE_PRESENCE_MS=45*1000;
 const DEVICE_PRESENCE_INTERVAL=20*1000;
@@ -185,25 +184,8 @@ async function writeAutoBackupFile(payload){
   return {ok:true,method:"download",filename,where:"Download"};
  }catch(e){console.warn("auto backup file download failed",e);return {ok:false}}
 }
-function createAutoBackup(reason="زمان‌بندی"){
- try{
-  if(!autoBackupEnabled())return false;
-  const raw=JSON.stringify(data);
-  const list=JSON.parse(localStorage.getItem(AUTO_BACKUP_KEY)||"[]");
-  list.unshift({at:new Date().toISOString(),reason,data:JSON.parse(raw)});
-  while(list.length>5)list.pop();
-  localStorage.setItem(AUTO_BACKUP_KEY,JSON.stringify(list));
-  localStorage.setItem(AUTO_BACKUP_KEY+"-last",new Date().toISOString());
-  writeAutoBackupFile(backupPayload()).then(res=>{
-   if(res?.ok){localStorage.setItem(AUTO_BACKUP_LAST_FILE_KEY,JSON.stringify({filename:res.filename,where:res.where,at:new Date().toISOString()}));renderSettingsFeatures()}
-  }).catch(e=>console.warn("auto backup file",e));
-  return true;
- }catch(e){console.warn("auto backup",e);return false}
-}
-function getAutoBackupInfo(){try{const last=localStorage.getItem(AUTO_BACKUP_KEY+"-last");return last?new Date(last):null}catch{return null}}
-/* Runs a backup only if none has ever run, or the last one was 6+ hours
- * ago — so opening the app doesn't force a backup (and a possible
- * Filesystem error) every single time, only on the intended schedule. */
+function createAutoBackup(){return false;}
+
 function maybeAutoBackup(reason){
  if(!autoBackupEnabled())return false;
  const last=getAutoBackupInfo();
@@ -212,7 +194,7 @@ function maybeAutoBackup(reason){
 }
 function getAutoBackupFileInfo(){try{return JSON.parse(localStorage.getItem(AUTO_BACKUP_LAST_FILE_KEY)||"null")}catch{return null}}
 function restoreLatestAutoBackup(){try{const list=JSON.parse(localStorage.getItem(AUTO_BACKUP_KEY)||"[]"); if(!list.length)return alert("هنوز پشتیبان خودکاری وجود ندارد."); if(!confirm("آخرین پشتیبان خودکار جایگزین اطلاعات فعلی شود؟"))return; data=list[0].data; normalizeData(); save(); logEvent("بازیابی پشتیبان خودکار",new Date(list[0].at).toLocaleString("fa-IR"),"settings"); alert("آخرین پشتیبان خودکار بازیابی شد.")}catch(e){alert("پشتیبان خودکار قابل بازیابی نیست.")}}
-function normalizeData(){data=data||blankData(); for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats","audit","trash"]){data[k]??=[];} data.pin=typeof data.pin==="string"?data.pin:""; data.pinHash=typeof data.pinHash==="string"?data.pinHash:""; data.pinSalt=typeof data.pinSalt==="string"?data.pinSalt:""; data.patternHash=typeof data.patternHash==="string"?data.patternHash:""; data.patternSalt=typeof data.patternSalt==="string"?data.patternSalt:""; data.lockMethod=(data.lockMethod==="pattern")?"pattern":"pin"; data.biometricEnabled=!!data.biometricEnabled; data.webauthnCredId=typeof data.webauthnCredId==="string"?data.webauthnCredId:""; data.lang=(data.lang==="en")?"en":"fa"; data.branding??={storeName:"",logo:"",stamp:"",signature:""}; data.yearSettlements??={}; data._sync??={tombstones:{}}; data._sync.tombstones??={}; for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats"]){for(const r of data[k]){r.id??=uid();r.updatedAt??=new Date().toISOString();}} for(const c of [...data.expenseCats,...data.incomeCats]){c.children??=[];for(const ch of c.children){ch.id??=uid();}} data.notes.forEach((n,i)=>{if(typeof n.order!=="number")n.order=i;}); data.reminders.forEach((r,i)=>{if(typeof r.order!=="number")r.order=i;});}
+function normalizeData(){data=data||blankData(); data.schemaVersion=Number(data.schemaVersion)||1; for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats","audit","trash"]){data[k]??=[];} data.pin=""; data.pinHash=typeof data.pinHash==="string"?data.pinHash:""; data.pinSalt=typeof data.pinSalt==="string"?data.pinSalt:""; data.patternHash=typeof data.patternHash==="string"?data.patternHash:""; data.patternSalt=typeof data.patternSalt==="string"?data.patternSalt:""; data.lockMethod=(data.lockMethod==="pattern")?"pattern":"pin"; data.biometricEnabled=!!data.biometricEnabled; data.webauthnCredId=typeof data.webauthnCredId==="string"?data.webauthnCredId:""; data.lang=(data.lang==="en")?"en":"fa"; data.branding??={storeName:"",logo:"",stamp:"",signature:""}; data.yearSettlements??={}; data._sync??={tombstones:{}}; data._sync.tombstones??={}; data._sync.tombstoneRevisions??={}; for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats"]){for(const r of data[k]){r.id??=uid();r.updatedAt??=new Date().toISOString();}} for(const c of [...data.expenseCats,...data.incomeCats]){c.children??=[];for(const ch of c.children){ch.id??=uid();}} data.notes.forEach((n,i)=>{if(typeof n.order!=="number")n.order=i;}); data.reminders.forEach((r,i)=>{if(typeof r.order!=="number")r.order=i;});}
 /* ---- Language switch (v5.9) -------------------------------------------
  * Translates the app's static "chrome" — menu, page section headers, and
  * settings group titles — between Persian and English, and switches
@@ -291,9 +273,6 @@ function renderSettingsFeatures(){const e=$("autoBackupToggle");if(e)e.checked=a
  const bio=$("biometricToggle");if(bio)bio.checked=!!data.biometricEnabled;
  const mh=$("securityMethodHint");if(mh)mh.textContent=hasLockCode()?("روش فعلی: "+(data.lockMethod==="pattern"?"رمز الگو":"رمز عددی")+(data.biometricEnabled?" + بیومتریک":"")):"هنوز رمزی برای ورود تنظیم نشده.";
  const lt=$("langToggle");if(lt){lt.textContent=data.lang==="en"?"فا":"EN";lt.setAttribute("aria-label",data.lang==="en"?"تغییر زبان به فارسی":"Switch language to English")}
- const aiStatus=$("anthropicKeyStatus");if(aiStatus)aiStatus.textContent=anthropicKey()?"🟢 کلید API تنظیم شده است":"🔴 هنوز کلیدی تنظیم نشده";
- const su=$("smartNoteUrlInput");if(su&&!su.value)su.value=localStorage.getItem(SMART_NOTE_URL_STORAGE)||"";
- const sm=$("smartNoteModelInput");if(sm&&!sm.value)sm.value=localStorage.getItem(SMART_NOTE_MODEL_STORAGE)||"";
  applyAppMode();
 }
 function setSyncStatus(t){const e=$("syncStatus");if(e)e.textContent=t||"";const b=$("syncBadge");if(!b)return;const s=String(t||"");let cls="offline",label="☁️ آفلاین";if(s.includes("آنلاین")||s.includes("انجام شد")||s.includes("متصل است")){cls="online";label="☁️ متصل"}else if(s.includes("⚠️")||s.includes("ناموفق")){cls="error";label="⚠️ خطای اتصال"}else if(s.includes("در حال")||s.includes("بررسی")){cls="pending";label="☁️ در حال اتصال..."}else if(s.includes("وارد شوید")||s.includes("ابتدا")){cls="offline";label="☁️ واردنشده"}b.textContent=label;b.className="sync-badge "+cls}
@@ -372,7 +351,7 @@ function purgeOldTrash(){
  const cutoff=Date.now()-TRASH_DAYS*86400000;
  const before=data.trash.length;
  data.trash=data.trash.filter(t=>new Date(t.deletedAt).getTime()>=cutoff);
- if(data.trash.length!==before)localStorage.setItem(KEY,JSON.stringify(data));
+ if(data.trash.length!==before)persistLocal();
 }
 function trashDaysLeft(t){const passed=(Date.now()-new Date(t.deletedAt).getTime())/86400000;return Math.max(0,Math.ceil(TRASH_DAYS-passed))}
 function restoreFromTrash(trashId){
@@ -382,7 +361,7 @@ function restoreFromTrash(trashId){
  data[t.type]??=[];
  if(!data[t.type].some(x=>x.id===rec.id)){
   data[t.type].push(rec);
-  if(t.type==="invoices")adjustStockForInvoice(rec,-1);
+  if(t.type==="invoices"){adjustStockForInvoice(rec,-1);syncTransactionForInvoice(rec);syncPersonForInvoice(rec);}
   if(data._sync?.tombstones?.[t.type])delete data._sync.tombstones[t.type][rec.id];
   touch(rec);markDirty(t.type,rec.id,false,rec,rec.updatedAt);
  }
@@ -396,14 +375,14 @@ function deleteFromTrashForever(trashId){
  if(!confirm("این مورد برای همیشه پاک شود؟ دیگر قابل بازگردانی نیست."))return;
  const i=data.trash.findIndex(t=>t.trashId===trashId);if(i<0)return;
  data.trash.splice(i,1);
- localStorage.setItem(KEY,JSON.stringify(data));syncSave();
+ persistLocal();syncSave();
  if(pageActive("trash"))renderTrash();
 }
 function emptyTrashNow(){
  if(!data.trash?.length)return;
  if(!confirm(`${fa(data.trash.length)} مورد برای همیشه پاک شود؟ دیگر قابل بازگردانی نیست.`))return;
  data.trash=[];
- localStorage.setItem(KEY,JSON.stringify(data));syncSave();
+ persistLocal();syncSave();
  if(pageActive("trash"))renderTrash();
 }
 function trashTypeIcon(type){return {transactions:"☷",invoices:"🧾",checks:"✓"}[type]||"🗑"}
@@ -413,7 +392,7 @@ function renderTrash(){
  const empty1=$("trashEmptyBtn");if(empty1)empty1.style.display=data.trash?.length?"":"none";
  box.innerHTML=(data.trash||[]).map(t=>`<div class="item trash-row"><div><b>${trashTypeIcon(t.type)} ${esc(t.label)}</b><div class="meta">حذف‌شده: ${jalaliLabel(t.deletedAt)} • ${fa(trashDaysLeft(t))} روز تا حذف همیشگی</div></div><div class="actions"><button class="primary" onclick="restoreFromTrash('${t.trashId}')">↩️ بازگردانی</button><button onclick="deleteFromTrashForever('${t.trashId}')" class="danger-icon">🗑</button></div></div>`).join("")||empty("زباله‌دان خالی است");
 }
-async function upsertReminderForNote(note,renderAfter=true){if(!note?.id)return;const linked=(data.reminders||[]).filter(x=>x.sourceNoteId===note.id);let r=linked[0];for(const duplicate of linked.slice(1)){await cancelNativeReminder(duplicate.id);removeRecordSilent("reminders",duplicate.id)}if(!note.date){if(r){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id);if(renderAfter)save();else{localStorage.setItem(KEY,JSON.stringify(data));syncSave()}}return}const o={title:note.title||"یادداشت",amount:0,date:note.date,repeat:note.repeat&&note.repeat!=="none"?note.repeat:"once",type:"note",sourceNoteId:note.id,body:reminderBodyFromNote(note)};if(r){Object.assign(r,o);touch(r);markDirty("reminders",r.id,false,r,r.updatedAt)}else{r=touch({id:uid(),...o});data.reminders.push(r);markDirty("reminders",r.id,false,r,r.updatedAt)}if(renderAfter)save();else{localStorage.setItem(KEY,JSON.stringify(data));syncSave()}await cancelNativeReminder(r.id);await scheduleNativeReminder(r);if((r.type||"")==="note" && (r.repeat||"once")==="once") await addToAndroidClock(r)}
+async function upsertReminderForNote(note,renderAfter=true){if(!note?.id)return;const linked=(data.reminders||[]).filter(x=>x.sourceNoteId===note.id);let r=linked[0];for(const duplicate of linked.slice(1)){await cancelNativeReminder(duplicate.id);removeRecordSilent("reminders",duplicate.id)}if(!note.date){if(r){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id);if(renderAfter)save();else{persistLocal();syncSave()}}return}const o={title:note.title||"یادداشت",amount:0,date:note.date,repeat:note.repeat&&note.repeat!=="none"?note.repeat:"once",type:"note",sourceNoteId:note.id,body:reminderBodyFromNote(note)};if(r){Object.assign(r,o);touch(r);markDirty("reminders",r.id,false,r,r.updatedAt)}else{r=touch({id:uid(),...o});data.reminders.push(r);markDirty("reminders",r.id,false,r,r.updatedAt)}if(renderAfter)save();else{persistLocal();syncSave()}await cancelNativeReminder(r.id);await scheduleNativeReminder(r);if((r.type||"")==="note" && (r.repeat||"once")==="once") await addToAndroidClock(r)}
 async function syncAllNotesToReminders(){let changed=false;const noteIds=new Set((data.notes||[]).map(n=>n.id));for(const n of data.notes||[]){const before=(data.reminders||[]).length;await upsertReminderForNote(n);if((data.reminders||[]).length!==before)changed=true}for(const r of [...(data.reminders||[])]){if(r.sourceNoteId&&!noteIds.has(r.sourceNoteId)){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id);changed=true}}if(changed)save();else render();if(sync.db)syncSave()}
 async function removeReminderForNote(noteId){const matches=(data.reminders||[]).filter(r=>r.sourceNoteId===noteId);for(const r of matches){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id)}if(matches.length)save()}
 
@@ -501,6 +480,19 @@ window.addEventListener("unhandledrejection",e=>{console.error(e.reason)});
 window.addEventListener("online",async()=>{if(sync.db)sync.db.enableNetwork().catch(console.error);setSyncStatus("🌐 اینترنت برقرار شد؛ در حال بررسی اتصال دو گوشی..."); if(!sync.auth)await initSync(); if(sync.dirty&&sync.dirty.size)syncSave(); await verifyTwoPhoneConnection(true);});
 window.addEventListener("offline",()=>setSyncStatus("⚠️ اینترنت دستگاه قطع است"));
 
+/* v1.2.8: زیرساخت migration نسخه‌به‌نسخه‌ی داده — غیرمخرب: قبل از هر
+ * migration یک کپی اضطراری از داده خام نگه‌داشته می‌شود و در صورت خطا،
+ * همان داده‌ی اصلی (بدون migration) برگردانده می‌شود، نه داده خالی.
+ * فعلاً migration واقعی‌ای لازم نیست (این اولین نسخه‌ای‌ست که
+ * schemaVersion دارد)؛ تابع‌های migrateVXToVY آینده اینجا اضافه می‌شوند. */
+const CURRENT_SCHEMA_VERSION=4;
+function migrateV1ToV2(d){d.attachments??=[];return d}
+function migrateV2ToV3(d){d._sync??={tombstones:{}};d._sync.tombstones??={};return d}
+function migrateV3ToV4(d){d._sync.tombstoneRevisions??={};return d}
+function migrateData(input){
+ let data;try{data=structuredClone(input||blankData())}catch(e){console.warn("data migration clone failed",e);return input}
+ try{const version=Number(data.schemaVersion)||1;if(version<2)data=migrateV1ToV2(data);if(version<3)data=migrateV2ToV3(data);if(version<4)data=migrateV3ToV4(data);for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats","audit","attachments","trash"])data[k]??=[];data.schemaVersion=CURRENT_SCHEMA_VERSION;return data}catch(e){console.warn("data migration failed; original preserved",e);return input}
+}
 let data;
 try{
   let raw=localStorage.getItem(KEY);
@@ -509,18 +501,18 @@ try{
       const legacy=localStorage.getItem(legacyKey);
       if(legacy){
         raw=legacy;
-        try{localStorage.setItem(KEY,legacy)}catch(e){console.warn("storage migration",e)}
+        
         break;
       }
     }
   }
-  data=raw?JSON.parse(raw):null;
+  data=raw?migrateData(JSON.parse(raw)):null;
 }catch{data=null}
 data=data||blankData();
 normalizeData();
 data.accounts??=[];
-if(!data.accounts.some(a=>String(a.name||"").trim()==="کیف پول نقدی")){const cash=touch({id:uid(),name:"کیف پول نقدی",bank:"",sender:"",card:"",balance:0,default:true});data.accounts.unshift(cash);localStorage.setItem(KEY,JSON.stringify(data));}
-data.transactions??=[];data.people??=[];data.customers??=[];data.products??=[];data.reminders??=[];data.notes??=[];data.checks??=[];data.invoices??=[];data.audit??=[];data.trash??=[];data.expenseCats??=defaultsExpense.map((name,i)=>({id:"e"+i,name,children:[]}));data.incomeCats??=defaultsIncome.map((name,i)=>({id:"i"+i,name,children:[]}));data.pin=typeof data.pin==="string"?data.pin:"";data.pinHash=typeof data.pinHash==="string"?data.pinHash:"";data.pinSalt=typeof data.pinSalt==="string"?data.pinSalt:"";data.patternHash=typeof data.patternHash==="string"?data.patternHash:"";data.patternSalt=typeof data.patternSalt==="string"?data.patternSalt:"";data.lockMethod=(data.lockMethod==="pattern")?"pattern":"pin";data.biometricEnabled=!!data.biometricEnabled;data.webauthnCredId=typeof data.webauthnCredId==="string"?data.webauthnCredId:"";data.lang=(data.lang==="en")?"en":"fa";data.branding??={storeName:"",logo:"",stamp:"",signature:""};data.branding.storeName??="";data.branding.logo??="";data.branding.stamp??="";data.branding.signature??="";data.yearSettlements??={};data._sync??={tombstones:{}};data._sync.tombstones??={};for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats"]){for(const r of data[k]){r.id??=uid();r.updatedAt??=new Date().toISOString()}}for(const c of [...data.expenseCats,...data.incomeCats]){c.children??=[];for(const ch of c.children){ch.id??=uid()}}
+if(!data.accounts.some(a=>String(a.name||"").trim()==="کیف پول نقدی")){const cash=touch({id:uid(),name:"کیف پول نقدی",bank:"",sender:"",card:"",balance:0,default:true});data.accounts.unshift(cash);persistLocal();}
+data.transactions??=[];data.people??=[];data.customers??=[];data.products??=[];data.reminders??=[];data.notes??=[];data.checks??=[];data.invoices??=[];data.audit??=[];data.trash??=[];data.expenseCats??=defaultsExpense.map((name,i)=>({id:"e"+i,name,children:[]}));data.incomeCats??=defaultsIncome.map((name,i)=>({id:"i"+i,name,children:[]}));data.pin="";data.pinHash=typeof data.pinHash==="string"?data.pinHash:"";data.pinSalt=typeof data.pinSalt==="string"?data.pinSalt:"";data.patternHash=typeof data.patternHash==="string"?data.patternHash:"";data.patternSalt=typeof data.patternSalt==="string"?data.patternSalt:"";data.lockMethod=(data.lockMethod==="pattern")?"pattern":"pin";data.biometricEnabled=!!data.biometricEnabled;data.webauthnCredId=typeof data.webauthnCredId==="string"?data.webauthnCredId:"";data.lang=(data.lang==="en")?"en":"fa";data.branding??={storeName:"",logo:"",stamp:"",signature:""};data.branding.storeName??="";data.branding.logo??="";data.branding.stamp??="";data.branding.signature??="";data.yearSettlements??={};data._sync??={tombstones:{}};data._sync.tombstones??={};for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats"]){for(const r of data[k]){r.id??=uid();r.updatedAt??=new Date().toISOString()}}for(const c of [...data.expenseCats,...data.incomeCats]){c.children??=[];for(const ch of c.children){ch.id??=uid()}}
 // Normalize older people records so saved debtors/creditors always render correctly.
 for(const p of data.people){if(p.type==="debtor"||p.type==="debtors"||p.type==="بدهکار")p.type="debt";if(p.type==="creditor"||p.type==="creditors"||p.type==="طلبکار"||p.type==="بستانکار")p.type="credit";if(p.type!=="debt"&&p.type!=="credit")p.type="debt";p.amount=Number(p.amount)||0;p.paid=Number(p.paid)||0;p.name=String(p.name||"").trim()} 
 // v3.10: older checks از قبل از اتصال چک به حساب — مقادیر پیش‌فرض بگیرند تا خطا ندهند.
@@ -546,7 +538,7 @@ function scheduleAuditFlush(doSync){
   if(_auditFlushTimer)return;
   _auditFlushTimer=setTimeout(()=>{
     _auditFlushTimer=null;
-    try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){console.warn("audit flush",e)}
+    try{persistLocal()}catch(e){console.warn("audit flush",e)}
     const s=_auditFlushSync;_auditFlushSync=false;
     if(s)syncSave();
   },300);
@@ -566,16 +558,7 @@ function renderAudit(){
   box.innerHTML=logs.map(e=>`<div class="audit-item"><div class="audit-icon">${auditIcon(e.kind)}</div><div class="audit-main"><b>${esc(e.action)}</b>${e.detail?`<div class="meta">${esc(e.detail)}</div>`:""}<small>${new Intl.DateTimeFormat("fa-IR-u-ca-persian",{dateStyle:"short",timeStyle:"short"}).format(new Date(e.at))}</small></div></div>`).join("")||empty("هنوز گزارشی ثبت نشده است");
 }
 function clearAudit(){if(!data.audit?.length)return alert("گزارشی برای پاک کردن وجود ندارد");if(confirm("همه گزارش‌های فعالیت پاک شوند؟")){const old=data.audit.slice();data.audit=[];for(const e of old)markDirty("audit",e.id,true,{id:e.id},new Date().toISOString());save();logEvent("گزارش‌ها پاک شدند","سابقه فعالیت قبلی حذف شد","system")}}
-function persistLocal(){
- try{
-  localStorage.setItem(KEY,JSON.stringify(data));
-  return true;
- }catch(e){
-  if(e?.name==="QuotaExceededError"||e?.code===22){return false}
-  console.warn("localStorage save failed");
-  return false;
- }
-}
+function persistLocal(){try{if(!globalThis.HesabYarStorage)throw new Error("IndexedDB storage runtime unavailable");storageWriteQueue=storageWriteQueue.then(()=>HesabYarStorage.saveSnapshot(data));return true}catch(e){console.warn("IndexedDB save failed",e);return false}}
 const STORAGE_FULL_MSG="⚠️ حافظه ذخیره‌سازی دستگاه پر شده و تغییرات ذخیره نشد.\nبرای آزاد شدن فضا از تنظیمات، یک پشتیبان بگیر و چند عکس پیوست قدیمی (رسید/تراکنش) را حذف کن.";
 function save(){
  if(!persistLocal()){alert(STORAGE_FULL_MSG);return}
@@ -608,7 +591,7 @@ function recordDocId(type,id){return `${type}__${id}`}
 function allSyncRecords(){
   const ks=["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats","audit"];
   const out=[];
-  for(const k of ks) for(const r of (data[k]||[])) out.push({id:recordDocId(k,r.id),type:k,record:r,updatedAt:r.updatedAt||new Date().toISOString(),deleted:false});
+  for(const k of ks) for(const r of (data[k]||[])) out.push({id:recordDocId(k,r.id),type:k,record:r,revision:Number(r.revision)||0,updatedAt:r.updatedAt||new Date().toISOString(),updatedBy:r.updatedBy||deviceId(),deviceId:r.deviceId||deviceId(),deleted:false});
   for(const k of ks) for(const [id,dt] of Object.entries(data._sync?.tombstones?.[k]||{})) out.push({id:recordDocId(k,id),type:k,record:{id},updatedAt:dt,deleted:true});
   return out;
 }
@@ -625,7 +608,7 @@ function markAllLocalDirty(){
   for(const k of ks) for(const r of (data[k]||[])) markDirty(k,r.id,false,r,r.updatedAt);
   for(const k of ks) for(const [id,dt] of Object.entries(data._sync?.tombstones?.[k]||{})) markDirty(k,id,true,{id},dt);
 }
-function cloudPayload(x){return {type:x.type,record:x.record,updatedAt:x.updatedAt,deleted:x.deleted,updatedBy:sync.user.uid};}
+function cloudPayload(x){return {id:x.id,type:x.type,record:x.record,revision:Number(x.record?.revision||0),updatedAt:x.updatedAt,updatedBy:x.record?.updatedBy||sync.user.uid,deviceId:x.record?.deviceId||deviceId(),deleted:x.deleted};}
 async function commitChunks(items){
   const col=recordsCollection();
   for(let i=0;i<items.length;i+=450){
@@ -655,9 +638,12 @@ async function pullRest(){
   catch(e){snap=await recordsCollection().get()}
   return snap.docs.map(d=>d.data());
 }
+/* v1.2.8: مقایسه زمانی رکوردها بر اساس Date.parse به‌جای مقایسه رشته‌ای
+ * (localeCompare)، تا فرمت‌های زمانی متفاوت هم درست مقایسه شوند. */
+function compareUpdatedAt(a,b){const ar=Number(a?.revision)||0,br=Number(b?.revision)||0;if(ar!==br)return ar>br?1:-1;const ta=Date.parse(typeof a==="string"?a:a?.updatedAt||"")||0,tb=Date.parse(typeof b==="string"?b:b?.updatedAt||"")||0;if(ta!==tb)return ta>tb?1:-1;const ad=String(a?.deviceId||""),bd=String(b?.deviceId||"");return ad===bd?0:(ad>bd?1:-1)}
 function recordsFromLocal(){
   const ks=["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats","audit"],out=[];
-  for(const k of ks) for(const r of (data[k]||[])) out.push({id:recordDocId(k,r.id),type:k,record:r,updatedAt:r.updatedAt||new Date().toISOString(),deleted:false});
+  for(const k of ks) for(const r of (data[k]||[])) out.push({id:recordDocId(k,r.id),type:k,record:r,revision:Number(r.revision)||0,updatedAt:r.updatedAt||new Date().toISOString(),updatedBy:r.updatedBy||deviceId(),deviceId:r.deviceId||deviceId(),deleted:false});
   for(const k of ks) for(const [id,dt] of Object.entries(data._sync?.tombstones?.[k]||{})) out.push({id:recordDocId(k,id),type:k,record:{id},updatedAt:dt,deleted:true});
   return out;
 }
@@ -666,7 +652,7 @@ async function reconcileInitial(remote){
   const outgoing=[];
   for(const local of recordsFromLocal()){
     const r=remoteMap.get(local.id);
-    if(!r || String(local.updatedAt)>String(r.updatedAt||r.record?.updatedAt||"")) outgoing.push(local);
+    if(!r || compareUpdatedAt(local.updatedAt,r.updatedAt||r.record?.updatedAt||"")>0) outgoing.push(local);
   }
   if(outgoing.length) await pushRest(outgoing);
 }
@@ -679,7 +665,7 @@ function mergeCloud(remote){
   for(const x of remoteMap.values()){
     const type=x.type,id=x.record.id,arr=data[type]; if(!Array.isArray(arr))continue;
     const local=arr.find(r=>r.id===id); const localTs=local?.updatedAt||data._sync.tombstones?.[type]?.[id]||""; const remoteTs=x.updatedAt||x.record.updatedAt||""; const localBy=String(local?.updatedBy||""); const remoteBy=String(x.updatedBy||x.record?.updatedBy||"");
-    const timeCmp=String(remoteTs).localeCompare(String(localTs));
+    const timeCmp=compareUpdatedAt({revision:x.revision||x.record?.revision,updatedAt:remoteTs,deviceId:x.deviceId||x.record?.deviceId},{revision:local?.revision||0,updatedAt:localTs,deviceId:localBy});
     if(timeCmp<0 || (timeCmp===0 && remoteBy<=localBy))continue;
     if(x.deleted){
       if(local){arr.splice(arr.indexOf(local),1);changed=true}
@@ -699,8 +685,8 @@ function mergeCloud(remote){
 async function hydrateSync(){
   if(!sync.user||!sync.db)return;
   sync.hydrating=true;
-  try{const remote=await pullRest();mergeCloud(remote);localStorage.setItem(KEY,JSON.stringify(data));await reconcileInitial(remote);render();setSyncStatus("☁️ آنلاین • همگام‌سازی لحظه‌ای")}
-  catch(e){console.error("cloud pull failed");setSyncStatus("⚠️ دریافت اولیه ناموفق؛ اتصال یا تنظیمات Firebase را بررسی کنید.")}
+  try{const remote=await pullRest();mergeCloud(remote);persistLocal();await reconcileInitial(remote);render();setSyncStatus("☁️ آنلاین • همگام‌سازی لحظه‌ای")}
+  catch(e){console.error(e);setSyncStatus("⚠️ دریافت اولیه ناموفق: "+(e.code||e.message))}
   finally{sync.hydrating=false}
 }
 async function syncTick(){
@@ -743,7 +729,7 @@ async function initSync(){
       sync.unsubscribe=recordsCollection().onSnapshot(snap=>{
         if(sync.hydrating)return;
         const remote=snap.docs.map(d=>d.data());
-        if(mergeCloud(remote)){localStorage.setItem(KEY,JSON.stringify(data));render();syncSave();syncAllNotesToReminders().catch(console.error);syncAllPeopleToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error)}
+        if(mergeCloud(remote)){persistLocal();render();syncSave();syncAllNotesToReminders().catch(console.error);syncAllPeopleToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error)}
         setSyncStatus("☁️ آنلاین • همگام‌سازی لحظه‌ای")
       },e=>setSyncStatus("⚠️ همگام‌سازی: "+(e.code||e.message)));
       sync.timer=setInterval(syncTick,SYNC_INTERVAL);
@@ -753,7 +739,7 @@ async function initSync(){
 async function syncSave(){
   if(!sync.ready||!sync.user||sync.hydrating)return;
   sync.queued=true;if(sync.saving)return;sync.saving=true;
-  while(sync.queued){sync.queued=false;try{await pushRest();setSyncStatus("☁️ ذخیره ابری انجام شد — "+dataSummary(data)); logEvent("همگام‌سازی ابری","ذخیره تغییرات در ابر","sync",false) }catch(e){console.error("cloud sync failed");setSyncStatus("⚠️ ذخیره ابری انجام نشد؛ اتصال یا تنظیمات Firebase را بررسی کنید.")}}
+  while(sync.queued){sync.queued=false;try{await pushRest();setSyncStatus("☁️ ذخیره ابری انجام شد — "+dataSummary(data)); logEvent("همگام‌سازی ابری","ذخیره تغییرات در ابر","sync",false)}catch(e){console.error(e);setSyncStatus("⚠️ ذخیره ابری انجام نشد: "+(e.code||"")+" "+e.message)}}
   sync.saving=false;
 }
 async function pushToCloud(){
@@ -763,7 +749,7 @@ async function pushToCloud(){
    // records, merge them with this phone, then upload the unified dataset.
    const remote=await pullRest();
    mergeCloud(remote||[]);
-   localStorage.setItem(KEY,JSON.stringify(data));
+   persistLocal();
    markAllLocalDirty();
    await pushRest();
    setSyncStatus("☁️ اطلاعات دو گوشی با هم ادغام و ذخیره شد — "+dataSummary(data));
@@ -775,7 +761,7 @@ async function pullFromCloud(){
   try{
     const remote=await pullRest();
     if(!remote||!remote.length)return alert("هنوز اطلاعاتی در ابر وجود ندارد");
-    mergeCloud(remote);localStorage.setItem(KEY,JSON.stringify(data));render();setSyncStatus("☁️ اطلاعات از ابر دریافت شد — "+dataSummary(data));alert("اطلاعات ابری دریافت شد\n"+dataSummary(data));
+    mergeCloud(remote);persistLocal();render();setSyncStatus("☁️ اطلاعات از ابر دریافت شد — "+dataSummary(data));alert("اطلاعات ابری دریافت شد\n"+dataSummary(data));
   }catch(e){alert("دریافت ناموفق: "+(e.code||'')+"\n"+e.message)}
 }
 function openSyncSettings(){
@@ -832,6 +818,10 @@ async function logoutSync(){try{const email=sync.user?.email||"";await sync.auth
 
 function normalize(s){return String(s||"").replace(/[۰-۹]/g,d=>"۰۱۲۳۴۵۶۷۸۹".indexOf(d)).replace(/[٬،]/g,",").replace(/\s+/g," ").trim()}
 function parseMoney(v){return Number(toEnDigits(String(v)).replace(/[^\d]/g,""))||0}
+/* v1.2.8: اعتبارسنجی مقادیر مالی مثبت (مبلغ تراکنش/چک/فاکتور/بدهی و ...). */
+function positiveMoney(value,label="مبلغ"){const n=parseMoney(value);if(!Number.isFinite(n)||n<=0)throw new Error(label+" باید بیشتر از صفر باشد");return n}
+function nonNegativeMoney(value,label="مبلغ"){const n=parseMoney(value);if(!Number.isFinite(n)||n<0)throw new Error(label+" نمی‌تواند منفی باشد");return n}
+function validPercent(value,label="درصد"){const n=Number(value);if(!Number.isFinite(n)||n<0||n>100)throw new Error(label+" باید بین صفر و صد باشد");return n}
 
 function bytesToB64(bytes){let s="";for(const b of new Uint8Array(bytes))s+=String.fromCharCode(b);return btoa(s)}
 function b64ToBytes(s){const bin=atob(s);const out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out}
@@ -839,9 +829,9 @@ async function hashPin(pin,saltB64){const salt=saltB64?b64ToBytes(saltB64):crypt
 /* v1.2.7: رمز عددی همیشه با ارقام انگلیسی هش/ذخیره می‌شود؛ اگر کاربر هنگام
  * ورود یا تعیین رمز از کیبورد فارسی/عربی استفاده کند، اول به رقم انگلیسی
  * تبدیل می‌شود تا با رمز قبلی (صرف‌نظر از کیبورد) مطابقت داشته باشد. */
-async function verifyPin(pin){pin=toEnDigits(String(pin??""));if(data.pinHash&&data.pinSalt){const x=await hashPin(pin,data.pinSalt);return x.hash===data.pinHash}return pin===String(data.pin||"")}
-async function migratePinSecurity(){if(!data.pin||data.pinHash)return;try{const x=await hashPin(data.pin);data.pinHash=x.hash;data.pinSalt=x.salt;data.pin="";localStorage.setItem(KEY,JSON.stringify(data));}catch(e){console.warn("PIN security migration",e)}}
-function hasLockCode(){return !!(data.pinHash||data.pin||data.patternHash)}
+async function verifyPin(pin){pin=toEnDigits(String(pin??""));if(!(data.pinHash&&data.pinSalt))return false;const x=await hashPin(pin,data.pinSalt);return x.hash===data.pinHash}
+async function migratePinSecurity(){if(!data.pin||data.pinHash)return;try{const x=await hashPin(data.pin);data.pinHash=x.hash;data.pinSalt=x.salt;data.pin="";persistLocal();}catch(e){console.warn("PIN security migration",e)}}
+function hasLockCode(){return !!((data.pinHash&&data.pinSalt)||(data.patternHash&&data.patternSalt))}
 
 /* ---- Pattern lock (v5.9) --------------------------------------------
  * A 3x3 connect-the-dots pattern, drawn like an Android unlock pattern.
@@ -858,9 +848,44 @@ function patternDown(ev,onDone){ev.preventDefault();const svg=ev.currentTarget;p
 function patternMove(ev,svg){const p=patternPointFromEvent(svg,ev);for(let i=0;i<9;i++){const c=patternDotXY(i);if(!patternPath.includes(i)&&Math.hypot(p.x-c.x,p.y-c.y)<26)patternPath.push(i)}patternRedraw(svg)}
 function patternUp(svg,onDone){onDone([...patternPath])}
 function patternKeyOf(path){return path.join("-")}
+/* v1.2.8: امنیت تغییر/حذف قفل — قبل از تغییر یا حذف رمز عددی یا الگو،
+ * باید همان رمز/الگوی فعلی (یا بیومتریک) تأیید شود؛ صرفاً confirm() برای
+ * حذف قفل کافی نیست. بعد از ۳ تلاش ناموفق پیاپی، حداقل ۳۰ ثانیه قفل
+ * می‌شود تا حدس زدن پشت‌سرهم دشوارتر شود. */
+const LOCK_LOCKOUT_KEY="hesabdar-lock-lockout-v1";
+const LOCK_LOCKOUT_MS=30000;
+function lockoutState(){try{return JSON.parse(localStorage.getItem(LOCK_LOCKOUT_KEY)||"null")||{fails:0,until:0}}catch{return {fails:0,until:0}}}
+function setLockoutState(s){try{localStorage.setItem(LOCK_LOCKOUT_KEY,JSON.stringify(s))}catch(e){}}
+function lockoutRemainingMs(){const s=lockoutState();return Math.max(0,(s.until||0)-Date.now())}
+function registerLockFail(){const s=lockoutState();s.fails=(s.fails||0)+1;if(s.fails>=3){s.until=Date.now()+LOCK_LOCKOUT_MS;s.fails=0}setLockoutState(s)}
+function registerLockSuccess(){setLockoutState({fails:0,until:0})}
+async function promptPatternVerification(title="برای ادامه، الگوی فعلی را بکش"){
+ return new Promise(resolve=>{
+  openModal(`<h2>🔗 تایید هویت</h2><p class="hint">${esc(title)}</p><div class="pattern-wrap">${patternSVG()}</div><p id="patVerifyMsg" class="hint"></p><button type="button" class="ghost-btn" id="patVerifyCancel">انصراف</button>`);
+  const svg=$("patternSvg");let done=false;
+  $("patVerifyCancel").onclick=()=>{if(done)return;done=true;closeModal();resolve(null)};
+  svg.onpointerdown=e=>patternDown(e,path=>{if(done)return;done=true;closeModal();resolve(path)});
+ });
+}
+async function verifyExistingLock(reason="برای ادامه، هویتت را تایید کن"){
+ if(lockoutRemainingMs()>0){alert(`به‌خاطر چند تلاش ناموفق، ${Math.ceil(lockoutRemainingMs()/1000)} ثانیه دیگر دوباره تلاش کن.`);return false}
+ let ok=false;
+ if(data.patternHash&&data.patternSalt){
+  const path=await promptPatternVerification(reason);
+  ok=path?await verifyPattern(path):false;
+ }else if(data.pinHash||data.pin){
+  const p=prompt(reason+" (رمز عددی فعلی):");
+  if(p===null)return false;
+  ok=await verifyPin(p);
+ }else{
+  ok=true;
+ }
+ if(ok)registerLockSuccess();else registerLockFail();
+ return ok;
+}
 async function openPatternSetup(){
- const old=data.pinHash||data.pin;
- if(old){const p=prompt("برای تغییر روش قفل، رمز عددی فعلی را وارد کن:")||"";if(!(await verifyPin(p)))return alert("رمز فعلی اشتباه است")}
+ const old=data.pinHash||data.pin||data.patternHash;
+ if(old){if(!(await verifyExistingLock("برای تغییر روش قفل، رمز/الگوی فعلی را تایید کن")))return alert("تایید هویت ناموفق بود")}
  const step={first:null};
  const body=`<h2>🔗 تعیین رمز الگو</h2><p class="hint">حداقل ۴ نقطه را به هم وصل کن.</p><div id="patSetupWrap" class="pattern-wrap">${patternSVG()}</div><p id="patSetupMsg" class="hint"></p>`;
  openModal(body);
@@ -1064,9 +1089,11 @@ function showLock(){
  if(data.lockMethod==="pattern"&&data.patternHash){
   const svg=$("patternSvg");
   svg.onpointerdown=e=>patternDown(e,async path=>{
+   if(lockoutRemainingMs()>0){$("lockMsg").textContent=`${Math.ceil(lockoutRemainingMs()/1000)} ثانیه دیگر دوباره تلاش کن`;patternPath=[];patternRedraw(svg);return}
    const ok=await verifyPattern(path).catch(()=>false);
-   if(ok){$("lock")?.remove();setTimeout(showWhatsNewOnce,180);return}
-   $("lockMsg").textContent="الگو اشتباه است";patternPath=[];patternRedraw(svg);
+   if(ok){registerLockSuccess();$("lock")?.remove();setTimeout(showWhatsNewOnce,180);return}
+   registerLockFail();
+   $("lockMsg").textContent=lockoutRemainingMs()>0?`رمز اشتباه بود؛ ${Math.ceil(lockoutRemainingMs()/1000)} ثانیه صبر کن`:"الگو اشتباه است";patternPath=[];patternRedraw(svg);
   });
  }else{
   $("unlockBtn").onclick=unlock;
@@ -1074,7 +1101,13 @@ function showLock(){
  }
  if(bioBtn)$("bioUnlockBtn").onclick=async()=>{const ok=await biometricVerify().catch(()=>false);if(ok)$("lock")?.remove();else alert("تایید بیومتریک انجام نشد")};
 }
-async function unlock(){const input=$("pinInput");if(!input)return;const ok=await verifyPin(input.value).catch(()=>false);if(!ok)return alert("رمز اشتباه است");$("lock")?.remove();setTimeout(showWhatsNewOnce,180)}
+async function unlock(){
+ const input=$("pinInput");if(!input)return;
+ if(lockoutRemainingMs()>0)return alert(`به‌خاطر چند تلاش ناموفق، ${Math.ceil(lockoutRemainingMs()/1000)} ثانیه دیگر دوباره تلاش کن.`);
+ const ok=await verifyPin(input.value).catch(()=>false);
+ if(!ok){registerLockFail();return alert(lockoutRemainingMs()>0?`رمز اشتباه بود؛ ${Math.ceil(lockoutRemainingMs()/1000)} ثانیه صبر کن`:"رمز اشتباه است")}
+ registerLockSuccess();$("lock")?.remove();setTimeout(showWhatsNewOnce,180)
+}
 async function setPin(){
  if(data.lockMethod==="pattern"&&data.patternHash){alert("در حال حاضر قفل الگو فعال است. برای تغییر به رمز عددی، اول با «حذف رمز ورود» آن را غیرفعال کن.");return}
  const old=data.pinHash||data.pin?(prompt("رمز فعلی را وارد کن:")||""):"";
@@ -1089,8 +1122,8 @@ async function setPin(){
 }
 async function removePin(){
  if(!hasLockCode())return alert("هنوز رمزی فعال نیست");
- if(data.lockMethod==="pattern"){if(!confirm("رمز الگو حذف شود؟"))return}
- else{const p=prompt("رمز فعلی را وارد کن:");if(!(await verifyPin(p||"")))return alert("رمز فعلی اشتباه است")}
+ if(!(await verifyExistingLock("برای حذف قفل، رمز/الگوی فعلی را تایید کن")))return alert("تایید هویت ناموفق بود؛ قفل حذف نشد");
+ if(!confirm("رمز/الگوی ورود حذف شود؟"))return;
  data.pin="";data.pinHash="";data.pinSalt="";data.patternHash="";data.patternSalt="";data.biometricEnabled=false;data.webauthnCredId="";data.lockMethod="pin";save();logEvent("حذف رمز ورود","قفل برنامه غیرفعال شد","settings");alert("رمز حذف شد");renderSettingsFeatures();
 }
 
@@ -1322,8 +1355,8 @@ window.addEventListener("popstate",()=>{performBack();armBackTrap()});
  },{passive:true});
 })();
 
-function touch(r){r.updatedAt=new Date().toISOString();r.updatedBy=sync.user?.uid||deviceId();return r}
-function markDeleted(type,id){data._sync??={tombstones:{}};data._sync.tombstones??={};data._sync.tombstones[type]??={};const dt=new Date().toISOString();data._sync.tombstones[type][id]=dt;markDirty(type,id,true,{id},dt)}
+function touch(r){r.revision=Math.max(0,Number(r.revision)||0)+1;r.updatedAt=new Date().toISOString();r.updatedBy=sync.user?.uid||deviceId();r.deviceId=deviceId();return r}
+function markDeleted(type,id){data._sync??={tombstones:{}};data._sync.tombstones??={};data._sync.tombstones[type]??={};const dt=new Date().toISOString();const revision=Number(data._sync.tombstoneRevisions?.[type]?.[id]||0)+1;data._sync.tombstoneRevisions??={};data._sync.tombstoneRevisions[type]??={};data._sync.tombstoneRevisions[type][id]=revision;data._sync.tombstones[type][id]=dt;markDirty(type,id,true,{id,revision,updatedAt:dt,updatedBy:sync.user?.uid||deviceId(),deviceId:deviceId()},dt)}
 function removeRecord(type,id){const i=data[type].findIndex(x=>x.id===id);if(i<0)return;data[type].splice(i,1);markDeleted(type,id);save()}
 function accountSelect(id="acc",selected=""){return `<select id="${id}">${data.accounts.map(a=>`<option value="${a.id}" ${a.id===selected?"selected":""}>${esc(a.name)}${a.bank?" • "+esc(a.bank):""}</option>`).join("")}</select>`}
 function openAccount(id=null){const a=id&&data.accounts.find(x=>x.id===id);openModal(`<h2>${a?"ویرایش حساب":"افزودن حساب"}</h2><div class="form"><input id="an" placeholder="نام حساب" value="${esc(a?.name||"")}"><input id="bank" placeholder="نام بانک" value="${esc(a?.bank||"")}"><input id="sender" placeholder="شماره فرستنده پیامک بانک" value="${esc(a?.sender||"")}"><input id="card" placeholder="شماره کارت (اختیاری)" value="${esc(a?.card||"")}"><input id="ab" type="text" inputmode="numeric" class="amt-input" placeholder="موجودی اولیه" value="${fmtAmtValue(a?.balance)}"><button class="primary" onclick="saveAccount('${a?.id||""}')">${a?"ذخیره تغییرات":"ذخیره"}</button></div>`)}
@@ -1500,7 +1533,7 @@ function processRecurringTransactions(){
     }
     if(tChanged){touch(t);markDirty("transactions",t.id,false,t,t.updatedAt)}
   });
-  if(anyChanged){localStorage.setItem(KEY,JSON.stringify(data));render()}
+  if(anyChanged){persistLocal();render()}
 }
 function compressImage(file,max=1200,quality=.72){
  return new Promise((resolve,reject)=>{
@@ -1641,7 +1674,7 @@ function openProduct(id=null){const p=id&&data.products.find(x=>x.id===id);openM
  ${invField("حداقل موجودی","برای هشدار موجودی کم",`<input id="prdMin" type="text" class="num-input" inputmode="numeric" placeholder="۰" value="${Number(p?.minStock)||""}">`)}
  </div>
  <button class="primary" onclick="saveProduct('${p?.id||""}')">💾 ذخیره</button></div>`)}
-function saveProduct(id){const name=$("prdName").value.trim();if(!name)return alert("نام کالا را وارد کن");const o={name,code:$("prdCode").value.trim(),buyPrice:parseMoney($("prdBuy").value),price:parseMoney($("prdPrice").value),stock:Number($("prdStock").value)||0,minStock:Number($("prdMin").value)||0};if(id){const p=data.products.find(x=>x.id===id);Object.assign(p,o);touch(p);markDirty("products",p.id,false,p,p.updatedAt)}else{const p=touch({id:uid(),...o});data.products.unshift(p);markDirty("products",p.id,false,p,p.updatedAt)}save();logEvent(id?"ویرایش کالا":"افزودن کالا",name,id?"edit":"create");closeModal()}
+function saveProduct(id){const name=$("prdName").value.trim();if(!name)return alert("نام کالا را وارد کن");const o={name,code:$("prdCode").value.trim(),buyPrice:parseMoney($("prdBuy").value),price:parseMoney($("prdPrice").value),stock:Math.max(0,Number($("prdStock").value)||0),minStock:Math.max(0,Number($("prdMin").value)||0)};if(id){const p=data.products.find(x=>x.id===id);Object.assign(p,o);touch(p);markDirty("products",p.id,false,p,p.updatedAt)}else{const p=touch({id:uid(),...o});data.products.unshift(p);markDirty("products",p.id,false,p,p.updatedAt)}save();logEvent(id?"ویرایش کالا":"افزودن کالا",name,id?"edit":"create");closeModal()}
 function deleteProduct(id){if(!confirm("این کالا حذف شود؟"))return;const p=data.products.find(x=>x.id===id);removeRecord("products",id);logEvent("حذف کالا",p?.name||id,"delete")}
 /* v2.3 fix: renderProducts() existed but was never wired into render()'s
    per-page dispatch (every other page — customers, invoices, checks... —
@@ -1692,7 +1725,11 @@ function increaseStock(id){
  renderStockAdjustList();
  if(pageActive("products"))renderProducts();
 }
-function adjustStockForInvoice(inv,dir){for(const it of inv?.items||[]){if(!it.productId)continue;const p=data.products.find(x=>x.id===it.productId);if(p){p.stock=Math.max(0,Number(p.stock||0)+(dir*Number(it.qty||0)));touch(p);markDirty("products",p.id,false,p,p.updatedAt)}}}
+function invoiceStockDelta(invoice){const m=new Map();for(const it of invoice?.items||[]){if(!it.productId)continue;m.set(it.productId,(m.get(it.productId)||0)+(Number(it.qty)||0));}return m}
+function calculateStockDifference(oldInvoice,newInvoice){const m=new Map();for(const [id,q] of invoiceStockDelta(oldInvoice))m.set(id,(m.get(id)||0)+q);for(const [id,q] of invoiceStockDelta(newInvoice))m.set(id,(m.get(id)||0)-q);return m}
+function applyInvoiceStock(invoice){adjustStockForInvoice(invoice,-1)}
+function rollbackInvoiceStock(invoice){adjustStockForInvoice(invoice,+1)}
+function adjustStockForInvoice(inv,dir){for(const it of inv?.items||[]){if(!it.productId)continue;const p=data.products.find(x=>x.id===it.productId);if(!p)continue;const next=Number(p.stock||0)+(dir*Number(it.qty||0));if(dir<0&&next<0){logEvent("کسری موجودی",`${p.name} • کسری ${fa(Math.abs(next))}`,"stock",false);p.stock=0;}else p.stock=next;touch(p);markDirty("products",p.id,false,p,p.updatedAt)}}
 
 function openCustomer(id=null){const c=id&&data.customers.find(x=>x.id===id);openModal(`<h2>${c?"ویرایش مشتری":"مشتری جدید"}</h2><div class="form"><input id="cname" placeholder="نام مشتری" value="${esc(c?.name||"")}"><input id="cphone" inputmode="tel" placeholder="شماره تماس" value="${esc(c?.phone||"")}"><textarea id="caddress" placeholder="آدرس">${esc(c?.address||"")}</textarea><textarea id="cnote" placeholder="توضیحات">${esc(c?.note||"")}</textarea><button class="primary" onclick="saveCustomer('${c?.id||""}')">💾 ذخیره</button></div>`)}
 function saveCustomer(id){const name=$("cname").value.trim();if(!name)return alert("نام مشتری را وارد کن");const o={name,phone:$("cphone").value.trim(),address:$("caddress").value.trim(),note:$("cnote").value.trim()};if(id){const c=data.customers.find(x=>x.id===id);Object.assign(c,o);touch(c);markDirty("customers",c.id,false,c,c.updatedAt)}else{const c=touch({id:uid(),...o});data.customers.unshift(c);markDirty("customers",c.id,false,c,c.updatedAt)}save();logEvent(id?"ویرایش مشتری":"ایجاد مشتری",name,id?"edit":"create");closeModal()}
@@ -1866,7 +1903,7 @@ function savePerson(id){
     if(instCount>1)np.installments=generateInstallments(amount,instCount,due,instFreq);
     data.people.push(np);markDirty("people",np.id,false,np,np.updatedAt);
   }
-  localStorage.setItem(KEY,JSON.stringify(data));render();syncSave();logEvent(id?"ویرایش شخص":"ایجاد شخص",`${name} • ${money(amount)}`,id?"edit":"create");closeModal();
+  persistLocal();render();syncSave();logEvent(id?"ویرایش شخص":"ایجاد شخص",`${name} • ${money(amount)}`,id?"edit":"create");closeModal();
   upsertRemindersForPerson(id?data.people.find(x=>x.id===id):data.people[data.people.length-1]).catch(console.error);
 }
 function deletePerson(id){if(confirm("این مورد حذف شود؟")){const p=data.people.find(x=>x.id===id);if(p?.invoiceId){const inv=data.invoices.find(x=>x.id===p.invoiceId);if(inv){inv.personId="";touch(inv);markDirty("invoices",inv.id,false,inv,inv.updatedAt)}}removeRemindersForPerson(id).catch(console.error);removeRecord("people",id);logEvent("حذف شخص",p?.name||id,"delete")}}
@@ -1885,7 +1922,9 @@ function previewPersonPaymentImage(input){
 }
 async function confirmPersonPayment(id){
   const p=data.people.find(x=>x.id===id);if(!p)return;
-  const n=parseMoney($("ppAmount")?.value||"");if(!n)return alert("مبلغ نامعتبر است");
+  let n;try{n=positiveMoney($("ppAmount")?.value||"","مبلغ پرداخت")}catch(e){return alert(e.message)}
+  const remaining=Math.max(0,(Number(p.amount)||0)-(Number(p.paid)||0));
+  if(n>remaining)return alert(`مبلغ پرداخت (${money(n)}) بیشتر از مانده (${money(remaining)}) است`);
   const accountID=$("ppAccount")?.value;if(!accountID)return alert("حساب را انتخاب کنید");
   let receipt=null;const file=$("ppImage")?.files?.[0];
   if(file){try{receipt=await compressImage(file,1200,.72)}catch(e){console.warn(e)}}
@@ -1988,6 +2027,8 @@ function previewInstImage(input){
 async function confirmInstallmentPayment(personId,instId){
   const p=data.people.find(x=>x.id===personId);if(!p?.installments)return;
   const it=p.installments.items.find(x=>x.id===instId);if(!it)return;
+  if(it.paid)return alert("این قسط قبلاً پرداخت شده است");
+  let installmentAmount;try{installmentAmount=positiveMoney(it.amount,"مبلغ قسط")}catch(e){return alert(e.message)}
   const accountID=$("instAccount")?.value;if(!accountID)return alert("حساب را انتخاب کنید");
   let receipt=it.receipt||null;const file=$("instImage")?.files?.[0];
   if(file){try{receipt=await compressImage(file,1000,.6)}catch(e){console.warn(e)}}
@@ -1995,7 +2036,7 @@ async function confirmInstallmentPayment(personId,instId){
   if(receipt)it.receipt=receipt;
   const txType=p.type==="credit"?"income":"expense";
   const category=p.type==="credit"?"دریافت طلب":"پرداخت بدهی";
-  const nt=touch({id:uid(),title:`قسط ${p.name}`,amount:it.amount,type:txType,category,accountID,date:new Date().toISOString(),source:"installment",personId:p.id,installmentId:it.id});
+  const nt=touch({id:uid(),title:`قسط ${p.name}`,amount:installmentAmount,type:txType,category,accountID,date:new Date().toISOString(),source:"installment",personId:p.id,installmentId:it.id});
   if(receipt)nt.image=receipt;
   data.transactions.unshift(nt);markDirty("transactions",nt.id,false,nt,nt.updatedAt);
   it.txId=nt.id;
@@ -2121,9 +2162,9 @@ function noteChecklistHTML(n){
  }
  return html;
 }
-async function toggleNoteItem(noteId,itemId){const n=data.notes.find(x=>x.id===noteId);const it=n?.items?.find(x=>x.id===itemId);if(!it)return;it.done=!it.done;touch(n);markDirty("notes",n.id,false,n,n.updatedAt);localStorage.setItem(KEY,JSON.stringify(data));syncSave();await upsertReminderForNote(n,false);logEvent(it.done?"تکمیل آیتم یادداشت":"بازگردانی آیتم یادداشت",`${n.title} • ${it.text}`,"edit");const card=document.querySelector(`[data-note-card="${CSS.escape(noteId)}"]`);if(card){const list=card.querySelector(".note-checklist");if(list)list.innerHTML=noteChecklistHTML(n);const total=(n.items||[]).length,doneCount=(n.items||[]).filter(x=>x.done).length;const count=card.querySelector(".note-count");if(count)count.textContent=total?`${fa(doneCount)} / ${fa(total)}`:""}}
+async function toggleNoteItem(noteId,itemId){const n=data.notes.find(x=>x.id===noteId);const it=n?.items?.find(x=>x.id===itemId);if(!it)return;it.done=!it.done;touch(n);markDirty("notes",n.id,false,n,n.updatedAt);persistLocal();syncSave();await upsertReminderForNote(n,false);logEvent(it.done?"تکمیل آیتم یادداشت":"بازگردانی آیتم یادداشت",`${n.title} • ${it.text}`,"edit");const card=document.querySelector(`[data-note-card="${CSS.escape(noteId)}"]`);if(card){const list=card.querySelector(".note-checklist");if(list)list.innerHTML=noteChecklistHTML(n);const total=(n.items||[]).length,doneCount=(n.items||[]).filter(x=>x.done).length;const count=card.querySelector(".note-count");if(count)count.textContent=total?`${fa(doneCount)} / ${fa(total)}`:""}}
 async function deleteNote(id){if(confirm("این یادداشت و همه آیتم‌های آن حذف شود؟")){const n=data.notes.find(x=>x.id===id);await removeReminderForNote(id);removeRecord("notes",id);logEvent("حذف یادداشت",n?.title||id,"delete");closeModal()}}
-async function deleteNoteItem(noteId,itemId){const n=data.notes.find(x=>x.id===noteId);if(!n)return;if(confirm("این آیتم حذف شود؟")){n.items=(n.items||[]).filter(x=>x.id!==itemId);touch(n);markDirty("notes",n.id,false,n,n.updatedAt);localStorage.setItem(KEY,JSON.stringify(data));syncSave();await upsertReminderForNote(n,false);logEvent("حذف آیتم یادداشت",n.title,"delete");const card=document.querySelector(`[data-note-card="${CSS.escape(noteId)}"]`);if(card){const total=(n.items||[]).length,doneCount=(n.items||[]).filter(x=>x.done).length;const count=card.querySelector(".note-count");if(count)count.textContent=total?`${fa(doneCount)} / ${fa(total)}`:"";const list=card.querySelector(".note-checklist");if(list)list.innerHTML=noteChecklistHTML(n)}}}
+async function deleteNoteItem(noteId,itemId){const n=data.notes.find(x=>x.id===noteId);if(!n)return;if(confirm("این آیتم حذف شود؟")){n.items=(n.items||[]).filter(x=>x.id!==itemId);touch(n);markDirty("notes",n.id,false,n,n.updatedAt);persistLocal();syncSave();await upsertReminderForNote(n,false);logEvent("حذف آیتم یادداشت",n.title,"delete");const card=document.querySelector(`[data-note-card="${CSS.escape(noteId)}"]`);if(card){const total=(n.items||[]).length,doneCount=(n.items||[]).filter(x=>x.done).length;const count=card.querySelector(".note-count");if(count)count.textContent=total?`${fa(doneCount)} / ${fa(total)}`:"";const list=card.querySelector(".note-checklist");if(list)list.innerHTML=noteChecklistHTML(n)}}}
 function noteRepeatLabel(r){return r==="daily"?"روزانه":r==="weekly"?"هفتگی":r==="monthly"?"ماهانه":"بدون تکرار"}
 function noteItemHTML(n,it,i,total){
  const moveBtns=total>1?'<div class="reorder-btns" onclick="event.stopPropagation()"><button type="button" title="انتقال به بالا" '+(i===0?'disabled':'')+' onclick="event.stopPropagation();moveNoteItem(\''+n.id+'\',\''+it.id+'\',-1)">▲</button><button type="button" title="انتقال به پایین" '+(i===total-1?'disabled':'')+' onclick="event.stopPropagation();moveNoteItem(\''+n.id+'\',\''+it.id+'\',1)">▼</button></div>':'';
@@ -2358,18 +2399,18 @@ async function upsertReminderForCheck(check,renderAfter=true){
  const linked=(data.reminders||[]).filter(x=>x.sourceCheckId===check.id);
  let r=linked[0];
  for(const dup of linked.slice(1)){await cancelNativeReminder(dup.id);removeRecordSilent("reminders",dup.id)}
- if(check.settled||!check.date){if(r){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id);if(renderAfter)save();else{localStorage.setItem(KEY,JSON.stringify(data));syncSave()}}return}
+ if(check.settled||!check.date){if(r){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id);if(renderAfter)save();else{persistLocal();syncSave()}}return}
  const due=new Date(check.date);
  if(Number.isNaN(due.getTime()))return;
  const alertAt=new Date(due.getTime()-CHECK_REMINDER_DAYS_BEFORE*86400000);
  const useDate=(alertAt>new Date()?alertAt:due).toISOString();
  const o={title:`⚠️ سررسید چک ${check.type==="receive"?"دریافتی":"پرداختی"}: ${check.name}`,amount:check.amount||0,date:useDate,repeat:"once",type:"check",sourceCheckId:check.id,body:`مبلغ: ${money(check.amount||0)} • سررسید: ${jalaliLabel(check.date)}`};
  if(r){Object.assign(r,o);touch(r);markDirty("reminders",r.id,false,r,r.updatedAt)}else{r=touch({id:uid(),...o});data.reminders.push(r);markDirty("reminders",r.id,false,r,r.updatedAt)}
- if(renderAfter)save();else{localStorage.setItem(KEY,JSON.stringify(data));syncSave()}
+ if(renderAfter)save();else{persistLocal();syncSave()}
  await cancelNativeReminder(r.id);await scheduleNativeReminder(r);
 }
 async function removeReminderForCheck(checkId){const matches=(data.reminders||[]).filter(r=>r.sourceCheckId===checkId);for(const r of matches){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id)}if(matches.length)save()}
-async function syncAllChecksToReminders(){let changed=false;const checkIds=new Set((data.checks||[]).map(c=>c.id));for(const c of data.checks||[]){const before=(data.reminders||[]).length;await upsertReminderForCheck(c,false);if((data.reminders||[]).length!==before)changed=true}for(const r of [...(data.reminders||[])]){if(r.sourceCheckId&&!checkIds.has(r.sourceCheckId)){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id);changed=true}}if(changed){localStorage.setItem(KEY,JSON.stringify(data));syncSave();render()}}
+async function syncAllChecksToReminders(){let changed=false;const checkIds=new Set((data.checks||[]).map(c=>c.id));for(const c of data.checks||[]){const before=(data.reminders||[]).length;await upsertReminderForCheck(c,false);if((data.reminders||[]).length!==before)changed=true}for(const r of [...(data.reminders||[])]){if(r.sourceCheckId&&!checkIds.has(r.sourceCheckId)){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id);changed=true}}if(changed){persistLocal();syncSave();render()}}
 
 /* ---- v2.7.2: سررسید بدهکار/بستانکار → یادآوری واقعی + جدول هفتگی ----
  * دقیقاً همان الگوی چک‌ها/یادداشت‌ها: هر شخص (بدهکار یا بستانکار) با سررسید
@@ -2400,10 +2441,10 @@ async function upsertRemindersForPerson(p,renderAfter=true){
   if(r){Object.assign(r,o);touch(r);markDirty("reminders",r.id,false,r,r.updatedAt)}else{r=touch({id:uid(),...o});data.reminders.push(r);markDirty("reminders",r.id,false,r,r.updatedAt)}
   await cancelNativeReminder(r.id);await scheduleNativeReminder(r);
  }
- if(renderAfter)save();else{localStorage.setItem(KEY,JSON.stringify(data));syncSave()}
+ if(renderAfter)save();else{persistLocal();syncSave()}
 }
 async function removeRemindersForPerson(personId){const matches=(data.reminders||[]).filter(r=>r.sourcePersonId===personId);for(const r of matches){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id)}if(matches.length)save()}
-async function syncAllPeopleToReminders(){let changed=false;const peopleIds=new Set((data.people||[]).map(p=>p.id));for(const p of data.people||[]){const before=(data.reminders||[]).length;await upsertRemindersForPerson(p,false);if((data.reminders||[]).length!==before)changed=true}for(const r of [...(data.reminders||[])]){if(r.sourcePersonId&&!peopleIds.has(r.sourcePersonId)){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id);changed=true}}if(changed){localStorage.setItem(KEY,JSON.stringify(data));syncSave();render()}}
+async function syncAllPeopleToReminders(){let changed=false;const peopleIds=new Set((data.people||[]).map(p=>p.id));for(const p of data.people||[]){const before=(data.reminders||[]).length;await upsertRemindersForPerson(p,false);if((data.reminders||[]).length!==before)changed=true}for(const r of [...(data.reminders||[])]){if(r.sourcePersonId&&!peopleIds.has(r.sourcePersonId)){await cancelNativeReminder(r.id);removeRecordSilent("reminders",r.id);changed=true}}if(changed){persistLocal();syncSave();render()}}
 /* هر سررسید فعال یک شخص (کلی یا هر قسط) که در یک روز مشخص از هفته می‌افتد؛
  * دقیقاً شبیه noteOccursOnDay اما مستقیم از data.people خوانده می‌شود تا در
  * جدول هفتگی، مثل یادداشت‌ها و یادآوری‌های مستقل، ردیف جدا نشان داده شود. */
@@ -2427,213 +2468,7 @@ function personDueItemsOnDay(day){
 }
 
 
-/* ============================================================
- * یادداشت هوشمند (Smart Note) — تحلیل متن آزاد با دیپ‌سیک (DeepSeek)
- * متن فارسی کاربر تحلیل می‌شود و مواردی مثل بدهی/طلب، یادآوری
- * یا تراکنش از آن استخراج و برای تایید نهایی به کاربر نشان داده می‌شود.
- * ============================================================ */
-const DEEPSEEK_MODEL_DEFAULT="deepseek-chat";
-const DEEPSEEK_URL_DEFAULT="https://api.deepseek.com/chat/completions";
-const SMART_NOTE_URL_STORAGE="hesabdar-smartnote-url-v1";
-const SMART_NOTE_MODEL_STORAGE="hesabdar-smartnote-model-v1";
-function anthropicKey(){return (localStorage.getItem(ANTHROPIC_KEY_STORAGE)||"").trim()}
-function smartNoteUrl() {
-  const custom = (
-    localStorage.getItem(SMART_NOTE_URL_STORAGE) || ""
-  ).trim();
-
-  if (!custom) {
-    return DEEPSEEK_URL_DEFAULT;
-  }
-
-  try {
-    const url = new URL(custom);
-
-    if (url.protocol !== "https:") {
-      return DEEPSEEK_URL_DEFAULT;
-    }
-
-    return url.href;
-  } catch {
-    return DEEPSEEK_URL_DEFAULT;
-  }
-}
-function smartNoteModel(){return (localStorage.getItem(SMART_NOTE_MODEL_STORAGE)||"").trim()||DEEPSEEK_MODEL_DEFAULT}
-function saveAnthropicKey() {
-  const value = $("anthropicKeyInput")?.value.trim();
-
-  if (!value) {
-    return alert("کلید API را وارد کن");
-  }
-
-  if (value.length < 20) {
-    return alert("کلید API کوتاه یا نامعتبر است");
-  }
-
-  const urlValue = $("smartNoteUrlInput")?.value.trim();
-  if (urlValue) {
-    try {
-      const parsedUrl = new URL(urlValue);
-      if (parsedUrl.protocol !== "https:") {
-        return alert("آدرس API باید با HTTPS شروع شود");
-      }
-      localStorage.setItem(SMART_NOTE_URL_STORAGE, parsedUrl.href);
-    } catch {
-      return alert("آدرس API معتبر نیست");
-    }
-  } else {
-    localStorage.removeItem(SMART_NOTE_URL_STORAGE);
-  }
-
-  localStorage.setItem(ANTHROPIC_KEY_STORAGE, value);
-
-  const modelValue = $("smartNoteModelInput")?.value.trim();
-  if (modelValue) {
-    localStorage.setItem(SMART_NOTE_MODEL_STORAGE, modelValue);
-  } else {
-    localStorage.removeItem(SMART_NOTE_MODEL_STORAGE);
-  }
-
-  if ($("anthropicKeyInput")) {
-    $("anthropicKeyInput").value = "";
-  }
-
-  renderSettingsFeatures();
-  alert("تنظیمات API فقط روی همین دستگاه ذخیره شد.");
-}
-function clearAnthropicKey(){if(!anthropicKey())return alert("کلیدی ثبت نشده است");if(!confirm("کلید و تنظیمات هوش مصنوعی حذف شود؟"))return;localStorage.removeItem(ANTHROPIC_KEY_STORAGE);localStorage.removeItem(SMART_NOTE_URL_STORAGE);localStorage.removeItem(SMART_NOTE_MODEL_STORAGE);renderSettingsFeatures();alert("کلید حذف شد.")}
-
-const SMART_NOTE_KIND_LABEL={debt:"من بدهکارم",credit:"من طلبکارم",reminder:"یادآوری",expense:"هزینه (پرداخت شد)",income:"دریافت (پول گرفتم)"};
-let smartNoteItems=[];
-
-function openSmartNote(){
-  if(!anthropicKey()){
-    if(confirm("برای یادداشت هوشمند اول باید یک کلید API (سازگار با OpenAI، مثل دیپ‌سیک یا هر سرویس مشابه) در تنظیمات ثبت کنی. الان به تنظیمات بروم؟")){closeModal();goToPage("settings");setTimeout(()=>$("anthropicKeyInput")?.focus(),300)}
-    return;
-  }
-  smartNoteItems=[];
-  openModal(`<h2>✨ یادداشت هوشمند</h2><p class="hint">یک متن آزاد بنویس، مثلاً «فردا باید ۲۰۰ تومن به رضا بدم» یا «از علی ۵۰۰ تومن طلب دارم، پس‌فردا یادم بنداز». هوش مصنوعی متن را می‌خواند و مواردی که پیدا کند برای تایید نشانت می‌دهد.</p><div class="form"><textarea id="smartNoteText" rows="5" placeholder="متن یادداشت را اینجا بنویس..."></textarea><button type="button" class="primary" id="smartNoteAnalyzeBtn" onclick="analyzeSmartNote()">🔎 تحلیل با هوش مصنوعی</button><div id="smartNoteResults"></div></div>`);
-}
-
-async function analyzeSmartNote(){
-  const text=$("smartNoteText")?.value.trim();
-  if(!text)return alert("اول متن یادداشت را بنویس");
-  const key=anthropicKey();
-  if(!key)return alert("کلید API تنظیم نشده است");
-  const btn=$("smartNoteAnalyzeBtn");
-  const resultsBox=$("smartNoteResults");
-  if(btn){btn.disabled=true;btn.textContent="⏳ در حال تحلیل..."}
-  if(resultsBox)resultsBox.innerHTML="";
-  try{
-    const today=todayJalali();
-    const sys=`تو یک دستیار مالی فارسی‌زبان هستی. کاربر یک یادداشت آزاد می‌نویسد و تو باید موارد مالی/یادآوری داخل آن را استخراج کنی.
-امروز به تقویم شمسی: ${today} است. تاریخ‌های نسبی مثل «فردا»، «پس‌فردا»، «هفته دیگه»، «ماه دیگه» را بر همین اساس به تاریخ شمسی دقیق (YYYY/MM/DD) تبدیل کن.
-هر مورد یکی از این نوع‌هاست:
-- "debt": کاربر باید به شخصی پول بدهد (کاربر بدهکار است)
-- "credit": شخصی باید به کاربر پول بدهد (کاربر طلبکار است)
-- "reminder": یک یادآوری ساده بدون تراکنش مالی مشخص یا با مبلغ نامشخص
-- "expense": کاربر همین حالا/همان لحظه پول خرج کرده (هزینه قطعی‌شده)
-- "income": کاربر همین حالا/همان لحظه پول دریافت کرده (درآمد قطعی‌شده)
-فقط و فقط یک JSON خام با این ساختار برگردان، بدون هیچ توضیح اضافه و بدون بک‌تیک یا کد بلاک:
-{"items":[{"kind":"debt|credit|reminder|expense|income","person":"نام شخص یا خالی","title":"عنوان کوتاه","amount":عدد به تومان یا 0 اگر نامشخص,"date":"YYYY/MM/DD شمسی یا خالی","note":"توضیح کوتاه اختیاری"}]}
-اگر متن هیچ مورد قابل استخراجی نداشت، items را آرایه خالی بگذار.`;
-    const controller=new AbortController();
-    const timeoutId=setTimeout(()=>controller.abort(),30000);
-    let res;
-    try{
-      res=await fetch(smartNoteUrl(),{
-        method:"POST",
-        headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-        body:JSON.stringify({model:smartNoteModel(),max_tokens:1024,temperature:0,messages:[{role:"system",content:sys},{role:"user",content:text}]}),
-        signal:controller.signal
-      });
-    }catch(fetchErr){
-      if(fetchErr?.name==="AbortError")throw new Error("زمان درخواست به پایان رسید (۳۰ ثانیه). اتصال اینترنت را بررسی کن.");
-      throw fetchErr;
-    }finally{
-      clearTimeout(timeoutId);
-    }
-    if(!res.ok){
-      const safeMessages={401:"کلید API معتبر نیست.",403:"دسترسی به سرویس هوش مصنوعی رد شد.",429:"محدودیت درخواست سرویس فعال شده است؛ کمی بعد دوباره تلاش کن."};
-      const message=safeMessages[res.status]||(res.status>=500?"سرویس هوش مصنوعی موقتاً در دسترس نیست.":"درخواست هوش مصنوعی انجام نشد.");
-      throw new Error(message);
-    }
-    const data2=await res.json();
-    const raw=data2?.choices?.[0]?.message?.content||"{}";
-    const clean=raw.replace(/```json|```/g,"").trim();
-    let parsed;try{parsed=JSON.parse(clean)}catch(e){throw new Error("پاسخ هوش مصنوعی قابل خواندن نبود")}
-    const items=Array.isArray(parsed.items)?parsed.items:[];
-    smartNoteItems=items.map(it=>({
-      id:uid(),
-      kind:["debt","credit","reminder","expense","income"].includes(it.kind)?it.kind:"reminder",
-      person:String(it.person||"").trim(),
-      title:String(it.title||"").trim(),
-      amount:Math.max(0,Number(String(it.amount||0).replace(/[^\d.]/g,""))||0),
-      date:String(it.date||"").trim(),
-      note:String(it.note||"").trim(),
-      selected:true
-    }));
-    renderSmartNoteResults();
-  }catch(e){
-    console.warn("smart note analyze",e);
-    if(resultsBox)resultsBox.innerHTML=`<div class="card hint">⚠️ تحلیل انجام نشد. اتصال اینترنت یا اعتبار حساب دیپ‌سیک را بررسی کن.<br><small>${esc(e.message||"")}</small></div>`;
-  }finally{
-    if(btn){btn.disabled=false;btn.textContent="🔎 تحلیل با هوش مصنوعی"}
-  }
-}
-
-function renderSmartNoteResults(){
-  const box=$("smartNoteResults");if(!box)return;
-  if(!smartNoteItems.length){box.innerHTML=`<div class="card hint">هیچ مورد قابل تشخیصی در متن پیدا نشد.</div>`;return}
-  box.innerHTML=`<div class="section-head"><h3>موارد پیدا‌شده</h3></div>${smartNoteItems.map((it,i)=>smartNoteItemRow(it,i)).join("")}<button type="button" class="primary" onclick="addSmartNoteSelected()">✅ افزودن موارد انتخاب‌شده</button>`;
-  bindAmountInputs(box);
-}
-
-function smartNoteItemRow(it,i){
-  return `<div class="item smart-note-row" data-smart-idx="${i}">
-    <div class="form" style="flex:1">
-      <label class="feature-row"><input type="checkbox" ${it.selected?"checked":""} onchange="smartNoteItems[${i}].selected=this.checked"><span><b>${esc(it.title||it.person||"مورد بدون عنوان")}</b></span></label>
-      <select onchange="smartNoteItems[${i}].kind=this.value">${Object.entries(SMART_NOTE_KIND_LABEL).map(([k,l])=>`<option value="${k}" ${it.kind===k?"selected":""}>${l}</option>`).join("")}</select>
-      <input placeholder="نام شخص (اختیاری)" value="${esc(it.person)}" oninput="smartNoteItems[${i}].person=this.value">
-      <input placeholder="عنوان" value="${esc(it.title)}" oninput="smartNoteItems[${i}].title=this.value">
-      <input type="text" inputmode="numeric" class="amt-input" placeholder="مبلغ" value="${fmtAmtValue(it.amount)}" oninput="smartNoteItems[${i}].amount=parseMoney(this.value)">
-      <input placeholder="تاریخ شمسی مثل ۱۴۰۵/۰۶/۱۰ (اختیاری)" value="${esc(it.date)}" oninput="smartNoteItems[${i}].date=this.value">
-    </div>
-  </div>`;
-}
-
-function applySmartNoteItem(it){
-  const iso=it.date?jalaliToISO(it.date):"";
-  if(it.kind==="debt"||it.kind==="credit"){
-    const name=it.person||it.title||"شخص";
-    const np=touch({id:uid(),type:it.kind,name,amount:it.amount||0,paid:0,due:iso,note:it.note||""});
-    data.people.push(np);markDirty("people",np.id,false,np,np.updatedAt);
-    logEvent("افزودن از یادداشت هوشمند",`${name} • ${money(it.amount||0)}`,"create");
-    return;
-  }
-  if(it.kind==="expense"||it.kind==="income"){
-    if(!data.accounts.length)return;
-    const accountID=data.accounts.find(a=>a.default)?.id||data.accounts[0].id;
-    const nt=touch({id:uid(),title:it.title||it.person||(it.kind==="expense"?"هزینه":"دریافت"),amount:it.amount||0,type:it.kind,category:"سایر",accountID,date:iso?jalaliDateTimeToISO(it.date+" 00:00"):new Date().toISOString(),source:"smart-note"});
-    data.transactions.unshift(nt);markDirty("transactions",nt.id,false,nt,nt.updatedAt);
-    logEvent("افزودن از یادداشت هوشمند",`${nt.title} • ${money(it.amount||0)}`,"create");
-    return;
-  }
-  const maxOrder=data.reminders.length?Math.max(...data.reminders.map(x=>x.order??0)):-1;
-  const nr=touch({id:uid(),order:maxOrder+1,title:it.title||it.person||"یادآوری",amount:it.amount||0,date:iso?jalaliDateTimeToISO(it.date+" 09:00"):new Date().toISOString(),repeat:"once",type:"expense"});
-  data.reminders.push(nr);markDirty("reminders",nr.id,false,nr,nr.updatedAt);
-  scheduleNativeReminder(nr).catch(()=>{});
-  logEvent("افزودن از یادداشت هوشمند",nr.title,"create");
-}
-
-function addSmartNoteSelected(){
-  const chosen=smartNoteItems.filter(x=>x.selected);
-  if(!chosen.length)return alert("حداقل یک مورد را انتخاب کن");
-  for(const it of chosen)applySmartNoteItem(it);
-  localStorage.setItem(KEY,JSON.stringify(data));save();syncSave();
-  alert(`${fa(chosen.length)} مورد اضافه شد.`);
-  closeModal();
-}
+function openSmartNote(){alert("یادداشت هوشمند تا زمان آماده شدن Backend امن غیرفعال است.");}
 
 /* v3.4: قابلیت «بروزرسانی از GitHub» به‌طور کامل حذف شد (چک‌کردن مخزن،
  * ورودی نام مخزن و اعلان نسخه جدید). به‌روزرسانی سرویس‌ورکر (فایل‌های خود
@@ -2854,6 +2689,32 @@ function invoiceCustomerPick(sel){
  if(phoneEl)phoneEl.value=c.phone||"";
  if(addrEl)addrEl.value=c.address||"";
 }
+/* v3.5: درست مثل سرچ کالا داخل ردیف‌های فاکتور، اسم مشتری هم همین‌طور
+ * سرچ زنده می‌شود؛ تا حروف تایپ می‌شود از لیست پرونده‌های مشتری فیلتر و
+ * پیشنهاد می‌آید و با کلیک روی هرکدوم، نام/تلفن/آدرس همان مشتری خودکار
+ * پر می‌شود و به پرونده‌اش هم وصل می‌شود (بدون نیاز به select جداگانه). */
+function onInvCustomerNameInput(input){
+ const val=input.value.trim().toLowerCase();
+ const box=$("invCustomerSuggest");
+ const sel=$("invCustomer");
+ if(sel && !(val && data.customers.some(c=>(c.name||"").trim().toLowerCase()===val)))sel.value="";
+ if(!box)return;
+ const matches=val?data.customers.filter(c=>(c.name||"").toLowerCase().includes(val)).slice(0,8):[];
+ box.innerHTML=matches.map(c=>`<button type="button" onmousedown="event.preventDefault()" onclick="pickInvCustomerSuggestion('${c.id}')">${esc(c.name)}${c.phone?` <small>${esc(c.phone)}</small>`:""}</button>`).join("");
+}
+function hideInvCustomerSuggestions(){
+ setTimeout(()=>{const box=$("invCustomerSuggest");if(box)box.innerHTML=""},150);
+}
+function pickInvCustomerSuggestion(customerId){
+ const c=data.customers.find(x=>x.id===customerId);if(!c)return;
+ const nameEl=$("invCustomerName"),phoneEl=$("invPhone"),addrEl=$("invAddress"),sel=$("invCustomer"),box=$("invCustomerSuggest");
+ if(nameEl)nameEl.value=c.name||"";
+ if(phoneEl)phoneEl.value=c.phone||"";
+ if(addrEl && !addrEl.value.trim())addrEl.value=c.address||"";
+ if(sel)sel.value=c.id;
+ if(box)box.innerHTML="";
+ nameEl?.focus();
+}
 
 function openInvoice(id=null){
  const inv=id&&data.invoices.find(x=>x.id===id);
@@ -2873,7 +2734,7 @@ function openInvoice(id=null){
  ${invField("نام فروشنده / فروشگاه","اسمی که بالای فاکتور چاپ می‌شود",`<input id="invSeller" placeholder="نام فروشگاه یا کسب‌وکار شما" value="${esc(inv?.seller||(inv?"":data.branding?.storeName||""))}">`)}
  </div>
  <div class="two-fields">
- ${invField("نام مشتری","اسم کسی که فاکتور برایش صادر می‌شود",`<input id="invCustomerName" placeholder="نام و نام خانوادگی مشتری" value="${esc(inv?.customerName||cust?.name||"")}">`)}
+ ${invField("نام مشتری","اسم کسی که فاکتور برایش صادر می‌شود؛ تایپ کن تا از لیست مشتری‌ها پیشنهاد بیاید",`<div class="inv-desc-wrap"><input id="invCustomerName" autocomplete="off" placeholder="نام و نام خانوادگی مشتری" value="${esc(inv?.customerName||cust?.name||"")}" oninput="onInvCustomerNameInput(this)" onfocus="onInvCustomerNameInput(this)" onblur="hideInvCustomerSuggestions(this)"><div class="inv-suggest" id="invCustomerSuggest"></div></div>`)}
  ${invField("شماره تماس","شماره تماس مشتری برای این فاکتور",`<input id="invPhone" inputmode="tel" placeholder="مثلاً: ۰۹۱۲xxxxxxx" value="${esc(inv?.phone||cust?.phone||"")}">`)}
  </div>
  <div class="inv-hide-daily" style="${hideDaily}">
@@ -2882,7 +2743,7 @@ function openInvoice(id=null){
  <div class="inv-hide-daily" style="${hideDaily}">
  <div class="two-fields">
  ${invField("تاریخ فاکتور","تاریخ صدور به تقویم شمسی",simpleDateField("invDate",jalaliInputValue(inv?.date)||todayJalali()))}
- ${invField("شماره فاکتور","اختیاری؛ برای پیگیری و مرتب کردن فاکتورها",`<input id="invNo" placeholder="مثلاً: ۱۰۰۱" value="${esc(inv?.number||"")}">`)}
+ ${invField("شماره فاکتور","اختیاری؛ بعد از اولین فاکتور، خودش یکی یکی بالا می‌رود",`<input id="invNo" placeholder="مثلاً: ۱۰۰۱" value="${esc(inv?(inv.number||""):nextInvoiceNumber())}">`)}
  </div>
  <div class="two-fields">
  ${invField("وضعیت پرداخت","بر اساس مبلغ دریافتی به‌صورت خودکار هم به‌روزرسانی می‌شود",`<select id="invStatus"><option value="unpaid" ${inv?.status!=="paid"&&inv?.status!=="partial"?"selected":""}>🔴 پرداخت نشده</option><option value="partial" ${inv?.status==="partial"?"selected":""}>🟡 پرداخت بخشی</option><option value="paid" ${inv?.status==="paid"?"selected":""}>🟢 پرداخت کامل</option></select>`)}
@@ -2926,12 +2787,38 @@ function setInvoiceType(type){
  document.querySelectorAll("#invTypeTabs button").forEach(b=>b.classList.toggle("active",b.dataset.type===t));
  document.querySelectorAll(".inv-hide-daily").forEach(el=>el.style.display=t==="daily"?"none":"");
 }
+/* v3.5: شماره فاکتور فاکتور جدید خودکار محاسبه می‌شود: اولین فاکتوری که
+ * کاربر خودش دستی شماره‌گذاری کرده، مبنا قرار می‌گیرد و از فاکتور بعدی
+ * به بعد، یکی یکی بالا می‌رود (بر اساس بزرگ‌ترین شماره‌ی عددیِ ثبت‌شده
+ * تا الان، +۱). اگر تا حالا هیچ فاکتوری شماره نداشته، خالی می‌ماند تا
+ * کاربر اولین شماره را خودش تعیین کند. */
+function nextInvoiceNumber(){
+ let max=0,found=false;
+ (data.invoices||[]).forEach(x=>{
+  const n=parseInt(toEnDigits(String(x.number||"")).replace(/[^\d]/g,""),10);
+  if(!isNaN(n)){found=true;if(n>max)max=n}
+ });
+ return found?String(max+1):"";
+}
 function saveInvoice(id){
  const type=$("invType")?.value==="daily"?"daily":"customer";
  const name=$("invName").value.trim()||(type==="daily"?"فاکتور روزانه":"فاکتور جدید"), seller=$("invSeller").value.trim(),date=jalaliToISO($("invDate").value)||new Date().toISOString().slice(0,10),number=$("invNo").value.trim();
  const items=[...document.querySelectorAll("#invoiceRows .invoice-row")].map(r=>({productId:r.querySelector(".inv-product")?.value||"",desc:r.querySelector(".inv-desc")?.value.trim()||"",qty:Number(r.querySelector(".inv-qty")?.value)||0,price:parseMoney(r.querySelector(".inv-price")?.value)})).filter(x=>x.desc||x.qty||x.price);
  if(!items.length)return alert("حداقل یک ردیف فاکتور وارد کن");
- const discount=Math.max(0,parseMoney($("invDiscount").value)),discountPercent=Math.min(100,Math.max(0,Number($("invDiscountPercent").value)||0)),taxRate=Math.max(0,Number($("invTax").value)||0);let paid=Math.max(0,parseMoney($("invPaid").value));
+ if(items.some(x=>!(x.qty>0)))return alert("تعداد هر ردیف کالا/خدمت باید بزرگ‌تر از صفر باشد");
+ /* v1.2.8: قیمت خرید هر کالا در لحظه‌ی فروش snapshot می‌شود (costPriceAtSale)
+    تا گزارش سودآوری بعداً با تغییر قیمت خرید فعلی کالا دستکاری نشود. */
+ for(const it of items){if(it.productId){const pr=data.products.find(x=>x.id===it.productId);it.costPriceAtSale=Number(pr?.buyPrice)||0}}
+ /* کمبود موجودی مانع ثبت فاکتور نمی‌شود، ولی باید به کاربر هشدار داده شود. */
+ const shortages=items.filter(it=>{if(!it.productId)return false;const pr=data.products.find(x=>x.id===it.productId);if(!pr)return false;const already=id?(data.invoices.find(v=>v.id===id)?.items||[]).filter(x=>x.productId===it.productId).reduce((s,x)=>s+(Number(x.qty)||0),0):0;return Number(it.qty||0)>Number(pr.stock||0)+already});
+ if(shortages.length&&!confirm(`موجودی این کالاها کافی نیست: ${shortages.map(x=>x.desc).join("، ")}. با این حال فاکتور ثبت شود؟`))return;
+ let discount,discountPercent,taxRate,paid;
+ try{discount=nonNegativeMoney($("invDiscount").value||0,"تخفیف");discountPercent=validPercent($("invDiscountPercent").value||0,"درصد تخفیف");taxRate=validPercent($("invTax").value||0,"مالیات");paid=nonNegativeMoney($("invPaid").value||0,"مبلغ پرداختی");}catch(e){return alert(e.message)}
+ const subtotal=items.reduce((sum,it)=>sum+(Number(it.qty)*Number(it.price)),0);
+ if(discount>subtotal)return alert("تخفیف مبلغی بیشتر از جمع جزء نیست");
+ const provisional=Math.max(0,Math.round((subtotal-discount)-((subtotal-discount)*discountPercent/100)));
+ const provisionalTotal=Math.round(provisional+(provisional*taxRate/100));
+ if(paid>provisionalTotal)return alert("مبلغ پرداختی بیشتر از مبلغ فاکتور است");
  const customerName=$("invCustomerName")?.value.trim()||"";
  const phone=$("invPhone")?.value.trim()||"";
  const settleAccountId=$("invSettleAccount")?.value||"";
@@ -3464,15 +3351,6 @@ function render(){
  const totalBalance = data.accounts
   .reduce((sum, account) => sum + accountBalance(account.id), 0);
  if($("balance"))$("balance").textContent=money(totalBalance);if($("income"))$("income").textContent=money(inc);if($("expense"))$("expense").textContent=money(exp);
- const openDebt=data.people.filter(p=>p.type==="debt").reduce((s,p)=>s+Math.max(0,(Number(p.amount)||0)-(Number(p.paid)||0)),0);
- const openCredit=data.people.filter(p=>p.type==="credit").reduce((s,p)=>s+Math.max(0,(Number(p.amount)||0)-(Number(p.paid)||0)),0);
- const dayKey=new Date().toISOString().slice(0,10);
- const todayTx=data.transactions.filter(t=>{const d=new Date(t.date);return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===dayKey}).length;
- const lowStock=data.products.filter(p=>Number(p.stock??p.quantity??0)<=Number(p.minStock??p.lowStock??0)).length;
- if($("homeDebt"))$("homeDebt").textContent=money(openDebt);
- if($("homeCredit"))$("homeCredit").textContent=money(openCredit);
- if($("homeTodayTx"))$("homeTodayTx").textContent=fa(todayTx);
- if($("homeLowStock"))$("homeLowStock").textContent=fa(lowStock);
  if($("recent"))$("recent").innerHTML=data.transactions.slice(0,6).map(txHTML).join("")||empty("هنوز تراکنشی ثبت نشده");
  if($("accountList")&&pageActive("accounts"))$("accountList").innerHTML=data.accounts.map(a=>`<div class="item account-item"><div class="account-main"><b>${esc(a.name)}</b><div class="meta">${esc(a.bank||"حساب شخصی")}${a.sender?" • فرستنده: "+esc(a.sender):""}</div>${cardActions(a)}</div><div><strong>${money(accountBalance(a.id))}</strong>${actionButtons("openAccount","deleteAccount",a.id)}<button type="button" title="گزارش Excel" onclick="exportAccountExcel('${a.id}')">📊</button></div></div>`).join("")||empty("هنوز حسابی اضافه نشده");
  if($("transferList")&&pageActive("accounts"))$("transferList").innerHTML=data.transactions.filter(t=>t.type==="transfer").map(transferItemHTML).join("")||empty("هنوز انتقالی ثبت نشده");
@@ -3533,7 +3411,7 @@ function productProfitData(){
   for(const it of inv.items||[]){
    if(!it.productId)continue;
    const p=data.products.find(x=>x.id===it.productId);if(!p)continue;
-   const qty=Number(it.qty)||0,revenue=qty*(Number(it.price)||0),cost=qty*(Number(p.buyPrice)||0);
+   const qty=Number(it.qty)||0,revenue=qty*(Number(it.price)||0),unitCost=Number(it.costPriceAtSale)||Number(p.buyPrice)||0,cost=qty*unitCost;
    const s=stats.get(p.id)||{name:p.name,qty:0,revenue:0,cost:0};
    s.qty+=qty;s.revenue+=revenue;s.cost+=cost;
    stats.set(p.id,s);
@@ -3551,7 +3429,30 @@ function renderProductProfit(){
  const rowHTML=r=>`<div class="report-row"><span>${esc(r.name)}<small>${fa(r.qty)} فروش • حاشیه سود ${fa(Math.round(r.margin))}٪</small></span><strong class="${r.profit>=0?"income":"expense"}">${money(r.profit)}</strong></div>`;
  box.innerHTML=`<div class="report-sub-title">🥇 پرسودترین کالاها</div>${top.map(rowHTML).join("")}<div class="report-sub-title">🥶 کم‌سودترین کالاها</div>${bottom.map(rowHTML).join("")}`;
 }
-function backupPayload(){return {format:"hesabdar-backup",version:2,appVersion:APP_VERSION,createdAt:new Date().toISOString(),data:JSON.parse(JSON.stringify(data))}}
+function backupPayload(){return {format:"hesabdar-backup-data",version:1,appVersion:APP_VERSION,createdAt:new Date().toISOString(),data:JSON.parse(JSON.stringify(data))}}
+/* v1.2.8: رمزنگاری بکاپ — بکاپ خروجی (که قرار است بین گوشی‌ها منتقل شود)
+ * با AES-GCM رمزنگاری می‌شود؛ کلید با PBKDF2/SHA-256 از رمز عبور بکاپ
+ * ساخته می‌شود و هرگز خودِ رمز یا کلید ذخیره نمی‌شود، فقط salt/iv/متن
+ * رمزشده داخل فایل می‌ماند. */
+async function deriveAesKey(password,saltB64){
+ const salt=saltB64?b64ToBytes(saltB64):crypto.getRandomValues(new Uint8Array(16));
+ const base=await crypto.subtle.importKey("raw",new TextEncoder().encode(password),"PBKDF2",false,["deriveKey"]);
+ const key=await crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:120000,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+ return {key,salt:bytesToB64(salt)};
+}
+async function encryptBackupPayload(payload,password){
+ const {key,salt}=await deriveAesKey(password);
+ const iv=crypto.getRandomValues(new Uint8Array(12));
+ const plain=new TextEncoder().encode(JSON.stringify(payload));
+ const cipherBuf=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,plain);
+ return {format:"hesabdar-encrypted-backup",version:1,appVersion:APP_VERSION,createdAt:new Date().toISOString(),salt,iv:bytesToB64(iv),ciphertext:bytesToB64(cipherBuf)};
+}
+async function decryptBackupPayload(container,password){
+ const {key}=await deriveAesKey(password,container.salt);
+ const iv=b64ToBytes(container.iv),cipherBytes=b64ToBytes(container.ciphertext);
+ const plainBuf=await crypto.subtle.decrypt({name:"AES-GCM",iv},key,cipherBytes);
+ return JSON.parse(new TextDecoder().decode(plainBuf));
+}
 /* Bug fix: this used to only do the browser <a download> trick, which
  * relies on the WebView actually handing the click off to Android's
  * download manager. On a Capacitor native build that hand-off is
@@ -3564,11 +3465,17 @@ function backupPayload(){return {format:"hesabdar-backup",version:2,appVersion:A
  * path so the button either genuinely saves a file, or clearly reports
  * failure instead of lying about success. */
 async function exportData(){
- const res=await writeAutoBackupFile(backupPayload());
+ const password=prompt("این بکاپ حاوی اطلاعات مالی شماست. یک رمز عبور برای رمزنگاری فایل تعیین کن (حداقل ۸ کاراکتر؛ این رمز فقط پیش خودت می‌ماند و بدون آن فایل قابل بازیابی نیست):");
+ if(password===null)return;
+ if(password.trim().length<8)return alert("رمز عبور بکاپ باید حداقل ۴ کاراکتر باشد.");
+ let payload;
+ try{payload=await encryptBackupPayload(backupPayload(),password.trim())}
+ catch(e){console.warn("backup encrypt",e);return alert("رمزنگاری بکاپ انجام نشد. دوباره تلاش کن.")}
+ const res=await writeAutoBackupFile(payload);
  if(res?.ok){
-  logEvent("پشتیبان‌گیری","فایل پشتیبان JSON صادر شد • "+res.filename,"settings");
+  logEvent("پشتیبان‌گیری","فایل پشتیبان رمزنگاری‌شده صادر شد • "+res.filename,"settings");
   const where=res.method==="filesystem"?`در پوشه ${res.where} با نام ${res.filename} `:"";
-  alert(`فایل پشتیبان ${where}ساخته شد. آن را به گوشی دیگر منتقل کن و از گزینه بازیابی انتخابش کن.`);
+  alert(`فایل پشتیبان رمزنگاری‌شده ${where}ساخته شد. آن را به گوشی دیگر منتقل کن و هنگام بازیابی، همین رمز عبور را وارد کن. این رمز را حتماً جایی یادداشت کن؛ بدون آن بازیابی ممکن نیست.`);
  }else{
   alert("پشتیبان‌گیری انجام نشد. دوباره تلاش کن؛ اگر باز هم نشد، از «بازیابی آخرین بکاپ خودکار» به‌عنوان جایگزین استفاده کن.");
  }
@@ -3593,7 +3500,7 @@ async function replaceCloudAfterRestore(){
  for(const k of ks){for(const r of (data[k]||[])){r.updatedAt=restoreAt;r.updatedBy=sync.user.uid}}
  data._sync??={tombstones:{}};data._sync.tombstones??={};
  for(const k of ks){for(const id of Object.keys(data._sync.tombstones?.[k]||{}))data._sync.tombstones[k][id]=restoreAt}
- localStorage.setItem(KEY,JSON.stringify(data));
+ persistLocal();
  const col=recordsCollection(),snap=await col.get(),localMap=new Map(recordsFromLocal().map(x=>[x.id,x]));
  for(let i=0;i<snap.docs.length;i+=450){const batch=sync.db.batch();for(const d of snap.docs.slice(i,i+450)){if(!localMap.has(d.id))batch.delete(d.ref)}await batch.commit()}
  const all=recordsFromLocal();sync.dirty.clear();await commitChunks(all);
@@ -3603,32 +3510,50 @@ async function importData(e){
  const input=e?.target,file=input?.files?.[0];if(!file)return;const finish=()=>{if(input)input.value=""};
  try{
   const raw=await readBackupFile(file),parsed=JSON.parse(raw);
-  const restored=parsed?.format==="hesabdar-backup"&&parsed.data&&typeof parsed.data==="object"?parsed.data:parsed;
+  let restored;
+  if(parsed?.format==="hesabdar-encrypted-backup"&&parsed.salt&&parsed.iv&&parsed.ciphertext){
+   let decrypted=null;
+   for(let attempt=0;attempt<3&&!decrypted;attempt++){
+    const pass=prompt(attempt===0?"این بکاپ رمزنگاری‌شده است. رمز عبور بکاپ را وارد کن:":"رمز عبور اشتباه بود؛ دوباره تلاش کن:");
+    if(pass===null){finish();return}
+    try{const inner=await decryptBackupPayload(parsed,pass.trim());decrypted=inner?.data&&typeof inner.data==="object"?inner.data:inner}catch(e){decrypted=null}
+   }
+   if(!decrypted)throw new Error("wrong-password");
+   restored=decrypted;
+  }else{
+   restored=parsed?.format==="hesabdar-backup"&&parsed.data&&typeof parsed.data==="object"?parsed.data:parsed;
+   if(!confirm("این فایل پشتیبان رمزنگاری‌نشده است (نسخه قدیمی). ادامه می‌دهی؟"))return finish();
+  }
   if(!restored||typeof restored!=="object"||Array.isArray(restored))throw new Error("invalid-backup");
   const previousLock={pin:data.pin,pinHash:data.pinHash,pinSalt:data.pinSalt,patternHash:data.patternHash,patternSalt:data.patternSalt,lockMethod:data.lockMethod,biometricEnabled:data.biometricEnabled,webauthnCredId:data.webauthnCredId};
   const wasHydrating=sync.hydrating;sync.hydrating=true;
   try{
-   data=JSON.parse(JSON.stringify(restored));normalizeData();Object.assign(data,previousLock);data.audit??=[];data.notes??=[];
+   data=JSON.parse(JSON.stringify(restored));data=migrateData(data);normalizeData();Object.assign(data,previousLock);data.audit??=[];data.notes??=[];
    // Mark the restore as a complete replacement locally before any async work.
-   localStorage.setItem(KEY,JSON.stringify(data));render();
+   persistLocal();render();
    if(sync.unsubscribe){sync.unsubscribe();sync.unsubscribe=null}
    sync.dirty.clear();
    if(sync.user&&sync.db)await replaceCloudAfterRestore();
    // Verify the exact restored collections, not just two arrays.
-   const checkBefore=JSON.parse(localStorage.getItem(KEY)||"null");
-   for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats"]){if(!Array.isArray(checkBefore?.[k]))throw new Error("storage-verification-failed:"+k)}
-   const check=JSON.parse(localStorage.getItem(KEY)||"null");
-   if(!check||!Array.isArray(check.accounts)||!Array.isArray(check.transactions))throw new Error("storage-verification-failed");
-   data=check;normalizeData();render();localStorage.setItem(KEY,JSON.stringify(data));
-   logEvent("بازیابی اطلاعات","پشتیبان وارد شد و اطلاعات روی این گوشی جایگزین شد","settings");localStorage.setItem(KEY,JSON.stringify(data));
+   for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats"]){if(!Array.isArray(data?.[k]))throw new Error("storage-verification-failed:"+k)}
+   normalizeData();render();persistLocal();
+   logEvent("بازیابی اطلاعات","پشتیبان وارد شد و اطلاعات روی این گوشی جایگزین شد","settings");persistLocal();
   }finally{
    sync.hydrating=wasHydrating;
-   if(sync.user&&sync.db&&!sync.unsubscribe){sync.unsubscribe=recordsCollection().onSnapshot(snap=>{if(sync.hydrating)return;const remote=snap.docs.map(d=>d.data());if(mergeCloud(remote)){localStorage.setItem(KEY,JSON.stringify(data));render();syncSave()}setSyncStatus("☁️ آنلاین • همگام‌سازی لحظه‌ای")},err=>setSyncStatus("⚠️ همگام‌سازی: "+(err.code||err.message)))}
+   if(sync.user&&sync.db&&!sync.unsubscribe){sync.unsubscribe=recordsCollection().onSnapshot(snap=>{if(sync.hydrating)return;const remote=snap.docs.map(d=>d.data());if(mergeCloud(remote)){persistLocal();render();syncSave()}setSyncStatus("☁️ آنلاین • همگام‌سازی لحظه‌ای")},err=>setSyncStatus("⚠️ همگام‌سازی: "+(err.code||err.message)))}
   }
   finish();alert("بازیابی با موفقیت انجام شد. اطلاعات فایل پشتیبان روی این گوشی جایگزین شد.");
  }catch(err){finish();console.error("backup restore",err);
-  const msg=err&&err.message==="empty-backup"?"بازیابی انجام نشد: فایل انتخاب‌شده خوانده نشد (خالی بود). اگر فایل از تلگرام/بلوتوث دریافت شده، اول آن را دانلود کن (نه فقط پیش‌نمایش) و از پوشه Download انتخابش کن.":"بازیابی انجام نشد: فایل پشتیبان خوانده یا معتبر نیست. فایل JSON اصلی را دوباره انتخاب کن.";
+  const msg=err&&err.message==="empty-backup"?"بازیابی انجام نشد: فایل انتخاب‌شده خوانده نشد (خالی بود). اگر فایل از تلگرام/بلوتوث دریافت شده، اول آن را دانلود کن (نه فقط پیش‌نمایش) و از پوشه Download انتخابش کن.":err&&err.message==="wrong-password"?"بازیابی انجام نشد: رمز عبور بکاپ اشتباه بود.":"بازیابی انجام نشد: فایل پشتیبان خوانده یا معتبر نیست. فایل JSON اصلی را دوباره انتخاب کن.";
   alert(msg)}
 }
 function clearData(){if(confirm("همه اطلاعات حذف شود؟")){const pin=data.pin,pinHash=data.pinHash,pinSalt=data.pinSalt,patternHash=data.patternHash,patternSalt=data.patternSalt,lockMethod=data.lockMethod,biometricEnabled=data.biometricEnabled,webauthnCredId=data.webauthnCredId,lang=data.lang;data=blankData();data.pin=pin;data.pinHash=pinHash;data.pinSalt=pinSalt;data.patternHash=patternHash;data.patternSalt=patternSalt;data.lockMethod=lockMethod;data.biometricEnabled=biometricEnabled;data.webauthnCredId=webauthnCredId;data.lang=lang;save();logEvent("پاک کردن اطلاعات","اطلاعات برنامه پاک شد","delete");}}
-(async function initApp(){normalizeData();purgeOldTrash();setupReminderNotificationActions();applyAccentThemeOnLoad();await migratePinSecurity();showLock();render();applyDashboardConfig();applyAppMode();renderBrandingInSettings();try{const rid=new URLSearchParams(location.search).get("reminder");if(rid)setTimeout(()=>{const rr=(data.reminders||[]).find(x=>x.id===rid);if(rr?.sourcePersonId)openPerson(rr.sourcePersonId);else if(rr)openReminder(rr.id)},500)}catch(e){}renderSettingsFeatures();applyLanguage();maybeAutoBackup("اجرای برنامه");processRecurringTransactions();logEvent("اجرای برنامه","برنامه حسابدار اجرا شد","system");await initSync();if(!sync.auth){[4000,12000,30000].forEach(ms=>setTimeout(()=>{if(!sync.auth)initSync()},ms))}syncAllNotesToReminders().catch(console.error);syncAllChecksToReminders().catch(console.error);syncAllPeopleToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error);startUpdateChecker();startReminderChecker();if(!hasLockCode())setTimeout(showWhatsNewOnce,320);})();
+(async function initApp(){
+  if(globalThis.HesabYarStorage){
+    try{
+      const hydrated=await HesabYarStorage.hydrate(data||blankData());
+      if(hydrated&&hydrated.schemaVersion){data=migrateData(hydrated);}
+      if(data){persistLocal();try{localStorage.removeItem(KEY);for(const k of LEGACY_KEYS)localStorage.removeItem(k)}catch(e){}}
+    }catch(e){console.warn("IndexedDB hydration failed",e);if(!data)alert("حافظه امن برنامه در دسترس نیست؛ اطلاعات فعلی پاک نخواهد شد.");}
+  }
+  normalizeData();purgeOldTrash();setupReminderNotificationActions();applyAccentThemeOnLoad();await migratePinSecurity();showLock();render();applyDashboardConfig();applyAppMode();renderBrandingInSettings();try{const rid=new URLSearchParams(location.search).get("reminder");if(rid)setTimeout(()=>{const rr=(data.reminders||[]).find(x=>x.id===rid);if(rr?.sourcePersonId)openPerson(rr.sourcePersonId);else if(rr)openReminder(rr.id)},500)}catch(e){}renderSettingsFeatures();applyLanguage();maybeAutoBackup("اجرای برنامه");processRecurringTransactions();logEvent("اجرای برنامه","برنامه حسابدار اجرا شد","system");await initSync();if(!sync.auth){[4000,12000,30000].forEach(ms=>setTimeout(()=>{if(!sync.auth)initSync()},ms))}syncAllNotesToReminders().catch(console.error);syncAllChecksToReminders().catch(console.error);syncAllPeopleToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error);startUpdateChecker();startReminderChecker();if(!hasLockCode())setTimeout(showWhatsNewOnce,320);})();

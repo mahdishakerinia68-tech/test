@@ -1,14 +1,35 @@
 {
   "name": "hesabyar",
-  "version": "1.2.5",
+  "version": "1.2.8",
   "private": true,
   "description": "حساب‌یار - Web/PWA personal and business accounting application",
+  "type": "module",
   "scripts": {
-    "dev": "npx serve .",
     "build": "npm run validate",
-    "check": "node --check app.js",
+    "sync": "npx cap sync",
+    "android": "npx cap open android",
+    "ios": "npx cap open ios",
+    "check": "node --check app.js && node --check src/core/storage-runtime.js",
     "check:sw": "node --check sw.js",
     "check:bridges": "node --check capacitor-biometric-bridge.js && node --check capacitor-filesystem-bridge.js && node --check capacitor-local-notifications-bridge.js",
-    "validate": "npm run check && npm run check:sw && npm run check:bridges"
+    "validate": "npm run check && npm run check:sw && npm run check:bridges && node scripts/security-check.mjs",
+    "test": "node tests/run.mjs",
+    "test:watch": "vitest",
+    "e2e": "node tests/e2e-smoke.mjs",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/ios": "^6.2.0",
+    "@capacitor/filesystem": "^6.0.0",
+    "@capacitor/local-notifications": "^6.0.0",
+    "@aparajita/capacitor-biometric-auth": "^8.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0",
+    "eslint": "^9.0.0",
+    "playwright": "^1.50.0",
+    "vitest": "^2.1.0"
   }
 }

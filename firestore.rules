@@ -1,67 +1,13 @@
 rules_version = '2';
-
-// -----------------------------------------------------------------------
-// قوانین امنیتی Firestore برای «حسابدار» + سیستم لایسنس
-//
-// ساختار داده:
-//   /licenses/{uid}   → یک سند به‌ازای هر کاربر، فقط توسط ادمین نوشته می‌شود
-//        status:    "trial" | "active" | "expired" | "revoked"
-//        expiresAt: Timestamp یا null (null = لایسنس دائمی/لایف‌تایم)
-//        plan, maxDevices, note, createdAt, updatedAt
-//
-//   /users/{uid}                → سند اصلی هر کاربر (قبلاً در اپ وجود داشت)
-//   /users/{uid}/records/{id}   → رکوردهای سینک‌شده (تراکنش‌ها، فاکتورها و...)
-//        این دو مسیر فقط وقتی خواندنی/نوشتنی‌اند که لایسنس کاربر فعال باشد.
-//
-// نکته مهم: لیست UID های ادمین را در ADMIN_UIDS پایین با UID واقعی خودتان
-// جایگزین کنید (از Firebase Console → Authentication یا از پنل ادمین قابل
-// مشاهده است).
-// -----------------------------------------------------------------------
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(uid) {
-      return isSignedIn() && request.auth.uid == uid;
-    }
-
-    // 👇 UID اکانت(های) ادمین خودتان را اینجا جایگزین کنید
-    function isAdmin() {
-      return isSignedIn() && request.auth.uid in [
-        "REPLACE_WITH_YOUR_ADMIN_UID_1"
-        // , "REPLACE_WITH_YOUR_ADMIN_UID_2"
-      ];
-    }
-
-    function licenseDoc(uid) {
-      return get(/databases/$(database)/documents/licenses/$(uid));
-    }
-
-    function hasActiveLicense(uid) {
-      return exists(/databases/$(database)/documents/licenses/$(uid)) &&
-             licenseDoc(uid).data.status in ["active", "trial"] &&
-             (
-               licenseDoc(uid).data.expiresAt == null ||
-               licenseDoc(uid).data.expiresAt > request.time
-             );
-    }
-
-    // --- لایسنس‌ها: فقط ادمین می‌نویسد، کاربر فقط سند خودش را می‌خواند ---
-    match /licenses/{uid} {
-      allow read: if isOwner(uid) || isAdmin();
-      allow write: if isAdmin();
-    }
-
-    // --- داده‌های اصلی کاربر: مشروط به لایسنس فعال ---
-    match /users/{uid} {
-      allow read, write: if isOwner(uid) && hasActiveLicense(uid);
-
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
       match /records/{recordId} {
-        allow read, write: if isOwner(uid) && hasActiveLicense(uid);
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      match /devices/{deviceId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
   }

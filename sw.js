@@ -1,4 +1,4 @@
-const CACHE = "hesabyar-1-2-5-offline-v1";
+const CACHE = "hesabdar-1-2-8-offline-v3";
 const ASSETS = [
   "./",
   "./index.html",
@@ -12,11 +12,11 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", event => {
-  event.waitUntil(
-    caches.open(CACHE)
-      .then(cache => cache.addAll(ASSETS))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil((async()=>{
+    const cache=await caches.open(CACHE);
+    for(const asset of ASSETS){try{const response=await fetch(asset,{cache:"no-store"});if(response&&response.ok&&response.type==="basic")await cache.put(asset,response.clone());}catch(e){}}
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", event => {
@@ -52,17 +52,36 @@ self.addEventListener("fetch", event => {
     return;
   }
 
+  // Core app files (app.js, style.css) must never be served stale from an
+  // old cache without a network check first — otherwise a released fix can
+  // sit uninstalled indefinitely on a device that's usually online. Network
+  // first, cache fallback only for offline use.
+  if (url.pathname.endsWith("/app.js") || url.pathname.endsWith("/style.css")) {
+    event.respondWith(
+      fetch(event.request, { cache: "no-store" })
+        .then(response => {
+          if (response && response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE).then(cache => cache.put(event.request, copy)).catch(() => {});
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
   // Only same-origin application assets are eligible for the offline cache.
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
       return fetch(event.request).then(response => {
-        if (response && response.ok && url.origin === self.location.origin) {
+        if (response && response.ok && response.type === "basic" && url.origin === self.location.origin) {
           const copy = response.clone();
           caches.open(CACHE).then(cache => cache.put(event.request, copy)).catch(() => {});
         }
         return response;
-      });
+      }).catch(() => cached || Response.error());
     })
   );
 });
