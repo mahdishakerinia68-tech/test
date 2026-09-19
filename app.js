@@ -600,7 +600,19 @@ function renderAudit(){
   box.innerHTML=logs.map(e=>`<div class="audit-item"><div class="audit-icon">${auditIcon(e.kind)}</div><div class="audit-main"><b>${esc(e.action)}</b>${e.detail?`<div class="meta">${esc(e.detail)}</div>`:""}<small>${new Intl.DateTimeFormat("fa-IR-u-ca-persian",{dateStyle:"short",timeStyle:"short"}).format(new Date(e.at))}</small></div></div>`).join("")||empty("هنوز گزارشی ثبت نشده است");
 }
 function clearAudit(){if(!data.audit?.length)return alert("گزارشی برای پاک کردن وجود ندارد");if(confirm("همه گزارش‌های فعالیت پاک شوند؟")){const old=data.audit.slice();data.audit=[];for(const e of old)markDirty("audit",e.id,true,{id:e.id},new Date().toISOString());save();logEvent("گزارش‌ها پاک شدند","سابقه فعالیت قبلی حذف شد","system")}}
-function persistLocal(){try{if(!globalThis.HesabYarStorage)throw new Error("IndexedDB storage runtime unavailable");storageWriteQueue=storageWriteQueue.then(()=>HesabYarStorage.saveSnapshot(data)).catch(e=>{console.warn("IndexedDB save failed",e)});return true}catch(e){console.warn("IndexedDB save failed",e);return false}}
+/* v1.2.9-b (t1): persistLocal() used to swallow a failed IndexedDB write
+ * completely silently (just a console.warn) — it returns `true` the
+ * instant the write is *queued*, before the write itself has actually
+ * run, so the caller has no way to know it failed. On a device/browser
+ * where IndexedDB is blocked or unavailable (private-mode restrictions,
+ * some webviews, a corrupted DB) this meant: the app "loads fine", every
+ * save looks like it worked, and the data is silently gone on next
+ * launch — no error, nothing. lastPersistFailed + this alert make that
+ * failure visible instead of invisible, without popping an alert() on
+ * every single keystroke-save while it's still failing. */
+const SAVE_FAILED_MSG="⚠️ اطلاعات این تغییر ذخیره نشد (دسترسی به حافظه‌ی داخلی برنامه ممکن نیست).\nاگر در حالت مرور خصوصی (Private/Incognito) هستی از آن خارج شو، یا برنامه را از یک آدرس واقعی (نه فایل محلی) باز کن؛ در غیر این صورت مرورگر را عوض کن.";
+let lastPersistFailed=false;
+function persistLocal(){try{if(!globalThis.HesabYarStorage)throw new Error("IndexedDB storage runtime unavailable");storageWriteQueue=storageWriteQueue.then(()=>HesabYarStorage.saveSnapshot(data)).then(()=>{lastPersistFailed=false}).catch(e=>{console.warn("IndexedDB save failed",e);if(!lastPersistFailed){lastPersistFailed=true;alert(SAVE_FAILED_MSG)}});return true}catch(e){console.warn("IndexedDB save failed",e);return false}}
 /* v1.2.9 (t1): returns the actual write promise so callers that need to
  * KNOW the save landed (e.g. before deleting the old localStorage backup)
  * can await it, instead of trusting persistLocal()'s optimistic true. */
