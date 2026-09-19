@@ -1,7 +1,7 @@
 const KEY="hesabdar-v35";
 const LEGACY_KEYS=["hesabdar-v40","hesabdar-v20","hesabdar-v11"];
 const SYNC_KEY="hesabdar-firebase-config-v1";
-const APP_VERSION="1.2.8";
+const APP_VERSION="t1";
 const AUTO_BACKUP_KEY="hesabdar-auto-backups-v1";
 const AUTO_BACKUP_ENABLED_KEY="hesabdar-auto-backup-enabled-v2";
 const AUTO_BACKUP_MS=6*60*60*1000;
@@ -123,6 +123,10 @@ const DEFAULT_SYNC_CONFIG={
   measurementId:"G-562NVEJKZT"
 };
 let sync={app:null,auth:null,db:null,user:null,unsubscribe:null,ready:false,saving:false,queued:false,hydrating:false,authListener:false,dirty:new Map()};
+/* v1.2.9 (t1): the IndexedDB write queue must exist before the first save
+ * ever runs, or persistLocal() throws a ReferenceError on every call and
+ * every save silently fails with the "storage full" message. */
+let storageWriteQueue=Promise.resolve();
 function syncConfig(){try{return JSON.parse(localStorage.getItem(SYNC_KEY)||"null")||DEFAULT_SYNC_CONFIG}catch{return DEFAULT_SYNC_CONFIG}}
 function autoBackupEnabled(){return localStorage.getItem(AUTO_BACKUP_ENABLED_KEY)!=="false"}
 function setAutoBackupEnabled(v){localStorage.setItem(AUTO_BACKUP_ENABLED_KEY,v?"true":"false"); if(v) createAutoBackup("فعال‌سازی پشتیبان خودکار"); logEvent(v?"پشتیبان خودکار فعال شد":"پشتیبان خودکار غیرفعال شد",v?"از این پس هر ۶ ساعت یک فایل پشتیبان واقعی داخل گوشی ساخته می‌شود":"پشتیبان‌گیری خودکار خاموش شد","settings",false); renderSettingsFeatures()}
@@ -184,13 +188,43 @@ async function writeAutoBackupFile(payload){
   return {ok:true,method:"download",filename,where:"Download"};
  }catch(e){console.warn("auto backup file download failed",e);return {ok:false}}
 }
-function createAutoBackup(){return false;}
+/* v1.2.9 (t1): getAutoBackupInfo() didn't exist (ReferenceError on every
+ * launch, inside maybeAutoBackup) and createAutoBackup() was a stub that
+ * always returned false, so no backup file was ever actually written even
+ * though the settings screen advertised one every 6 hours. Both are now
+ * real: the local history list (AUTO_BACKUP_KEY) is the source of truth
+ * for "when was the last backup", and createAutoBackup writes a real file
+ * (via writeAutoBackupFile) plus keeps the last 5 snapshots locally so
+ * "restore last backup" keeps working exactly as before. */
+function getAutoBackupInfo(){
+ try{
+  const list=JSON.parse(localStorage.getItem(AUTO_BACKUP_KEY)||"[]");
+  return list.length?new Date(list[0].at):null;
+ }catch(e){return null}
+}
+async function createAutoBackup(reason){
+ try{
+  const snapshot=globalThis.HesabYarStorage?await HesabYarStorage.exportDatabaseSnapshot():JSON.parse(JSON.stringify(data));
+  snapshot.schemaVersion=data.schemaVersion;
+  const at=Date.now();
+  try{
+   const list=JSON.parse(localStorage.getItem(AUTO_BACKUP_KEY)||"[]");
+   list.unshift({at,data:snapshot});
+   while(list.length>5)list.pop();
+   localStorage.setItem(AUTO_BACKUP_KEY,JSON.stringify(list));
+  }catch(e){console.warn("auto backup history save failed",e)}
+  const payload={...snapshot,exportedAt:new Date(at).toISOString(),appVersion:APP_VERSION,reason:reason||""};
+  const res=await writeAutoBackupFile(payload);
+  if(res&&res.ok)localStorage.setItem(AUTO_BACKUP_LAST_FILE_KEY,JSON.stringify({filename:res.filename,where:res.where,at}));
+  return !!(res&&res.ok);
+ }catch(e){console.warn("createAutoBackup failed",e);return false}
+}
 
 function maybeAutoBackup(reason){
  if(!autoBackupEnabled())return false;
  const last=getAutoBackupInfo();
  if(last&&Date.now()-last.getTime()<AUTO_BACKUP_MS)return false;
- return createAutoBackup(reason);
+ return createAutoBackup(reason).catch(e=>{console.warn("auto backup failed",e);return false});
 }
 function getAutoBackupFileInfo(){try{return JSON.parse(localStorage.getItem(AUTO_BACKUP_LAST_FILE_KEY)||"null")}catch{return null}}
 function restoreLatestAutoBackup(){try{const list=JSON.parse(localStorage.getItem(AUTO_BACKUP_KEY)||"[]"); if(!list.length)return alert("هنوز پشتیبان خودکاری وجود ندارد."); if(!confirm("آخرین پشتیبان خودکار جایگزین اطلاعات فعلی شود؟"))return; data=list[0].data; normalizeData(); save(); logEvent("بازیابی پشتیبان خودکار",new Date(list[0].at).toLocaleString("fa-IR"),"settings"); alert("آخرین پشتیبان خودکار بازیابی شد.")}catch(e){alert("پشتیبان خودکار قابل بازیابی نیست.")}}
@@ -511,7 +545,15 @@ try{
 data=data||blankData();
 normalizeData();
 data.accounts??=[];
-if(!data.accounts.some(a=>String(a.name||"").trim()==="کیف پول نقدی")){const cash=touch({id:uid(),name:"کیف پول نقدی",bank:"",sender:"",card:"",balance:0,default:true});data.accounts.unshift(cash);persistLocal();}
+/* v1.2.9 (t1): this block runs synchronously at parse time, BEFORE
+ * initApp() has had a chance to hydrate real data from IndexedDB. It used
+ * to call persistLocal() right here — harmless while persistLocal() was
+ * silently broken (see storageWriteQueue above), but once that bug is
+ * fixed this write races the async hydration read and can persist this
+ * placeholder blank state over real saved data. So: just seed the
+ * in-memory default here; the actual write happens once in initApp(),
+ * after hydration has settled on the real `data`. */
+if(!data.accounts.some(a=>String(a.name||"").trim()==="کیف پول نقدی")){const cash=touch({id:uid(),name:"کیف پول نقدی",bank:"",sender:"",card:"",balance:0,default:true});data.accounts.unshift(cash);}
 data.transactions??=[];data.people??=[];data.customers??=[];data.products??=[];data.reminders??=[];data.notes??=[];data.checks??=[];data.invoices??=[];data.audit??=[];data.trash??=[];data.expenseCats??=defaultsExpense.map((name,i)=>({id:"e"+i,name,children:[]}));data.incomeCats??=defaultsIncome.map((name,i)=>({id:"i"+i,name,children:[]}));data.pin="";data.pinHash=typeof data.pinHash==="string"?data.pinHash:"";data.pinSalt=typeof data.pinSalt==="string"?data.pinSalt:"";data.patternHash=typeof data.patternHash==="string"?data.patternHash:"";data.patternSalt=typeof data.patternSalt==="string"?data.patternSalt:"";data.lockMethod=(data.lockMethod==="pattern")?"pattern":"pin";data.biometricEnabled=!!data.biometricEnabled;data.webauthnCredId=typeof data.webauthnCredId==="string"?data.webauthnCredId:"";data.lang=(data.lang==="en")?"en":"fa";data.branding??={storeName:"",logo:"",stamp:"",signature:""};data.branding.storeName??="";data.branding.logo??="";data.branding.stamp??="";data.branding.signature??="";data.yearSettlements??={};data._sync??={tombstones:{}};data._sync.tombstones??={};for(const k of ["accounts","transactions","people","customers","products","reminders","notes","checks","invoices","expenseCats","incomeCats"]){for(const r of data[k]){r.id??=uid();r.updatedAt??=new Date().toISOString()}}for(const c of [...data.expenseCats,...data.incomeCats]){c.children??=[];for(const ch of c.children){ch.id??=uid()}}
 // Normalize older people records so saved debtors/creditors always render correctly.
 for(const p of data.people){if(p.type==="debtor"||p.type==="debtors"||p.type==="بدهکار")p.type="debt";if(p.type==="creditor"||p.type==="creditors"||p.type==="طلبکار"||p.type==="بستانکار")p.type="credit";if(p.type!=="debt"&&p.type!=="credit")p.type="debt";p.amount=Number(p.amount)||0;p.paid=Number(p.paid)||0;p.name=String(p.name||"").trim()} 
@@ -558,7 +600,11 @@ function renderAudit(){
   box.innerHTML=logs.map(e=>`<div class="audit-item"><div class="audit-icon">${auditIcon(e.kind)}</div><div class="audit-main"><b>${esc(e.action)}</b>${e.detail?`<div class="meta">${esc(e.detail)}</div>`:""}<small>${new Intl.DateTimeFormat("fa-IR-u-ca-persian",{dateStyle:"short",timeStyle:"short"}).format(new Date(e.at))}</small></div></div>`).join("")||empty("هنوز گزارشی ثبت نشده است");
 }
 function clearAudit(){if(!data.audit?.length)return alert("گزارشی برای پاک کردن وجود ندارد");if(confirm("همه گزارش‌های فعالیت پاک شوند؟")){const old=data.audit.slice();data.audit=[];for(const e of old)markDirty("audit",e.id,true,{id:e.id},new Date().toISOString());save();logEvent("گزارش‌ها پاک شدند","سابقه فعالیت قبلی حذف شد","system")}}
-function persistLocal(){try{if(!globalThis.HesabYarStorage)throw new Error("IndexedDB storage runtime unavailable");storageWriteQueue=storageWriteQueue.then(()=>HesabYarStorage.saveSnapshot(data));return true}catch(e){console.warn("IndexedDB save failed",e);return false}}
+function persistLocal(){try{if(!globalThis.HesabYarStorage)throw new Error("IndexedDB storage runtime unavailable");storageWriteQueue=storageWriteQueue.then(()=>HesabYarStorage.saveSnapshot(data)).catch(e=>{console.warn("IndexedDB save failed",e)});return true}catch(e){console.warn("IndexedDB save failed",e);return false}}
+/* v1.2.9 (t1): returns the actual write promise so callers that need to
+ * KNOW the save landed (e.g. before deleting the old localStorage backup)
+ * can await it, instead of trusting persistLocal()'s optimistic true. */
+function persistLocalAwaitable(){if(!globalThis.HesabYarStorage)return Promise.reject(new Error("IndexedDB storage runtime unavailable"));return storageWriteQueue=storageWriteQueue.then(()=>HesabYarStorage.saveSnapshot(data))}
 const STORAGE_FULL_MSG="⚠️ حافظه ذخیره‌سازی دستگاه پر شده و تغییرات ذخیره نشد.\nبرای آزاد شدن فضا از تنظیمات، یک پشتیبان بگیر و چند عکس پیوست قدیمی (رسید/تراکنش) را حذف کن.";
 function save(){
  if(!persistLocal()){alert(STORAGE_FULL_MSG);return}
@@ -3467,7 +3513,7 @@ async function decryptBackupPayload(container,password){
 async function exportData(){
  const password=prompt("این بکاپ حاوی اطلاعات مالی شماست. یک رمز عبور برای رمزنگاری فایل تعیین کن (حداقل ۸ کاراکتر؛ این رمز فقط پیش خودت می‌ماند و بدون آن فایل قابل بازیابی نیست):");
  if(password===null)return;
- if(password.trim().length<8)return alert("رمز عبور بکاپ باید حداقل ۴ کاراکتر باشد.");
+ if(password.trim().length<8)return alert("رمز عبور بکاپ باید حداقل ۸ کاراکتر باشد.");
  let payload;
  try{payload=await encryptBackupPayload(backupPayload(),password.trim())}
  catch(e){console.warn("backup encrypt",e);return alert("رمزنگاری بکاپ انجام نشد. دوباره تلاش کن.")}
@@ -3553,7 +3599,15 @@ function clearData(){if(confirm("همه اطلاعات حذف شود؟")){const 
     try{
       const hydrated=await HesabYarStorage.hydrate(data||blankData());
       if(hydrated&&hydrated.schemaVersion){data=migrateData(hydrated);}
-      if(data){persistLocal();try{localStorage.removeItem(KEY);for(const k of LEGACY_KEYS)localStorage.removeItem(k)}catch(e){}}
+      /* v1.2.9 (t1): only erase the old localStorage backup once the
+       * IndexedDB write is confirmed to have actually landed — previously
+       * this deleted it unconditionally, so a failed/queued write (see
+       * persistLocal) could lose data with no fallback left. */
+      if(data){try{await persistLocalAwaitable();try{localStorage.removeItem(KEY);for(const k of LEGACY_KEYS)localStorage.removeItem(k)}catch(e){}}catch(e){console.warn("IndexedDB migration save failed; keeping legacy localStorage backup",e)}}
     }catch(e){console.warn("IndexedDB hydration failed",e);if(!data)alert("حافظه امن برنامه در دسترس نیست؛ اطلاعات فعلی پاک نخواهد شد.");}
   }
-  normalizeData();purgeOldTrash();setupReminderNotificationActions();applyAccentThemeOnLoad();await migratePinSecurity();showLock();render();applyDashboardConfig();applyAppMode();renderBrandingInSettings();try{const rid=new URLSearchParams(location.search).get("reminder");if(rid)setTimeout(()=>{const rr=(data.reminders||[]).find(x=>x.id===rid);if(rr?.sourcePersonId)openPerson(rr.sourcePersonId);else if(rr)openReminder(rr.id)},500)}catch(e){}renderSettingsFeatures();applyLanguage();maybeAutoBackup("اجرای برنامه");processRecurringTransactions();logEvent("اجرای برنامه","برنامه حسابدار اجرا شد","system");await initSync();if(!sync.auth){[4000,12000,30000].forEach(ms=>setTimeout(()=>{if(!sync.auth)initSync()},ms))}syncAllNotesToReminders().catch(console.error);syncAllChecksToReminders().catch(console.error);syncAllPeopleToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error);startUpdateChecker();startReminderChecker();if(!hasLockCode())setTimeout(showWhatsNewOnce,320);})();
+  normalizeData();
+  /* Flush the now-settled `data` (hydrated real data, or the seeded
+   * blank-with-default-wallet for a brand-new install) to IndexedDB once,
+   * here — after hydration/migration is fully resolved, never before. */
+  persistLocal();purgeOldTrash();setupReminderNotificationActions();applyAccentThemeOnLoad();await migratePinSecurity();showLock();render();applyDashboardConfig();applyAppMode();renderBrandingInSettings();try{const rid=new URLSearchParams(location.search).get("reminder");if(rid)setTimeout(()=>{const rr=(data.reminders||[]).find(x=>x.id===rid);if(rr?.sourcePersonId)openPerson(rr.sourcePersonId);else if(rr)openReminder(rr.id)},500)}catch(e){}renderSettingsFeatures();applyLanguage();maybeAutoBackup("اجرای برنامه");processRecurringTransactions();logEvent("اجرای برنامه","برنامه حسابدار اجرا شد","system");await initSync();if(!sync.auth){[4000,12000,30000].forEach(ms=>setTimeout(()=>{if(!sync.auth)initSync()},ms))}syncAllNotesToReminders().catch(console.error);syncAllChecksToReminders().catch(console.error);syncAllPeopleToReminders().catch(console.error);rescheduleAllNativeReminders().catch(console.error);startUpdateChecker();startReminderChecker();if(!hasLockCode())setTimeout(showWhatsNewOnce,320);})();
