@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { positiveMoney, nonNegativeMoney, validPercent, validateInvoice } from '../src/core/validation.js';
+import { migrateData, CURRENT_SCHEMA_VERSION } from '../src/core/migrations.js';
+import { invoiceSubtotal, invoiceTotal, invoiceRemaining } from '../src/modules/invoices.js';
+import { calculateStockDifference } from '../src/modules/inventory.js';
+import { productProfit } from '../src/reports/inventory-profit.js';
+import { compareRecords } from '../src/sync/conflict-resolution.js';
+assert.equal(positiveMoney('۱۲۳'),123); assert.equal(nonNegativeMoney('0'),0); assert.equal(validPercent(100),100); assert.throws(()=>positiveMoney('-1'));
+const inv={items:[{qty:2,price:100},{qty:1,price:50}],discount:20,discountPercent:10,taxRate:10,paid:50};assert.equal(invoiceSubtotal(inv),250);assert.equal(invoiceTotal(inv),228);assert.equal(invoiceRemaining(inv),178);
+assert.throws(()=>validateInvoice({...inv,paid:999}));
+const migrated=migrateData({schemaVersion:1,accounts:null});assert.equal(migrated.schemaVersion,CURRENT_SCHEMA_VERSION);assert.deepEqual(migrated.accounts,[]);
+const diff=calculateStockDifference({items:[{productId:'p',qty:5}]},{items:[{productId:'p',qty:7}]});assert.equal(diff.get('p'),-2);
+assert.equal(productProfit([{items:[{productId:'p',qty:2,price:100,costPriceAtSale:60}]}])[0].profit,80);
+assert.equal(compareRecords({revision:2,updatedAt:'2026-01-01',deviceId:'a'},{revision:1}),1);
+console.log('tests: PASS (core financial/security/migration/conflict suite)');
